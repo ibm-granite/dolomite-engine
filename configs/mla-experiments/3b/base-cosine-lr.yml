@@ -103,3 +103,7 @@ distributed_args:
   distributed_backend: torch
   stage: 3
   zero_hpz_partition_size: 8
+
+load_args:
+  load_path: /proj/checkpoints/mayank/mla-experiments/3b-base-cosine
+  iteration: 10000

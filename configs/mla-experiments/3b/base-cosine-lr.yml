@@ -77,9 +77,12 @@ save_args:
 logging_args:
   log_interval: 10
   experiments_tracker_name: wandb
+  wandb_args:
+    project: multilayer-attention
+    name: base-3b-cosine
 
 training_parameters:
-  num_training_steps: 250000
+  num_training_steps: 20000
   eval_interval: 2500000
   micro_batch_size: 4
   gradient_accumulation_steps: 4
@@ -103,7 +106,3 @@ distributed_args:
   distributed_backend: torch
   stage: 3
   zero_hpz_partition_size: 8
-
-load_args:
-  load_path: /proj/checkpoints/mayank/mla-experiments/3b-base-cosine
-  iteration: 10000

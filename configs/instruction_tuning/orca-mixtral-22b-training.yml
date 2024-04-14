@@ -1,0 +1,50 @@
+datasets:
+  - class_name: SlimOrcaDataset
+    data_name: dolly
+    output_format: " __output__"
+    data_sampling_ratio: 1
+    # max_input_tokens: 1536
+    # max_output_tokens: 512
+
+model_args:
+  model_name: bigcode/starcoderbase-1b
+  # model_name: /proj/checkpoints/mayank/Mixtral-8x22B-v0.1-moe
+  model_class: AutoModelForCausalLM
+  dtype: bfloat16
+  efficient_cpu_initialization: true
+  # attention_implementation: flash_attention_2
+  # use_padding_free_transformer: true
+
+tuning_args:
+  tuning_method: full_finetuning
+
+logging_args:
+  experiment_name: gma-bloom-560m-dolly
+
+save_args:
+  save_path: /proj/checkpoints/mayank/mixtral-training-checkpoints/
+  save_interval: 2500
+
+training_parameters:
+  num_training_steps: 22500
+  eval_interval: 2500
+  batch_size_per_gpu: 1
+  gradient_accumulation_steps: 1
+  eval_during_training: false
+
+optimizer_args:
+  class_name: ApexFusedAdam
+  class_args:
+    lr: 1e-5
+    weight_decay: 0.1
+    betas:
+      - 0.9
+      - 0.95
+    eps: 1e-10
+
+lr_scheduler_args:
+  lr_decay_style: cosine
+
+distributed_args:
+  distributed_backend: torch
+  gradient_checkpointing_method: block

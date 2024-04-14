@@ -104,15 +104,18 @@ tuning_args:
   tuning_method: pretraining
 
 save_args:
-  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla
+  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-constant
   save_interval: 5000
 
 logging_args:
   log_interval: 10
   experiments_tracker_name: wandb
+  wandb_args:
+    project: multilayer-attention
+    name: mla-3b-constant
 
 training_parameters:
-  num_training_steps: 250000
+  num_training_steps: 20000
   eval_interval: 2500000
   micro_batch_size: 4
   gradient_accumulation_steps: 4
@@ -128,9 +131,9 @@ optimizer_args:
     eps: 1e-10
 
 lr_scheduler_args:
-  lr_decay_style: cosine
+  lr_decay_style: constant
   num_warmup_steps: 2000
-  num_constant_steps: 223000
+  num_constant_steps: 18000
 
 distributed_args:
   distributed_backend: torch

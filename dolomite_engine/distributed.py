@@ -1,11 +1,11 @@
+import logging
 from copy import deepcopy
 from functools import partial
 from typing import Tuple
 
 import torch
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision as FSDP_MixedPrecision
-from torch.distributed.fsdp import ShardingStrategy
+from torch.distributed.fsdp import MixedPrecision, ShardingStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -15,7 +15,7 @@ from .enums import DistributedBackend
 from .gradient_checkpointing import apply_gradient_checkpointing
 from .model_wrapper import ModelWrapper
 from .optimization import get_optimizer_and_lr_scheduler
-from .utils import get_module_class_from_name, warn_rank_0
+from .utils import get_module_class_from_name, log_rank_0
 
 
 _DEEPSPEED_CONFIG: dict = None
@@ -31,13 +31,9 @@ _STAGE_HYBRID_SHARDING_STRATEGY_MAP = {
 }
 
 _FSDP_MIXED_PRECISION_POLICIES = {
-    torch.float32: FSDP_MixedPrecision(
-        param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32
-    ),
-    torch.float16: FSDP_MixedPrecision(
-        param_dtype=torch.float16, reduce_dtype=torch.float16, buffer_dtype=torch.float16
-    ),
-    torch.bfloat16: FSDP_MixedPrecision(
+    torch.float32: MixedPrecision(param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32),
+    torch.float16: MixedPrecision(param_dtype=torch.float16, reduce_dtype=torch.float16, buffer_dtype=torch.float16),
+    torch.bfloat16: MixedPrecision(
         param_dtype=torch.bfloat16, reduce_dtype=torch.bfloat16, buffer_dtype=torch.bfloat16
     ),
 }
@@ -74,9 +70,9 @@ def wrap_model_for_distributed_training(
 
     if args.model_args.dtype in [torch.float16, torch.bfloat16]:
         if args.distributed_args.communication_dtype != torch.float32:
-            warn_rank_0(
-                f"using ({args.distributed_args.communication_dtype}) with mixed precision training in "
-                f"({args.model_args.dtype}), recommended is to use ({torch.float32})"
+            log_rank_0(
+                logging.WARN,
+                f"using ({args.distributed_args.communication_dtype}) with mixed precision training in ({args.model_args.dtype}), recommended is to use ({torch.float32})",
             )
 
     assert args.distributed_args.zero_hpz_partition_size in [
@@ -94,13 +90,14 @@ def wrap_model_for_distributed_training(
             optimizer_class_name=args.optimizer_args.class_name,
             optimizer_class_args=args.optimizer_args.class_args,
             cpu_offload=cpu_offload,
-            trainable_parameters=model.parameters(),
+            model=model,
             num_warmup_steps=args.lr_scheduler_args.num_warmup_steps,
             num_constant_steps=args.lr_scheduler_args.num_constant_steps,
             num_decay_steps=args.lr_scheduler_args.num_decay_steps,
             num_training_steps=args.training_parameters.num_training_steps,
             lr_decay_style=args.lr_scheduler_args.lr_decay_style,
             lr_decay_factor=args.lr_scheduler_args.lr_decay_factor,
+            params_group_method=args.optimizer_args.params_group_method,
         )
 
         from deepspeed import initialize as deepspeed_initialize
@@ -176,13 +173,14 @@ def wrap_model_for_distributed_training(
             optimizer_class_name=args.optimizer_args.class_name,
             optimizer_class_args=args.optimizer_args.class_args,
             cpu_offload=cpu_offload,
-            trainable_parameters=model.parameters(),
+            model=model,
             num_warmup_steps=args.lr_scheduler_args.num_warmup_steps,
             num_constant_steps=args.lr_scheduler_args.num_constant_steps,
             num_decay_steps=args.lr_scheduler_args.num_decay_steps,
             num_training_steps=args.training_parameters.num_training_steps,
             lr_decay_style=args.lr_scheduler_args.lr_decay_style,
             lr_decay_factor=args.lr_scheduler_args.lr_decay_factor,
+            params_group_method=args.optimizer_args.params_group_method,
         )
 
     return model, optimizer, lr_scheduler
@@ -213,7 +211,7 @@ def get_deepspeed_config(args: TrainingArgs) -> dict:
                 # # whether to use quantized gradients (ZeRO++)
                 "zero_quantized_gradients": args.distributed_args.zero_quantized_gradients,
             },
-            "train_micro_batch_size_per_gpu": args.training_parameters.batch_size_per_gpu,
+            "train_micro_batch_size_per_gpu": args.training_parameters.micro_batch_size,
             "gradient_accumulation_steps": args.training_parameters.gradient_accumulation_steps,
             "gradient_clipping": args.training_parameters.gradient_clipping,
         }

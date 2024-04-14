@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 
 from ...arguments import TrainingArgs
 from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
-from ...utils import get_global_rank, get_world_size, log_rank_0, print_rank_0, run_rank_n
+from ...utils import get_global_rank, get_world_size, log_rank_0, print_rank_0
 from .blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from .blended_megatron_dataset_config import GPTDatasetConfig
 from .gpt_dataset import GPTDataset
@@ -32,7 +32,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
         GPTDataset,
         sizes=_get_train_val_test_samples(
             args.training_parameters.num_training_steps,
-            args.training_parameters.batch_size_per_gpu,
+            args.training_parameters.micro_batch_size,
             args.training_parameters.gradient_accumulation_steps,
             args.training_parameters.eval_interval,
             class_args.get("eval_steps"),
@@ -126,7 +126,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
             batch_sampler=MegatronPretrainingSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
-                micro_batch_size=args.training_parameters.batch_size_per_gpu,
+                micro_batch_size=args.training_parameters.micro_batch_size,
             ),
             num_workers=class_args.get("num_workers", 2),
             pin_memory=True,
@@ -147,20 +147,20 @@ def _is_dataset_built_on_rank() -> bool:
 
 def _get_train_val_test_samples(
     num_training_steps: int,
-    batch_size_per_gpu: int,
+    micro_batch_size: int,
     gradient_accumulation_steps: int,
     eval_interval: int,
     eval_steps: int,
 ) -> Tuple[int]:
-    train_samples = num_training_steps * batch_size_per_gpu * gradient_accumulation_steps * get_world_size()
+    train_samples = num_training_steps * micro_batch_size * gradient_accumulation_steps * get_world_size()
     val_samples = (
         (num_training_steps // eval_interval + 1)
         * eval_steps
-        * batch_size_per_gpu
+        * micro_batch_size
         * gradient_accumulation_steps
         * get_world_size()
     )
-    test_samples = eval_steps * batch_size_per_gpu * gradient_accumulation_steps * get_world_size()
+    test_samples = eval_steps * micro_batch_size * gradient_accumulation_steps * get_world_size()
 
     return train_samples, val_samples, test_samples
 

@@ -1,14 +1,11 @@
 import json
 import logging
 from argparse import ArgumentParser
-from copy import deepcopy
-from enum import Enum
 from typing import Any, List, Optional, Tuple, Union
 
 import torch
 import transformers
 from peft import PromptTuningInit
-from pydantic import BaseModel, ConfigDict
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
 from .defaults import INPUT_FORMAT, OUTPUT_FORMAT
@@ -22,9 +19,10 @@ from .enums import (
     LRDecaySchedule,
     Mode,
     PaddingSide,
+    ParamsGroupMethod,
     TuningMethod,
 )
-from .utils import get_world_size, load_yaml, log_rank_0, run_rank_n, set_logger
+from .utils import BaseArgs, get_world_size, load_yaml, log_rank_0, run_rank_n, set_logger
 
 
 _ARGS_FILE_EXTENSION: ArgsFileExtension = None
@@ -33,32 +31,6 @@ _ARGS_FILE_EXTENSION: ArgsFileExtension = None
 def _check_not_None(object_name_list: List[Tuple[Any, str]]) -> None:
     for obj, name in object_name_list:
         assert obj is not None, f"{name} cannot be None"
-
-
-class BaseArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid", protected_namespaces=())
-
-    def to_dict(self) -> dict:
-        copied = deepcopy(self)
-
-        for key, value in copied:
-            if isinstance(value, BaseArgs):
-                result = value.to_dict()
-            elif isinstance(value, list):
-                result = []
-                for v in value:
-                    if isinstance(v, BaseArgs):
-                        result.append(v.to_dict())
-            elif isinstance(value, Enum):
-                result = value.value
-            elif isinstance(value, type):
-                result = value.__name__
-            else:
-                result = value
-
-            setattr(copied, key, result)
-
-        return vars(copied)
 
 
 class RandomArgs(BaseArgs):
@@ -185,7 +157,7 @@ class TrainingParameters(BaseArgs):
     # interval for evaluation
     eval_interval: Optional[int] = None
     # batch size per GPU for ZeRO-DP
-    batch_size_per_gpu: int = None
+    micro_batch_size: int = None
     # whether to use val dataset for validation during training
     eval_during_training: bool = True
     # masking methodology of loss function input
@@ -194,9 +166,7 @@ class TrainingParameters(BaseArgs):
     gradient_clipping: float = 1
 
     def model_post_init(self, __context: Any) -> None:
-        _check_not_None(
-            [(self.num_training_steps, "num_training_steps"), (self.batch_size_per_gpu, "batch_size_per_gpu")]
-        )
+        _check_not_None([(self.num_training_steps, "num_training_steps"), (self.micro_batch_size, "micro_batch_size")])
 
         # eval_interval
         if self.eval_during_training:
@@ -208,6 +178,8 @@ class SaveArgs(BaseArgs):
     save_path: str = None
     # interval for checkpointing
     save_interval: int = None
+    # whether to save optimizer
+    save_optimizer: bool = True
 
     def model_post_init(self, __context: Any) -> None:
         _check_not_None([(self.save_path, "save_path"), (self.save_interval, "save_interval")])
@@ -218,9 +190,24 @@ class LoadArgs(BaseArgs):
     load_path: str = None
     # iteration to load
     iteration: int = None
+    # whether to load optimizer
+    load_optimizer: bool = True
+    # whether to load lr_scheduler
+    load_lr_scheduler: bool = True
+    # whether to load rng state
+    load_rng_state: bool = True
+    # whether to resume dataloader
+    load_dataloader_state: bool = True
+    # whether to resume experiments tracker
+    load_experiments_tracker_state: bool = True
 
     def model_post_init(self, __context: Any) -> None:
         _check_not_None([(self.load_path, "load_path")])
+
+        if not self.load_optimizer:
+            assert (
+                not self.load_lr_scheduler
+            ), "lr_scheduler loading doesn't make sense if you aren't loading optimizer"
 
 
 class DatasetArgs(BaseArgs):
@@ -252,6 +239,8 @@ class DatasetArgs(BaseArgs):
 class OptimizerArgs(BaseArgs):
     # optimizer class
     class_name: str = "ApexFusedAdam"
+    # how to create param groups
+    params_group_method: ParamsGroupMethod = None
     # class args for optimizer
     class_args: dict = {
         "lr": 1e-5,
@@ -321,17 +310,45 @@ class DistributedArgs(BaseArgs):
             ], f"unexpected dtype '{self.communication_dtype}'"
 
 
+class AimArgs(BaseArgs):
+    # aim repo, experiment logs are saved here
+    repo: str = None
+    # name of the experiment
+    experiment: str = None
+
+    def model_post_init(self, __context: Any) -> None:
+        _check_not_None([(self.repo, "repo"), (self.experiment, "experiment")])
+
+
+class WandBArgs(BaseArgs):
+    # aim repo, experiment logs are saved here
+    project: str = None
+    # name of the experiment
+    name: str = None
+    # run hash for the experiment
+    entity: Optional[str] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        _check_not_None([(self.project, "project"), (self.name, "name")])
+
+
 class LoggingArgs(BaseArgs):
     # logging level
     logging_level: str = "INFO"
     # log interval
     log_interval: int = 1
-    # aim repo, experiment logs are saved here
-    project: Optional[str] = None
-    # name of the experiment
-    experiment_name: Optional[str] = None
-    # tracker to use for experiment tracking
+    # arguments if using aim
+    aim_args: Optional[AimArgs] = None
+    # arguments if using wandb
+    wandb_args: Optional[WandBArgs] = None
+    # experiment tracker to use (aim or wandb)
     experiments_tracker_name: Optional[ExperimentsTrackerName] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.experiments_tracker_name == ExperimentsTrackerName.aim:
+            _check_not_None([(self.aim_args, "aim_args")])
+        elif self.experiments_tracker_name == ExperimentsTrackerName.wandb:
+            _check_not_None([(self.wandb_args, "wandb_args")])
 
 
 class ResearchArgs(BaseArgs):

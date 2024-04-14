@@ -38,12 +38,14 @@ def track_val_metrics(
         group_name (str): group name for the validation / test set
     """
 
-    message = f"step = {global_step}, val_loss = {val_loss}"
+    message = f"step = {global_step}, val_loss = {val_loss:.4f}"
     if group_name is not None:
         message += f", group_name = {group_name}"
 
     log_rank_0(logging.INFO, message)
-    experiments_tracker.track({"loss": val_loss}, step=global_step, context=f"val-{group_name}")
+    experiments_tracker.track(
+        {"loss" if group_name is None else f"loss-{group_name}": val_loss}, step=global_step, context="val"
+    )
 
 
 def train(
@@ -94,10 +96,10 @@ def train(
         eval_steps = args.datasets[0].class_args.get("eval_steps")
         evaluate(val_dataloaders, model, starting_iteration, experiments_tracker, eval_steps, group_names)
 
-    batch_size_per_gpu = args.training_parameters.batch_size_per_gpu
+    micro_batch_size = args.training_parameters.micro_batch_size
     sequence_length = args.datasets[0].class_args.get("sequence_length")
-    model_flops = model.get_model_tflops(batch_size_per_gpu * gradient_accumulation_steps, sequence_length)
-    tokens_per_batch = batch_size_per_gpu * gradient_accumulation_steps * get_world_size() * sequence_length
+    model_flops = model.get_model_tflops(micro_batch_size * gradient_accumulation_steps, sequence_length)
+    tokens_per_batch = micro_batch_size * gradient_accumulation_steps * get_world_size() * sequence_length
 
     start_time = time.perf_counter()
     steps_since_start_time = 0
@@ -107,7 +109,7 @@ def train(
         global_step += 1
         steps_since_start_time += 1
 
-        loss_step = train_step(
+        loss_step, grad_norm_step = train_step(
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
@@ -119,17 +121,20 @@ def train(
 
         if global_step % log_interval == 0:
             time_elapsed = time.perf_counter() - start_time
+            step_time = time_elapsed / steps_since_start_time
 
             track_train_metrics(
                 global_step=global_step,
                 train_loss_step=loss_step,
+                grad_norm_step=grad_norm_step,
                 current_lr=model.lr_scheduler.get_lr()[0]
                 if distributed_backend == DistributedBackend.deepspeed
                 else lr_scheduler.get_lr()[0],
                 experiments_tracker=experiments_tracker,
                 loss_running_mean_tracker=loss_running_mean_tracker,
                 flops=None if model_flops is None else model_flops * steps_since_start_time / time_elapsed,
-                tokens_per_day=tokens_per_batch * steps_since_start_time / time_elapsed * 86400 / 1e9,
+                billion_tokens_per_day=tokens_per_batch * 86400 / step_time / 1e9,
+                step_time=step_time,
             )
             start_time = time.perf_counter()
             steps_since_start_time = 0
@@ -138,10 +143,17 @@ def train(
             evaluate(val_dataloaders, model, global_step, experiments_tracker, eval_steps, group_names)
 
         if global_step % save_interval == 0 or global_step == num_training_steps:
-            consumed_samples = global_step * args.training_parameters.batch_size_per_gpu * get_world_size()
             save_checkpoint(
-                args, model, optimizer, lr_scheduler, None, global_step, {"consumed_samples": consumed_samples}
+                args,
+                model,
+                optimizer,
+                lr_scheduler,
+                None,
+                experiments_tracker,
+                global_step,
+                {"consumed_samples": global_step * micro_batch_size * gradient_accumulation_steps * get_world_size()},
             )
+
             start_time = time.perf_counter()
             steps_since_start_time = 0
 
@@ -213,15 +225,21 @@ def main() -> None:
 
     starting_iteration = 0
     metadata = None
+    experiments_tracker_state_dict = None
     if args.load_args is not None:
-        starting_iteration, metadata = load_checkpoint_for_training(args, model, optimizer, lr_scheduler, None)
+        starting_iteration, metadata, experiments_tracker_state_dict = load_checkpoint_for_training(
+            args, model, optimizer, lr_scheduler, None
+        )
 
     train_dataloader, val_dataloaders, test_dataloaders = get_megatron_gpt_dataloaders(
         args, model.tokenizer, 0 if metadata is None else metadata["consumed_samples"]
     )
 
     experiments_tracker = ExperimentsTracker(
-        args.logging_args.experiment_name, args.logging_args.project, args.logging_args.experiments_tracker_name
+        args.logging_args.experiments_tracker_name,
+        args.logging_args.aim_args,
+        args.logging_args.wandb_args,
+        checkpoint_metadata=experiments_tracker_state_dict,
     )
     # track all hyperparams in args
     experiments_tracker.log_args(args)

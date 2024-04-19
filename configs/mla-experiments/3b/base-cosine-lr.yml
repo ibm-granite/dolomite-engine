@@ -49,7 +49,7 @@ model_args:
     layer_norm_epsilon: 1e-05
     model_type: gpt_megatron
     n_embd: 3072
-    n_head": 12
+    n_head: 12
     n_inner: 8192
     n_layer: 32
     n_positions: 2048

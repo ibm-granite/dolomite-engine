@@ -64,36 +64,36 @@ model_args:
     sharing_pattern:
       - 0
       - 0
-      - 2
-      - 2
+      - 0
+      - 0
       - 4
       - 4
-      - 6
-      - 6
+      - 4
+      - 4
       - 8
       - 8
-      - 10
-      - 10
+      - 8
+      - 8
       - 12
       - 12
-      - 14
-      - 14
+      - 12
+      - 12
       - 16
       - 16
-      - 18
-      - 18
+      - 16
+      - 16
       - 20
       - 20
-      - 22
-      - 22
+      - 20
+      - 20
       - 24
       - 24
-      - 26
-      - 26
+      - 24
+      - 24
       - 28
       - 28
-      - 30
-      - 30
+      - 28
+      - 28
     vocab_size: 50304
   efficient_cpu_initialization: false
   dtype: bfloat16
@@ -104,7 +104,7 @@ tuning_args:
   tuning_method: pretraining
 
 save_args:
-  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-constant
+  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-4-cosine
   save_interval: 5000
 
 logging_args:
@@ -112,7 +112,7 @@ logging_args:
   experiments_tracker_name: wandb
   wandb_args:
     project: multilayer-attention
-    name: mla-3b-constant
+    name: mla-4-3b-cosine
 
 training_parameters:
   num_training_steps: 20000
@@ -131,9 +131,9 @@ optimizer_args:
     eps: 1e-10
 
 lr_scheduler_args:
-  lr_decay_style: constant
+  lr_decay_style: cosine
   num_warmup_steps: 2000
-  num_constant_steps: 18000
+  num_decay_steps: 18000
 
 distributed_args:
   distributed_backend: torch

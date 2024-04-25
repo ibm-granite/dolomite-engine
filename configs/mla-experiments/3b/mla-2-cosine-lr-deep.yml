@@ -61,6 +61,8 @@ model_args:
     rope_theta: 10000
     scale_attention_softmax_in_fp32: true
     scale_attn_weights: true
+    kv_projection_inner_dim: 880
+    kv_projection_activation_function: gelu_pytorch_tanh
     sharing_pattern:
       - 0
       - 0
@@ -104,7 +106,7 @@ tuning_args:
   tuning_method: pretraining
 
 save_args:
-  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-2-cosine-deep
+  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-2-cosine
   save_interval: 5000
 
 logging_args:
@@ -112,7 +114,7 @@ logging_args:
   experiments_tracker_name: wandb
   wandb_args:
     project: multilayer-attention
-    name: mla-2-3b-cosine-deep
+    name: mla-2-3b-cosine
 
 training_parameters:
   num_training_steps: 20000

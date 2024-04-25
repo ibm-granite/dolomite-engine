@@ -116,10 +116,8 @@ class KeyValueProjection(nn.Module):
             hidden_states = self.ln(hidden_states)
             hidden_states = self.kv_attn(hidden_states)
         else:
-            residual = hidden_states
             for l in self.kv_attn:
                 hidden_states = l(hidden_states)
-            hidden_states = hidden_states + residual
 
         if self.num_key_value_heads == 1:
             hidden_states = hidden_states.unsqueeze(1)

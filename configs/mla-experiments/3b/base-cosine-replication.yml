@@ -74,6 +74,9 @@ save_args:
   save_path: /proj/checkpoints/mayank/mla-experiments/3b-base-replication
   save_interval: 5000
 
+load_args:
+  load_path: /proj/checkpoints/mayank/mla-experiments/3b-base-replication
+
 logging_args:
   log_interval: 10
   experiments_tracker_name: wandb

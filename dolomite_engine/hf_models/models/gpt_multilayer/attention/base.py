@@ -112,8 +112,9 @@ class KeyValueProjection(nn.Module):
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         batch_size, query_length = hidden_states.shape[:2]
 
+        hidden_states = self.ln(hidden_states)
+
         if self.kv_projection_inner_dim is None:
-            hidden_states = self.ln(hidden_states)
             hidden_states = self.kv_attn(hidden_states)
         else:
             for l in self.kv_attn:

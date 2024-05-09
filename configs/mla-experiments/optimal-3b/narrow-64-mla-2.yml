@@ -49,7 +49,7 @@ model_args:
     layer_norm_epsilon: 1e-05
     model_type: gpt_multilayer
     n_embd: 3072
-    n_head: 12
+    n_head: 48
     n_inner: 8192
     n_layer: 32
     n_positions: 2048
@@ -61,8 +61,6 @@ model_args:
     rope_theta: 10000
     scale_attention_softmax_in_fp32: true
     scale_attn_weights: true
-    kv_projection_inner_dim: 880
-    kv_projection_activation_function: gelu_pytorch_tanh
     sharing_pattern:
       - 0
       - 0
@@ -106,7 +104,7 @@ tuning_args:
   tuning_method: pretraining
 
 save_args:
-  save_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-2-cosine-deep
+  save_path: /proj/checkpoints/mayank/mla-experiments/3b-base-narrow-64-mla-2
   save_interval: 5000
 
 logging_args:
@@ -114,7 +112,7 @@ logging_args:
   experiments_tracker_name: wandb
   wandb_args:
     project: multilayer-attention
-    name: mla-2-3b-cosine-deep
+    name: base-3b-narrow-64-mla-2
 
 training_parameters:
   num_training_steps: 25000
@@ -125,7 +123,7 @@ training_parameters:
 optimizer_args:
   class_name: ApexFusedAdam
   class_args:
-    lr: 6.75e-4
+    lr: 1e-3
     weight_decay: 0.1
     betas:
       - 0.9

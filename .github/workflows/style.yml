@@ -30,7 +30,7 @@ jobs:
       - name: Check Python Files with isort and black
         run: |
           isort --check-only .
-          black --check .
+          black --check --line-length 119 --target-version py311 .
 
       - name: Install clang-format
         run: sudo apt-get install -y clang-format

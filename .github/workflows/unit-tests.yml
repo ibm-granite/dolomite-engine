@@ -1,4 +1,4 @@
-name: Style Check
+name: Unit Tests
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - main
 
 jobs:
-  style-check:
-    name: Check Style
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -25,9 +25,10 @@ jobs:
       - name: install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install isort black pre-commit
+          pip install torch transformers pytest parameterized pydantic pynvml
 
-      - name: run formatting tests
-        run: |
-          pre-commit install
-          make style
+      - name: install dolomite-engine
+        run: make install
+
+      - name: run unit tests
+        run: make test

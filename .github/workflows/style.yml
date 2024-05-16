@@ -28,13 +28,4 @@ jobs:
           pip install isort black
 
       - name: Check Python Files with isort and black
-        run: |
-          isort --check-only .
-          black --check --line-length 119 --target-version py311 .
-
-      - name: Install clang-format
-        run: sudo apt-get install -y clang-format
-
-      - name: Check C/C++ Files with clang-format
-        run: |
-          find . -name '*.cpp' -o -name '*.c' -o -name '*.h' | xargs clang-format -style=file -output-replacements-xml | grep "<replacement " && exit 1 || true
+        run: make style

@@ -1,5 +1,0 @@
-load_args:
-  load_path: /proj/checkpoints/mayank/mla-experiments/3b-mla-8-cosine
-  iteration: 20000
-
-export_path: save

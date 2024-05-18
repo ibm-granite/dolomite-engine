@@ -5,12 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ....enums import AttentionHeadType, PositionEmbeddingType
-from ....modeling_utils import (
-    ParameterizedLinear,
-    apply_rotary_pos_emb,
-    get_activation_function,
-    get_normalization_function,
-)
+from ....modeling_utils import ParameterizedLinear, apply_rotary_pos_emb, get_normalization_function
 from ..config import GPTMultiLayerConfig
 
 

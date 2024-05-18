@@ -140,14 +140,12 @@ class KeyValueProjection(nn.Module):
 
         self.num_heads = config.n_head
         self.num_key_value_heads = config.num_key_value_heads
-        self.kv_projection_activation_function = config.kv_projection_activation_function
 
         head_dim = config.hidden_size // self.num_heads
 
         self.ln = get_normalization_function(
             config.normalization_function, config.hidden_size, config.layer_norm_epsilon
         )
-
         self.kv_attn = ParameterizedLinear(
             config.hidden_size,
             2 * self.num_key_value_heads * head_dim,

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from ....enums import AttentionHeadType, PositionEmbeddingType
-from ....modeling_utils import ParameterizedLinear, get_normalization_function
+from ....modeling_utils import ParameterizedLinear, get_activation_function, get_normalization_function
 from ..config import GPTMultiLayerConfig
 
 
@@ -74,24 +74,51 @@ class KeyValueProjection(nn.Module):
 
         self.num_heads = config.n_head
         self.num_key_value_heads = config.num_key_value_heads
+        self.kv_projection_inner_dim = config.kv_projection_inner_dim
+        self.kv_projection_activation_function = config.kv_projection_activation_function
 
         head_dim = config.hidden_size // self.num_heads
 
         self.ln = get_normalization_function(
             config.normalization_function, config.hidden_size, config.layer_norm_epsilon
         )
-        self.kv_attn = ParameterizedLinear(
-            config.hidden_size,
-            2 * self.num_key_value_heads * head_dim,
-            bias=config.add_bias,
-            std=config.initializer_range,
-        )
+
+        if self.kv_projection_inner_dim is None:
+            self.kv_attn = ParameterizedLinear(
+                config.hidden_size,
+                2 * self.num_key_value_heads * head_dim,
+                bias=config.add_bias,
+                std=config.initializer_range,
+            )
+        else:
+            self.kv_attn = nn.ModuleList(
+                [
+                    ParameterizedLinear(
+                        config.hidden_size,
+                        self.kv_projection_inner_dim,
+                        bias=config.add_bias,
+                        std=config.initializer_range,
+                    ),
+                    get_activation_function(self.kv_projection_activation_function),
+                    ParameterizedLinear(
+                        self.kv_projection_inner_dim,
+                        2 * self.num_key_value_heads * head_dim,
+                        bias=config.add_bias,
+                        std=config.initializer_range,
+                    ),
+                ]
+            )
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         batch_size, query_length = hidden_states.shape[:2]
 
         hidden_states = self.ln(hidden_states)
-        hidden_states = self.kv_attn(hidden_states)
+
+        if self.kv_projection_inner_dim is None:
+            hidden_states = self.kv_attn(hidden_states)
+        else:
+            for l in self.kv_attn:
+                hidden_states = l(hidden_states)
 
         if self.num_key_value_heads == 1:
             hidden_states = hidden_states.unsqueeze(1)

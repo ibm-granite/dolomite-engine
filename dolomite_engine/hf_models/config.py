@@ -46,6 +46,7 @@ class MegatronConfig(PretrainedConfig):
         m_width: float = None,
         m_residual: float = None,
         init_method: str = None,
+        kv_channels: int = None,
         **kwargs,
     ) -> None:
         self.vocab_size = vocab_size
@@ -77,6 +78,7 @@ class MegatronConfig(PretrainedConfig):
         self.m_width = m_width
         self.m_residual = m_residual
         self.init_method = init_method
+        self.kv_channels = kv_channels
 
         if self.attention_multiplier is not None:
             assert self.scale_attn_weights

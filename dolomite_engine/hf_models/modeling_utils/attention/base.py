@@ -67,6 +67,8 @@ class Attention(nn.Module):
         else:
             raise ValueError(f"unexpected attention_head_type ({self.attention_head_type})")
 
+        self.kv_channels = config.kv_channels
+
         # note that the actual layout is different for the output and depends on whether we are using MHA, MQA or GQA
         # (self.hidden_size + 2 * self.num_key_value_heads * self.head_dim) is just the actual number output features
         std = self.initializer_range
@@ -74,7 +76,9 @@ class Attention(nn.Module):
             std /= math.sqrt(self.m_width)
         self.c_attn = ParameterizedLinear(
             self.hidden_size,
-            self.hidden_size + 2 * self.num_key_value_heads * self.head_dim,
+            self.hidden_size + 2 * self.num_key_value_heads * self.head_dim
+            if self.kv_channels is None
+            else self.num_heads * self.kv_channels + 2 * self.num_key_value_heads * self.kv_channels,
             bias=self.add_bias,
             std=std,
         )
@@ -83,7 +87,7 @@ class Attention(nn.Module):
         if self.init_method == InitMethod.mup:
             std /= math.sqrt(self.m_width)
         self.c_proj = ParameterizedLinear(
-            self.hidden_size,
+            self.hidden_size if self.kv_channels is None else self.num_heads * self.kv_channels,
             self.hidden_size,
             bias=self.add_bias,
             std=std,

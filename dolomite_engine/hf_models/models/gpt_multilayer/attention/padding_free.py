@@ -56,7 +56,12 @@ class MultiLayerPaddingFreeAttention(MultiLayerAttention):
 class KeyValuePaddingFreeProjection(KeyValueProjection):
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         hidden_states = self.ln(hidden_states)
-        hidden_states = self.kv_attn(hidden_states)
+
+        if self.kv_projection_inner_dim is None:
+            hidden_states = self.kv_attn(hidden_states)
+        else:
+            for l in self.kv_attn:
+                hidden_states = l(hidden_states)
 
         if self.num_key_value_heads == 1:
             hidden_states = hidden_states.unsqueeze(1)

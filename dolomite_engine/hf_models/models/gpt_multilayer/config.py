@@ -34,8 +34,6 @@ class GPTMultiLayerConfig(CommonConfig):
         rope_scaling: dict = None,
         sharing_pattern: List[int] = None,
         joint_residual_stream: bool = False,
-        kv_projection_inner_dim: int = None,
-        kv_projection_activation_function: str = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -85,11 +83,6 @@ class GPTMultiLayerConfig(CommonConfig):
         self.joint_residual_stream = joint_residual_stream
 
         assert self.init_method is None
-
-        self.kv_projection_inner_dim = kv_projection_inner_dim
-        self.kv_projection_activation_function = kv_projection_activation_function
-        if self.kv_projection_activation_function is not None:
-            assert self.kv_projection_inner_dim is not None
 
     def save_pretrained(self, save_directory: str | PathLike, push_to_hub: bool = False, **kwargs):
         # we don't want to exporet attention_head_type in this config, not sure if there is a better way to do this

@@ -3,14 +3,14 @@ from typing import Tuple
 
 import torch
 
-from ...config import MegatronConfig
+from ...config import CommonConfig
 from ...enums import AttentionHeadType
 from .base import Attention
 from .flash import FlashAttention2
-from .math import MathAttention
 from .padding_free import PaddingFreeAttention
 from .sdpa import SDPA
 from .utils import (
+    get_unpad_data,
     interleave_query_key_value_tensor_for_gqa,
     interleave_query_key_value_tensor_for_mha,
     interleave_query_key_value_tensor_for_mqa,
@@ -18,12 +18,11 @@ from .utils import (
     split_query_key_value_tensor_for_gqa,
     split_query_key_value_tensor_for_mha,
     split_query_key_value_tensor_for_mqa,
-    unpad_tensor,
 )
 
 
 _ATTENTION_MODULES = {
-    "eager": MathAttention,
+    "eager": Attention,
     "sdpa": SDPA,
     "flash_attention_2": FlashAttention2,
 }
@@ -44,7 +43,7 @@ _SPLIT_FUNCTIONS = {
 
 
 def get_attention_module(
-    config: MegatronConfig,
+    config: CommonConfig,
     causal: bool,
     attention_implementation: str,
     use_padding_free_transformer: bool,

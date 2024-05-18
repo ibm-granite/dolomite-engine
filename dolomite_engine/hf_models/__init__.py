@@ -9,18 +9,18 @@ from .models import (
     DenseMoEConfig,
     DenseMoEForCausalLM,
     DenseMoEModel,
-    GPTMegatronConfig,
-    GPTMegatronForCausalLM,
-    GPTMegatronForCausalLM_TP,
-    GPTMegatronModel,
-    GPTMegatronModel_TP,
+    GPTDolomiteConfig,
+    GPTDolomiteForCausalLM,
+    GPTDolomiteForCausalLM_TP,
+    GPTDolomiteModel,
+    GPTDolomiteModel_TP,
     GPTMultiLayerConfig,
     GPTMultiLayerForCausalLM,
     GPTMultiLayerModel,
-    MoEMegablocksConfig,
-    MoEMegablocksForCausalLM,
-    MoEMegablocksModel,
-    convert_gpt_megatron_to_gpt_multilayer,
+    MoEDolomiteConfig,
+    MoEDolomiteForCausalLM,
+    MoEDolomiteModel,
+    convert_gpt_dolomite_to_gpt_multilayer,
     export_to_huggingface_bigcode,
     export_to_huggingface_llama,
     export_to_huggingface_mixtral,
@@ -28,7 +28,7 @@ from .models import (
     import_from_huggingface_llama,
     import_from_huggingface_mixtral,
 )
-from .register_hf import is_padding_free_transformer_supported, register_model_classes
+from .register_hf import is_custom_model, register_model_classes
 
 
 register_model_classes()

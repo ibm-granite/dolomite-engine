@@ -4,25 +4,25 @@ from typing import List, Tuple, Union
 import torch
 import torch.nn as nn
 from transformers import DynamicCache
-from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
+from transformers.modeling_outputs import BaseModelOutputWithPast
 
 from ...enums import AttentionHeadType, PositionEmbeddingType
 from ...modeling_utils import ParameterizedEmbedding, get_normalization_function
-from ..gpt_megatron import GPTMegatronConfig, GPTMegatronModel, GPTMegatronPreTrainedModel
+from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteModel, GPTDolomitePreTrainedModel
 from .config import GPTMultiLayerConfig
 from .layer import GPTMultiLayerBlock
 
 
-class GPTMultiLayerPreTrainedModel(GPTMegatronPreTrainedModel):
+class GPTMultiLayerPreTrainedModel(GPTDolomitePreTrainedModel):
     config_class = GPTMultiLayerConfig
     _no_split_modules = ["GPTMultiLayerBlock"]
 
-    def __init__(self, config: GPTMegatronConfig, *inputs, **kwargs):
-        GPTMegatronPreTrainedModel.__init__(self, config, *inputs, **kwargs)
+    def __init__(self, config: GPTDolomiteConfig, *inputs, **kwargs):
+        GPTDolomitePreTrainedModel.__init__(self, config, *inputs, **kwargs)
         self.sharing_pattern = config.sharing_pattern
 
 
-class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
+class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTDolomiteModel):
     def __init__(self, config: GPTMultiLayerConfig, **kwargs) -> None:
         GPTMultiLayerPreTrainedModel.__init__(self, config, **kwargs)
 
@@ -30,7 +30,6 @@ class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
-        self.mask_value = None
         self.m_emb = config.m_emb
         self.initializer_range = config.initializer_range
 
@@ -101,7 +100,7 @@ class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
         return_dict: bool = None,
         cu_seqlens: torch.Tensor = None,
         max_seqlen: torch.Tensor = None,
-    ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
+    ) -> Union[Tuple, BaseModelOutputWithPast]:
         (
             output_hidden_states,
             use_cache,
@@ -110,7 +109,6 @@ class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
             hidden_states,
             attention_mask,
             position_ids,
-            alibi_bias,
             rope_cos_sin,
             past_key_values,
         ) = self._prepare_a_bunch_of_stuff(
@@ -139,7 +137,6 @@ class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
                 hidden_states,
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
-                alibi_bias=alibi_bias,
                 rope_cos_sin=rope_cos_sin,
                 cu_seqlens=cu_seqlens,
                 max_seqlen=max_seqlen,
@@ -155,7 +152,7 @@ class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
         if not return_dict:
             return tuple(v for v in [hidden_states, past_key_values, all_hidden_states] if v is not None)
 
-        return BaseModelOutputWithPastAndCrossAttentions(
+        return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=past_key_values,
             hidden_states=all_hidden_states,
@@ -163,9 +160,3 @@ class GPTMultiLayerModel(GPTMultiLayerPreTrainedModel, GPTMegatronModel):
 
     def get_global_local_idx(self, index: int) -> Tuple[int, int]:
         return self.layer_map[index]
-
-    def _get_mask_value(self, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
-        # torch.where expects a tensor. We use a cache to avoid recreating it every time.
-        if self.mask_value is None or self.mask_value.dtype != dtype or self.mask_value.device != device:
-            self.mask_value = torch.full([], torch.finfo(torch.float16).min, dtype=dtype, device=device)
-        return self.mask_value

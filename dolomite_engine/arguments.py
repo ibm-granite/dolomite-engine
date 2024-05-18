@@ -1,19 +1,17 @@
-import json
 import logging
 from argparse import ArgumentParser
 from typing import Any, List, Optional, Tuple, Union
 
-import torch
 import transformers
 from peft import PromptTuningInit
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
 from .defaults import INPUT_FORMAT, OUTPUT_FORMAT
 from .enums import (
-    ArgsFileExtension,
     AttentionImplementation,
     DistributedBackend,
     ExperimentsTrackerName,
+    FP8Backend,
     GradientCheckpointingMethod,
     LossMask,
     LRDecaySchedule,
@@ -22,10 +20,7 @@ from .enums import (
     ParamsGroupMethod,
     TuningMethod,
 )
-from .utils import BaseArgs, get_world_size, load_yaml, log_rank_0, run_rank_n, set_logger
-
-
-_ARGS_FILE_EXTENSION: ArgsFileExtension = None
+from .utils import BaseArgs, get_world_size, load_yaml, log_rank_0, normalize_dtype_string, run_rank_n, set_logger
 
 
 def _check_not_None(object_name_list: List[Tuple[Any, str]]) -> None:
@@ -54,16 +49,20 @@ class ModelArgs(BaseArgs):
     pretrained_config: Optional[dict] = None
     # model class on huggingface hub, for example: AutoModelForCausalLM, AutoModelForSeq2SeqLM
     model_class: str = None
-    # dtype to use for training / inference
-    dtype: str = "float32"
     # trust remote code for models that are not directly supported by HuggingFace yet
     trust_remote_code: bool = False
-    # attention implementation (only works with GPTMegatronForCausalLM)
+    # attention implementation (only works with GPTDolomiteForCausalLM)
     attention_implementation: Optional[AttentionImplementation] = None
     # whether to use padding free transformer: https://huggingface.co/blog/mayank-mishra/padding-free-transformer
     use_padding_free_transformer: bool = False
-    # use lower memory to initialize model on CPU
-    efficient_cpu_initialization: bool = False
+    # use lower memory to initialize model
+    efficient_initialization: bool = False
+    # whether to initialize on CPU
+    initialize_on_cpu: bool = False
+    # whether to reset attention masks for pretraining
+    reset_attention_mask: bool = False
+    # whether to reset position ids for pretraining
+    reset_position_ids: bool = False
 
     def model_post_init(self, __context: Any) -> None:
         _check_not_None([(self.model_class, "model_class")])
@@ -80,15 +79,6 @@ class ModelArgs(BaseArgs):
         ], f"unexpected model_class ({self.model_class})"
 
         self.model_class: Union[AutoModelForCausalLM, AutoModelForSeq2SeqLM] = getattr(transformers, self.model_class)
-
-        # dtype
-        self.dtype = getattr(torch, self.dtype)
-        assert self.dtype in [torch.float32, torch.float16, torch.bfloat16], f"unexpected dtype '{self.dtype}'"
-
-    def to_dict(self) -> dict:
-        result = super().to_dict()
-        result["dtype"] = str(self.dtype).split(".")[1]
-        return result
 
 
 class PromptTuningArgs(BaseArgs):
@@ -189,7 +179,7 @@ class LoadArgs(BaseArgs):
     # path to load checkpoints
     load_path: str = None
     # iteration to load
-    iteration: int = None
+    iteration: Optional[int] = None
     # whether to load optimizer
     load_optimizer: bool = True
     # whether to load lr_scheduler
@@ -200,6 +190,8 @@ class LoadArgs(BaseArgs):
     load_dataloader_state: bool = True
     # whether to resume experiments tracker
     load_experiments_tracker_state: bool = True
+    # whether to load starting iteration
+    load_starting_iteration: bool = True
 
     def model_post_init(self, __context: Any) -> None:
         _check_not_None([(self.load_path, "load_path")])
@@ -238,7 +230,7 @@ class DatasetArgs(BaseArgs):
 
 class OptimizerArgs(BaseArgs):
     # optimizer class
-    class_name: str = "ApexFusedAdam"
+    class_name: str = "TorchAdamW"
     # how to create param groups
     params_group_method: Optional[ParamsGroupMethod] = None
     # class args for optimizer
@@ -264,6 +256,24 @@ class LRSchedulerArgs(BaseArgs):
     lr_decay_style: LRDecaySchedule = LRDecaySchedule.cosine
     # decay factor * max_lr = min_lr (ratio of min_lr and max_lr)
     lr_decay_factor: float = 0.1
+    # coefficients to use in advanced LR schedules, including power
+    # {"a": batch_size, "b": -0.51, "c": batch_size * sequence_length}
+    extra_lr_scheduler_args: dict = {}
+
+
+class MixedPrecisionArgs(BaseArgs):
+    # dtype to use for training / inference
+    dtype: str = "fp32"
+    # fp8 backend
+    fp8_backend: Optional[FP8Backend] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        # dtype
+        self.dtype = normalize_dtype_string(self.dtype)
+
+        # fp8_backend
+        if self.dtype != "fp8":
+            assert self.fp8_backend is None, "fp8_backend specified without fp8 dtype"
 
 
 class DistributedArgs(BaseArgs):
@@ -302,12 +312,7 @@ class DistributedArgs(BaseArgs):
 
         # communication dtype
         if self.communication_dtype is not None:
-            self.communication_dtype = getattr(torch, self.communication_dtype)
-            assert self.communication_dtype in [
-                torch.float32,
-                torch.float16,
-                torch.bfloat16,
-            ], f"unexpected dtype '{self.communication_dtype}'"
+            self.communication_dtype = normalize_dtype_string(self.communication_dtype)
 
 
 class AimArgs(BaseArgs):
@@ -337,6 +342,8 @@ class LoggingArgs(BaseArgs):
     logging_level: str = "INFO"
     # log interval
     log_interval: int = 1
+    # running mean window
+    running_mean_window: int = 10
     # arguments if using aim
     aim_args: Optional[AimArgs] = None
     # arguments if using wandb
@@ -382,6 +389,8 @@ class TrainingArgs(BaseArgs):
     training_parameters: Optional[TrainingParameters] = None
     # logging related arguments
     logging_args: LoggingArgs = LoggingArgs()
+    # mixed precision related arguments
+    mixed_precision_args: MixedPrecisionArgs = MixedPrecisionArgs()
     # distributed training related arguments
     distributed_args: DistributedArgs = DistributedArgs()
     # research args
@@ -432,6 +441,8 @@ class InferenceArgs(BaseArgs):
     load_args: Optional[LoadArgs] = None
     # generation parameters
     generation_parameters: GenerationParameters = None
+    # mixed precision related arguments
+    mixed_precision_args: MixedPrecisionArgs = MixedPrecisionArgs()
     # logging related arguments
     logging_args: LoggingArgs = LoggingArgs()
     # output dir
@@ -460,6 +471,8 @@ class ExportArgs(BaseArgs):
     load_args: LoadArgs = None
     # export path
     export_path: str = None
+    # mixed precision related arguments
+    mixed_precision_args: MixedPrecisionArgs = MixedPrecisionArgs()
     # logging related arguments
     logging_args: LoggingArgs = LoggingArgs()
 
@@ -484,19 +497,11 @@ def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, ExportArgs]:
         Union[TrainingArgs, InferenceArgs, ExportArgs]: args for training / inference
     """
 
-    global _ARGS_FILE_EXTENSION
-
     parser = ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="path for the config")
     args = parser.parse_args()
 
-    if args.config.endswith("json"):
-        config: dict = json.load(open(args.config, "r"))
-        _ARGS_FILE_EXTENSION = ArgsFileExtension.json
-    elif args.config.endswith("yaml") or args.config.endswith("yml"):
-        config: dict = load_yaml(args.config)
-        _ARGS_FILE_EXTENSION = ArgsFileExtension.yaml
-
+    config: dict = load_yaml(args.config)
     args: Union[TrainingArgs, InferenceArgs, ExportArgs] = _MODE_ARGS_MAP[mode](**config)
 
     set_logger(args.logging_args.logging_level, colored_log=args.logging_args.use_colored_logs)
@@ -551,11 +556,6 @@ def log_args(args: Union[TrainingArgs, InferenceArgs, ExportArgs]) -> None:
         for l in line:
             log_rank_0(logging.INFO, l)
     log_rank_0(logging.INFO, "-------------------- end of arguments ---------------------")
-
-
-def get_args_file_extension() -> ArgsFileExtension:
-    assert _ARGS_FILE_EXTENSION is not None, "args file extesnion is not set"
-    return _ARGS_FILE_EXTENSION
 
 
 def _check_datasets(datasets: List[DatasetArgs]) -> None:

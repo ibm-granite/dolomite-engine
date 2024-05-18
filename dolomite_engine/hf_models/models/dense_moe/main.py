@@ -1,21 +1,26 @@
 from typing import List, Tuple, Union
 
 import torch
+import torch.nn.functional as F
 from transformers import DynamicCache
-from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ...modeling_utils import ParameterizedLinear
-from ..gpt_megatron import GPTMegatronForCausalLM
+from ..gpt_dolomite import GPTDolomiteForCausalLM
 from .base import DenseMoEModel, DenseMoEPreTrainedModel
 from .config import DenseMoEConfig
 
 
-class DenseMoEForCausalLM(DenseMoEPreTrainedModel, GPTMegatronForCausalLM):
+class DenseMoEForCausalLM(DenseMoEPreTrainedModel, GPTDolomiteForCausalLM):
     def __init__(self, config: DenseMoEConfig, **kwargs) -> None:
         DenseMoEPreTrainedModel.__init__(self, config, **kwargs)
 
         self.transformer = DenseMoEModel(config, **kwargs)
-        self.lm_head = ParameterizedLinear(config.n_embd, config.vocab_size, bias=False, std=config.initializer_range)
+
+        if not self._tied_word_embeddings:
+            self.lm_head = ParameterizedLinear(
+                config.n_embd, config.vocab_size, bias=False, std=config.initializer_range
+            )
 
         self.router_aux_loss_coef = config.router_aux_loss_coef
         self.num_experts = config.num_experts
@@ -40,7 +45,7 @@ class DenseMoEForCausalLM(DenseMoEPreTrainedModel, GPTMegatronForCausalLM):
         return_dict: bool = None,
         cu_seqlens: torch.Tensor = None,
         max_seqlen: torch.Tensor = None,
-    ) -> Union[Tuple, CausalLMOutputWithCrossAttentions]:
+    ) -> Union[Tuple, CausalLMOutputWithPast]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         input_ids, position_ids, token_type_ids, labels, cu_seqlens, max_seqlen = self.prepare_inputs_for_model(
@@ -83,7 +88,11 @@ class DenseMoEForCausalLM(DenseMoEPreTrainedModel, GPTMegatronForCausalLM):
         )
         hidden_states = transformer_outputs[0]
 
-        lm_logits = self.lm_head(hidden_states)
+        lm_logits = (
+            F.linear(hidden_states, self.transformer.wte.weight)
+            if self._tied_word_embeddings
+            else self.lm_head(hidden_states)
+        )
 
         if self.m_width is not None:
             lm_logits = lm_logits / self.m_width
@@ -94,7 +103,7 @@ class DenseMoEForCausalLM(DenseMoEPreTrainedModel, GPTMegatronForCausalLM):
             output = (lm_logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
-        return CausalLMOutputWithCrossAttentions(
+        return CausalLMOutputWithPast(
             loss=loss,
             logits=lm_logits,
             past_key_values=transformer_outputs.past_key_values,

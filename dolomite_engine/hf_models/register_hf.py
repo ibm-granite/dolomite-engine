@@ -6,22 +6,22 @@ from .models import (
     DenseMoEConfig,
     DenseMoEForCausalLM,
     DenseMoEModel,
-    GPTMegatronConfig,
-    GPTMegatronForCausalLM,
-    GPTMegatronModel,
+    GPTDolomiteConfig,
+    GPTDolomiteForCausalLM,
+    GPTDolomiteModel,
     GPTMultiLayerConfig,
     GPTMultiLayerForCausalLM,
     GPTMultiLayerModel,
-    MoEMegablocksConfig,
-    MoEMegablocksForCausalLM,
-    MoEMegablocksModel,
+    MoEDolomiteConfig,
+    MoEDolomiteForCausalLM,
+    MoEDolomiteModel,
 )
 
 
 # (AutoConfig, AutoModel, AutoModelForCausalLM)
 _CUSTOM_MODEL_REGISTRY = [
-    (GPTMegatronConfig, GPTMegatronModel, GPTMegatronForCausalLM),
-    (MoEMegablocksConfig, MoEMegablocksModel, MoEMegablocksForCausalLM),
+    (GPTDolomiteConfig, GPTDolomiteModel, GPTDolomiteForCausalLM),
+    (MoEDolomiteConfig, MoEDolomiteModel, MoEDolomiteForCausalLM),
     (GPTMultiLayerConfig, GPTMultiLayerModel, GPTMultiLayerForCausalLM),
     (DenseMoEConfig, DenseMoEModel, DenseMoEForCausalLM),
 ]
@@ -41,7 +41,7 @@ def register_model_classes() -> None:
         _CUSTOM_MODEL_CLASSES.append(auto_model_for_causal_lm_class)
 
 
-def is_padding_free_transformer_supported(
+def is_custom_model(
     model_class: Union[Type[AutoModelForCausalLM], Type[AutoModelForSeq2SeqLM]], model_type: str
 ) -> bool:
     return model_class.__name__ in _CUSTOM_MODEL_CLASSES or model_type in _CUSTOM_MODEL_TYPES

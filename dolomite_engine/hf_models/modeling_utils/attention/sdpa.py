@@ -14,7 +14,6 @@ class SDPA(Attention):
         hidden_states: torch.Tensor,
         past_key_values: DynamicCache = None,
         attention_mask: torch.Tensor = None,
-        alibi_bias: torch.Tensor = None,
         rope_cos_sin: torch.Tensor = None,
         cu_seqlens: torch.Tensor = None,
         max_seqlen: torch.Tensor = None,
@@ -53,14 +52,17 @@ class SDPA(Attention):
         # value -> (batch_size, num_heads, key_length, head_dim)
         # ==========================================================================================
 
+        softmax_scale = self._get_softmax_scale()
+        dropout_p = self.attn_pdrop if self.training else 0
+
         attn_output = F.scaled_dot_product_attention(
             query,
             key,
             value,
             attn_mask=attention_mask,
-            dropout_p=self.attn_pdrop if self.training else 0,
+            dropout_p=dropout_p,
             is_causal=self.causal if attention_mask is None else False,
-            scale=self.attention_multiplier if self.scale_attn_weights else 1,
+            scale=softmax_scale,
         )
 
         # ==========================================================================================

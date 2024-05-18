@@ -1,4 +1,4 @@
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, MixtralConfig
+from transformers import AutoConfig, AutoTokenizer, GenerationConfig, MixtralConfig
 
 from ...utils import SafeTensorsWeightsManager
 from ..enums import AttentionHeadType
@@ -7,8 +7,8 @@ from ..modeling_utils import (
     split_query_key_value_tensor_for_attention,
 )
 from ..utils import download_repo
-from .gpt_megatron import interleave_up_gate_tensor_for_mlp, split_up_gate_tensor_for_mlp
-from .moe_megablocks import MoEMegablocksConfig
+from .gpt_dolomite import interleave_up_gate_tensor_for_mlp, split_up_gate_tensor_for_mlp
+from .moe_dolomite import MoEDolomiteConfig
 
 
 def import_from_huggingface_mixtral(pretrained_model_name_or_path: str, save_path: str) -> None:
@@ -26,14 +26,17 @@ def import_from_huggingface_mixtral(pretrained_model_name_or_path: str, save_pat
         AttentionHeadType(config.attention_head_type),
     )
 
-    safetensors_weight_manager.save_state_dict(state_dict, save_path)
+    SafeTensorsWeightsManager.save_state_dict(state_dict, save_path)
     config.save_pretrained(save_path)
 
+    generation_config = GenerationConfig.from_model_config(config)
+    generation_config.save_pretrained(save_path)
+
     if tokenizer is not None:
-        tokenizer.save_pretrained(save_path)
+        tokenizer.save_pretrained(save_path, legacy_format=False)
 
 
-def _import_config_from_huggingface(original_config: MixtralConfig) -> MoEMegablocksConfig:
+def _import_config_from_huggingface(original_config: MixtralConfig) -> MoEDolomiteConfig:
     assert original_config.hidden_act == "silu"
 
     if original_config.num_attention_heads == original_config.num_key_value_heads:
@@ -43,7 +46,7 @@ def _import_config_from_huggingface(original_config: MixtralConfig) -> MoEMegabl
     elif original_config.num_attention_heads > original_config.num_key_value_heads:
         attention_head_type = "gqa"
 
-    config = MoEMegablocksConfig(
+    config = MoEDolomiteConfig(
         vocab_size=original_config.vocab_size,
         n_positions=original_config.max_position_embeddings,
         n_embd=original_config.hidden_size,
@@ -66,6 +69,9 @@ def _import_config_from_huggingface(original_config: MixtralConfig) -> MoEMegabl
         num_experts_per_tok=original_config.num_experts_per_tok,
         output_router_logits=original_config.output_router_logits,
         router_aux_loss_coef=original_config.router_aux_loss_coef,
+        bos_token_id=original_config.bos_token_id,
+        eos_token_id=original_config.eos_token_id,
+        pad_token_id=original_config.pad_token_id,
     )
 
     return config
@@ -101,20 +107,20 @@ def _import_state_dict_from_huggingface(
         )
 
         for expert_idx in range(num_experts):
-            state_dict[
-                f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_fc.weight"
-            ] = interleave_up_gate_tensor_for_mlp(
-                safetensors_weight_manager.get_tensor(
-                    f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w3.weight"
-                ),
-                safetensors_weight_manager.get_tensor(
-                    f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w1.weight"
-                ),
+            state_dict[f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_fc.weight"] = (
+                interleave_up_gate_tensor_for_mlp(
+                    safetensors_weight_manager.get_tensor(
+                        f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w3.weight"
+                    ),
+                    safetensors_weight_manager.get_tensor(
+                        f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w1.weight"
+                    ),
+                )
             )
-            state_dict[
-                f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_proj.weight"
-            ] = safetensors_weight_manager.get_tensor(
-                f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w2.weight"
+            state_dict[f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_proj.weight"] = (
+                safetensors_weight_manager.get_tensor(
+                    f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w2.weight"
+                )
             )
 
         state_dict[f"transformer.h.{layer_idx}.attn.c_attn.weight"] = interleave_query_key_value_tensor_for_attention(
@@ -134,7 +140,7 @@ def _import_state_dict_from_huggingface(
 
 
 def export_to_huggingface_mixtral(pretrained_model_name_or_path: str, save_path: str) -> None:
-    config: MoEMegablocksConfig = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+    config: MoEDolomiteConfig = AutoConfig.from_pretrained(pretrained_model_name_or_path)
     original_config = _export_config_to_huggingface(config)
 
     safetensors_weight_manager = SafeTensorsWeightsManager(pretrained_model_name_or_path)
@@ -148,20 +154,20 @@ def export_to_huggingface_mixtral(pretrained_model_name_or_path: str, save_path:
         AttentionHeadType(config.attention_head_type),
     )
 
-    model = AutoModelForCausalLM.from_config(original_config)
-    model.load_state_dict(state_dict)
-    model.save_pretrained(save_path)
-
+    SafeTensorsWeightsManager.save_state_dict(state_dict, save_path)
     original_config.save_pretrained(save_path)
+
+    original_generation_config = GenerationConfig.from_model_config(original_config)
+    original_generation_config.save_pretrained(save_path)
 
     try:
         tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
-        tokenizer.save_pretrained(save_path)
+        tokenizer.save_pretrained(save_path, legacy_format=False)
     except:
         pass
 
 
-def _export_config_to_huggingface(config: MoEMegablocksConfig) -> MixtralConfig:
+def _export_config_to_huggingface(config: MoEDolomiteConfig) -> MixtralConfig:
     assert config.activation_function == "swiglu"
     assert config.normalization_function == "rmsnorm"
     assert config.position_embedding_type == "rope"
@@ -187,6 +193,9 @@ def _export_config_to_huggingface(config: MoEMegablocksConfig) -> MixtralConfig:
         num_experts_per_tok=config.num_experts_per_tok,
         output_router_logits=config.output_router_logits,
         router_aux_loss_coef=config.router_aux_loss_coef,
+        bos_token_id=config.bos_token_id,
+        eos_token_id=config.eos_token_id,
+        pad_token_id=config.pad_token_id,
     )
 
     return original_config
@@ -213,9 +222,9 @@ def _export_state_dict_to_huggingface(
         state_dict[f"model.layers.{layer_idx}.input_layernorm.weight"] = safetensors_weight_manager.get_tensor(
             f"transformer.h.{layer_idx}.ln_1.weight"
         )
-        state_dict[
-            f"model.layers.{layer_idx}.post_attention_layernorm.weight"
-        ] = safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.ln_2.weight")
+        state_dict[f"model.layers.{layer_idx}.post_attention_layernorm.weight"] = (
+            safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.ln_2.weight")
+        )
 
         state_dict[f"model.layers.{layer_idx}.block_sparse_moe.gate.weight"] = safetensors_weight_manager.get_tensor(
             f"transformer.h.{layer_idx}.mlp.gate.weight"
@@ -230,10 +239,10 @@ def _export_state_dict_to_huggingface(
             state_dict[f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w3.weight"] = up_weight
             state_dict[f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w1.weight"] = gate_weight
 
-            state_dict[
-                f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w2.weight"
-            ] = safetensors_weight_manager.get_tensor(
-                f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_proj.weight"
+            state_dict[f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w2.weight"] = (
+                safetensors_weight_manager.get_tensor(
+                    f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_proj.weight"
+                )
             )
 
         query_weight, key_weight, value_weight = split_query_key_value_tensor_for_attention(

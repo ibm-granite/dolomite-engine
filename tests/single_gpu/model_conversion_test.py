@@ -20,10 +20,10 @@ class ModelConversionTest(TestCommons):
         TestCommons.make_args_matrix(TestCommons.get_all_devices(), [AttentionHeadType.mha, AttentionHeadType.mqa])
     )
     def test_bigcode_model_conversion(self, device: torch.device, attention_head_type: AttentionHeadType) -> None:
-        megatron_config = self.get_dense_test_config(attention_head_type, PositionEmbeddingType.learned_absolute)
+        dolomite_config = self.get_dense_test_config(attention_head_type, PositionEmbeddingType.learned_absolute)
 
         self.model_conversion_test(
-            megatron_config=megatron_config,
+            dolomite_config=dolomite_config,
             export_to_huggingface_function=export_to_huggingface_bigcode,
             import_from_huggingface_function=import_from_huggingface_bigcode,
             device=device,
@@ -31,19 +31,23 @@ class ModelConversionTest(TestCommons):
         )
 
     @parameterized.expand(
-        TestCommons.make_args_matrix(TestCommons.get_all_devices(), TestCommons.get_attention_head_types())
+        TestCommons.make_args_matrix(
+            TestCommons.get_all_devices(), TestCommons.get_attention_head_types(), [True, False]
+        )
     )
-    def test_llama_model_conversion(self, device: torch.device, attention_head_type: AttentionHeadType) -> None:
-        megatron_config = self.get_dense_test_config(
+    def test_llama_model_conversion(
+        self, device: torch.device, attention_head_type: AttentionHeadType, add_bias: bool
+    ) -> None:
+        dolomite_config = self.get_dense_test_config(
             attention_head_type,
             PositionEmbeddingType.rope,
-            add_bias=False,
+            add_bias=add_bias,
             activation_function="swiglu",
             normalization_function="rmsnorm",
         )
 
         self.model_conversion_test(
-            megatron_config=megatron_config,
+            dolomite_config=dolomite_config,
             export_to_huggingface_function=export_to_huggingface_llama,
             import_from_huggingface_function=import_from_huggingface_llama,
             device=device,
@@ -54,7 +58,7 @@ class ModelConversionTest(TestCommons):
         TestCommons.make_args_matrix(TestCommons.get_all_devices(), TestCommons.get_attention_head_types())
     )
     def test_mixtral_model_conversion(self, device: torch.device, attention_head_type: AttentionHeadType) -> None:
-        megatron_config = self.get_moe_test_config(
+        dolomite_config = self.get_moe_test_config(
             attention_head_type,
             PositionEmbeddingType.rope,
             add_bias=False,
@@ -63,7 +67,7 @@ class ModelConversionTest(TestCommons):
         )
 
         self.model_conversion_test(
-            megatron_config=megatron_config,
+            dolomite_config=dolomite_config,
             export_to_huggingface_function=export_to_huggingface_mixtral,
             import_from_huggingface_function=import_from_huggingface_mixtral,
             device=device,

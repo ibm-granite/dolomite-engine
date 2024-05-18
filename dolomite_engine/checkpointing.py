@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 from typing import Tuple, Union
@@ -13,11 +14,19 @@ from torch.distributed.fsdp import StateDictType
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
-from .arguments import ExportArgs, InferenceArgs, TrainingArgs, get_args_file_extension
+from .arguments import ExportArgs, InferenceArgs, TrainingArgs
 from .data import DataLoader
-from .enums import ArgsFileExtension, DistributedBackend, Mode, TuningMethod
+from .enums import DistributedBackend, Mode, TuningMethod
 from .model_wrapper import ModelWrapper, get_model
-from .utils import ExperimentsTracker, get_global_rank, load_yaml, register_timer, run_rank_n
+from .utils import (
+    ExperimentsTracker,
+    get_global_rank,
+    load_yaml,
+    log_rank_0,
+    register_timer,
+    run_rank_n,
+    string_to_torch_dtype,
+)
 
 
 _TRAINING_CONFIG_PREFIX = "training_config"
@@ -152,6 +161,7 @@ def load_checkpoint_for_training(
     load_rng_state = args.load_args.load_rng_state
     load_dataloader_state = args.load_args.load_dataloader_state
     load_experiments_tracker_state = args.load_args.load_experiments_tracker_state
+    load_starting_iteration = args.load_args.load_starting_iteration
 
     iteration = args.load_args.iteration
     if iteration is None:
@@ -214,6 +224,9 @@ def load_checkpoint_for_training(
     if load_experiments_tracker_state and os.path.exists(_get_experiments_tracker_path(load_path)):
         experiments_tracker_json = json.load(open(_get_experiments_tracker_path(load_path), "r"))
 
+    if not load_starting_iteration:
+        iteration = 0
+
     return iteration, metadata, experiments_tracker_json
 
 
@@ -230,14 +243,14 @@ def load_checkpoint_for_inference(
     load_path = args.load_args.load_path
     iteration = args.load_args.iteration
 
-    args_file = os.path.join(_get_base_path(load_path, iteration), f"{_TRAINING_CONFIG_PREFIX}.json")
-    if os.path.isfile(args_file):
-        args_from_checkpoint = json.load(open(args_file, "r"))
-    else:
-        args_file = os.path.join(_get_base_path(load_path, iteration), f"{_TRAINING_CONFIG_PREFIX}.yaml")
-        args_from_checkpoint = load_yaml(args_file)
+    args_file = os.path.join(_get_base_path(load_path, iteration), f"{_TRAINING_CONFIG_PREFIX}.yml")
+    args_from_checkpoint = load_yaml(args_file)
 
     args_from_checkpoint: TrainingArgs = TrainingArgs(**args_from_checkpoint)
+
+    if args.mixed_precision_args is not None:
+        log_rank_0(logging.INFO, "overriding mixed precision args")
+        args_from_checkpoint.mixed_precision_args = args.mixed_precision_args
 
     distributed_backend = args_from_checkpoint.distributed_args.distributed_backend
 
@@ -252,8 +265,11 @@ def load_checkpoint_for_inference(
         if model.tuning_method == TuningMethod.prompt_tuning:
             model.load_state_dict(state, strict=False)
         elif model.tuning_method in [TuningMethod.pretraining, TuningMethod.full_finetuning]:
-            for key in state:
-                state[key] = state[key].to(model.dtype)
+            dtype = string_to_torch_dtype(model.dtype)
+            for key in list(state.keys()):
+                state[key] = state[key].to(dtype)
+                # fix for gradient checkpointing
+                state[key.replace("._checkpoint_wrapped_module", "")] = state.pop(key)
 
             model.load_state_dict(state)
     elif distributed_backend == DistributedBackend.torch:
@@ -273,18 +289,9 @@ def save_args(args: Union[TrainingArgs, InferenceArgs], save_path: str, mode: Mo
         save_path (str): save location on disk
     """
 
-    args_file_extension = get_args_file_extension()
-    args = args.to_dict()
-
     file_prefix = _TRAINING_CONFIG_PREFIX if mode == Mode.training else _INFERENCE_CONFIG_PREFIX
-    save_path = os.path.join(save_path, f"{file_prefix}.{args_file_extension.value}")
-
-    if args_file_extension == ArgsFileExtension.json:
-        json.dump(args, open(save_path, "w"), indent=4)
-    elif args_file_extension == ArgsFileExtension.yaml:
-        yaml.dump(args, open(save_path, "w"), indent=2)
-    else:
-        raise ValueError(f"unexpected file extension ({args_file_extension})")
+    save_path = os.path.join(save_path, f"{file_prefix}.yml")
+    yaml.dump(args.to_dict(), open(save_path, "w"), indent=2)
 
 
 def _get_checkpoint_tag(iteration: int) -> str:

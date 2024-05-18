@@ -1,10 +1,10 @@
 from os import PathLike
 from typing import List
 
-from ...config import MegatronConfig
+from ...config import CommonConfig
 
 
-class GPTMultiLayerConfig(MegatronConfig):
+class GPTMultiLayerConfig(CommonConfig):
     model_type = "gpt_multilayer"
 
     def __init__(
@@ -28,7 +28,6 @@ class GPTMultiLayerConfig(MegatronConfig):
         bos_token_id: int = 50256,
         eos_token_id: int = 50256,
         pad_token_id: int = 50256,
-        apply_residual_connection_post_layernorm: bool = False,
         add_bias: bool = True,
         position_embedding_type: str = "learned_absolute",
         rope_theta: int = 10000,
@@ -60,7 +59,6 @@ class GPTMultiLayerConfig(MegatronConfig):
             bos_token_id=bos_token_id,
             eos_token_id=eos_token_id,
             pad_token_id=pad_token_id,
-            apply_residual_connection_post_layernorm=apply_residual_connection_post_layernorm,
             add_bias=add_bias,
             position_embedding_type=position_embedding_type,
             rope_theta=rope_theta,

@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 from ...modeling_utils import get_normalization_function
-from ..moe_megablocks.layer import SparseMoEBlock
+from ..moe_dolomite.layer import SparseMoEBlock
 from .config import DenseMoEConfig
 from .moa import DenseMoA_SDPA
 from .moe import DenseMoE
@@ -19,7 +19,6 @@ class DenseMoEBlock(SparseMoEBlock):
 
         hidden_size = config.hidden_size
         self.inner_dim = config.n_inner
-        self.apply_residual_connection_post_layernorm = config.apply_residual_connection_post_layernorm
         self.layer_idx = layer_idx
         self.m_residual = config.m_residual
 

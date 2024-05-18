@@ -1,20 +1,19 @@
-from ...config import MegatronConfig
+from ...config import CommonConfig
 from ...enums import AttentionHeadType, PositionEmbeddingType
 from .base import Attention_TP
 from .flash import FlashAttention2_TP
-from .math import MathAttention_TP
 from .sdpa import SDPA_TP
 
 
 _ATTENTION_MODULES = {
-    "eager": MathAttention_TP,
+    "eager": Attention_TP,
     "sdpa": SDPA_TP,
     "flash_attention_2": FlashAttention2_TP,
 }
 
 
 def get_attention_module(
-    config: MegatronConfig,
+    config: CommonConfig,
     causal: bool,
     attention_implementation: str,
     use_padding_free_transformer: bool,

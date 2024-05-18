@@ -11,9 +11,10 @@ class GradientCheckpointingMethod(Enum):
 
 class LRDecaySchedule(str, Enum):
     constant = "constant"
-    linear = "linear"
     cosine = "cosine"
     exponential = "exponential"
+    linear = "linear"
+    power = "power"
 
 
 class AttentionImplementation(Enum):
@@ -72,9 +73,9 @@ class DistributedBackend(str, Enum):
     torch = "torch"
 
 
-class ArgsFileExtension(str, Enum):
-    json = "json"
-    yaml = "yaml"
+class FP8Backend(str, Enum):
+    msamp = "msamp"
+    nvte = "nvte"
 
 
 class LossMask(str, Enum):

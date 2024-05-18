@@ -2,9 +2,15 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from ....enums import AttentionHeadType, PositionEmbeddingType
-from ....modeling_utils import ParameterizedLinear, get_activation_function, get_normalization_function
+from ....modeling_utils import (
+    ParameterizedLinear,
+    apply_rotary_pos_emb,
+    get_activation_function,
+    get_normalization_function,
+)
 from ..config import GPTMultiLayerConfig
 
 
@@ -61,11 +67,71 @@ class MultiLayerAttention(nn.Module):
             f"({self.num_key_value_heads})"
         )
 
-    def _get_mask_value(self, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
-        # torch.where expects a tensor. We use a cache to avoid recreating it every time.
-        if self.mask_value is None or self.mask_value.dtype != dtype or self.mask_value.device != device:
-            self.mask_value = torch.full([], torch.finfo(torch.float16).min, dtype=dtype, device=device)
-        return self.mask_value
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: torch.Tensor = None,
+        rope_cos_sin: torch.Tensor = None,
+        cu_seqlens: torch.Tensor = None,
+        max_seqlen: torch.Tensor = None,
+    ) -> torch.Tensor:
+        batch_size, query_length = hidden_states.shape[:2]
+
+        query = self.q_attn(hidden_states)
+        query = query.view(batch_size, query_length, self.num_heads, -1)
+        query = query.transpose(1, 2)
+
+        if self.position_embedding_type == PositionEmbeddingType.rope:
+            query = apply_rotary_pos_emb(query, rope_cos_sin)
+
+        dtype = query.dtype
+        softmax_dtype = torch.float32 if self.attention_softmax_in_fp32 else dtype
+
+        batch_size = query.shape[0]
+        query_length = query.shape[2]
+        key_length = key.shape[-1]
+
+        # Always copies
+        query = query.reshape(batch_size * self.num_heads, query_length, self.head_dim)
+
+        if attention_mask is None:
+            attn_weights = torch.empty(
+                (batch_size * self.num_heads, query_length, key_length), device=query.device, dtype=query.dtype
+            )
+            beta = 0
+        else:
+            attn_weights = attention_mask.expand(-1, self.num_heads, -1, -1).reshape(-1, query_length, key_length)
+            beta = 1
+
+        attn_weights = torch.baddbmm(attn_weights, query, key, beta=beta, alpha=self._get_softmax_scale(False)).view(
+            batch_size, self.num_heads, query_length, key_length
+        )
+
+        attn_weights = F.softmax(attn_weights.to(softmax_dtype), dim=-1).to(dtype)
+        attn_weights = self.attn_dropout(attn_weights)
+
+        attn_output = torch.matmul(attn_weights, value)
+
+        attn_output = attn_output.transpose(1, 2)
+        attn_output = attn_output.reshape(batch_size, -1, self.num_heads * self.head_dim)
+
+        attn_output = self.c_proj(attn_output)
+        attn_output = self.resid_dropout(attn_output)
+
+        return attn_output
+
+    def _get_softmax_scale(self, return_none_allowed: bool = True) -> float:
+        if self.scale_attn_weights:
+            if self.attention_multiplier is None:
+                softmax_scale = None if return_none_allowed else 1 / self.head_dim**0.5
+            else:
+                softmax_scale = self.attention_multiplier
+        else:
+            softmax_scale = 1
+
+        return softmax_scale
 
 
 class KeyValueProjection(nn.Module):

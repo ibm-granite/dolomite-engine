@@ -3,20 +3,21 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from transformers import DynamicCache
 
-from ...config import MegatronConfig
+from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
 from ..linear import ParameterizedLinear
+from ..position_embedding import apply_rotary_pos_emb
+from .utils import repeat_key_value
 
 
 class Attention(nn.Module):
-    """Attention class used by all Megatron models"""
-
-    def __init__(self, config: MegatronConfig, causal: bool, layer_idx: int = None) -> None:
+    def __init__(self, config: CommonConfig, causal: bool, layer_idx: int = None) -> None:
         super().__init__()
 
         self.causal = causal
-        self.mask_value = None
         self.hidden_size = config.n_embd
         self.num_heads = config.n_head
         self.num_key_value_heads = config.num_key_value_heads
@@ -76,9 +77,11 @@ class Attention(nn.Module):
             std /= math.sqrt(self.m_width)
         self.c_attn = ParameterizedLinear(
             self.hidden_size,
-            self.hidden_size + 2 * self.num_key_value_heads * self.head_dim
-            if self.kv_channels is None
-            else self.num_heads * self.kv_channels + 2 * self.num_key_value_heads * self.kv_channels,
+            (
+                self.hidden_size + 2 * self.num_key_value_heads * self.head_dim
+                if self.kv_channels is None
+                else self.num_heads * self.kv_channels + 2 * self.num_key_value_heads * self.kv_channels
+            ),
             bias=self.add_bias,
             std=std,
         )
@@ -176,8 +179,119 @@ class Attention(nn.Module):
 
         return query, key, value
 
-    def _get_mask_value(self, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
-        # torch.where expects a tensor. We use a cache to avoid recreating it every time.
-        if self.mask_value is None or self.mask_value.dtype != dtype or self.mask_value.device != device:
-            self.mask_value = torch.full([], torch.finfo(torch.float16).min, dtype=dtype, device=device)
-        return self.mask_value
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        past_key_values: DynamicCache = None,
+        attention_mask: torch.Tensor = None,
+        rope_cos_sin: torch.Tensor = None,
+        cu_seqlens: torch.Tensor = None,
+        max_seqlen: torch.Tensor = None,
+    ) -> torch.Tensor:
+        # ==========================================================================================
+        # hidden_states -> (batch_size, query_length, num_heads * head_dim)
+        # ==========================================================================================
+
+        query, key, value = self._prepare_qkv_for_forward(hidden_states)
+
+        # ==========================================================================================
+        # query -> (batch_size, num_heads, query_length, head_dim)
+        # key -> (batch_size, num_key_value_heads, query_length, head_dim)
+        # value -> (batch_size, num_key_value_heads, query_length, head_dim)
+        # ==========================================================================================
+
+        if self.position_embedding_type == PositionEmbeddingType.rope:
+            query = apply_rotary_pos_emb(query, rope_cos_sin)
+            key = apply_rotary_pos_emb(key, rope_cos_sin)
+
+        if past_key_values is not None:
+            key, value = past_key_values.update(key, value, self.layer_idx)
+
+        # ==========================================================================================
+        # query -> (batch_size, num_heads, query_length, head_dim)
+        # key -> (batch_size, num_key_value_heads, key_length, head_dim)
+        # value -> (batch_size, num_key_value_heads, key_length, head_dim)
+        # ==========================================================================================
+
+        key = key.transpose(-1, -2)
+
+        dtype = query.dtype
+        softmax_dtype = torch.float32 if self.attention_softmax_in_fp32 else dtype
+
+        # ==========================================================================================
+        # query -> (batch_size, num_heads, query_length, head_dim)
+        # key -> (batch_size, num_key_value_heads, head_dim, key_length)
+        # value -> (batch_size, num_key_value_heads, key_length, head_dim)
+        # ==========================================================================================
+
+        batch_size = query.shape[0]
+        query_length = query.shape[2]
+        key_length = key.shape[-1]
+
+        key = repeat_key_value(key, self.num_heads, self.num_key_value_heads)
+        value = repeat_key_value(value, self.num_heads, self.num_key_value_heads)
+
+        # Always copies
+        query = query.reshape(batch_size * self.num_heads, query_length, self.head_dim)
+        # No copy when layer_past is provided.
+        key = key.reshape(batch_size * self.num_heads, self.head_dim, key_length)
+
+        # ==========================================================================================
+        # query -> (batch_size * num_heads, query_length, head_dim)
+        # key -> (batch_size * num_heads, head_dim, key_length)
+        # value -> (batch_size, num_heads, key_length, head_dim)
+        # ==========================================================================================
+
+        if attention_mask is None:
+            attn_weights = torch.empty(
+                (batch_size * self.num_heads, query_length, key_length), device=query.device, dtype=query.dtype
+            )
+            beta = 0
+        else:
+            attn_weights = attention_mask.expand(-1, self.num_heads, -1, -1).reshape(-1, query_length, key_length)
+            beta = 1
+
+        attn_weights = torch.baddbmm(attn_weights, query, key, beta=beta, alpha=self._get_softmax_scale(False)).view(
+            batch_size, self.num_heads, query_length, key_length
+        )
+
+        # ==========================================================================================
+        # attn_weights -> (batch_size, num_heads, query_length, key_length)
+        # ==========================================================================================
+
+        attn_weights = F.softmax(attn_weights.to(softmax_dtype), dim=-1).to(dtype)
+        attn_weights = self.attn_dropout(attn_weights)
+
+        # ==========================================================================================
+        # value -> (batch_size, num_heads, key_length, head_dim)
+        # attn_weights -> (batch_size, num_heads, query_length, key_length)
+        # ==========================================================================================
+
+        attn_output = torch.matmul(attn_weights, value)
+
+        # ==========================================================================================
+        # attn_output -> (batch_size, num_heads, query_length, head_dim)
+        # ==========================================================================================
+
+        attn_output = attn_output.transpose(1, 2)
+        attn_output = attn_output.reshape(batch_size, -1, self.num_heads * self.head_dim)
+
+        # ==========================================================================================
+        # attn_output -> (batch_size, query_length, num_heads * head_dim)
+        # ==========================================================================================
+
+        attn_output = self.c_proj(attn_output)
+        attn_output = self.resid_dropout(attn_output)
+
+        return attn_output
+
+    def _get_softmax_scale(self, return_none_allowed: bool = True) -> float:
+        if self.scale_attn_weights:
+            if self.attention_multiplier is None:
+                softmax_scale = None if return_none_allowed else 1 / self.head_dim**0.5
+            else:
+                softmax_scale = self.attention_multiplier
+        else:
+            softmax_scale = 1
+
+        return softmax_scale

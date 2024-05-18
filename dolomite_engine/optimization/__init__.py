@@ -4,9 +4,9 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
 from ..enums import LRDecaySchedule, ParamsGroupMethod
-from ..hf_models import GPTMegatronConfig, GPTMegatronForCausalLM
+from ..hf_models import GPTDolomiteConfig, GPTDolomiteForCausalLM
 from ..hf_models.modeling_utils import Attention
-from ..hf_models.models.gpt_megatron.layer import MLP
+from ..hf_models.models.gpt_dolomite.layer import MLP
 from ..model_wrapper import ModelWrapper
 from .optimizer import get_optimizer
 from .scheduler import get_scheduler
@@ -24,6 +24,7 @@ def get_optimizer_and_lr_scheduler(
     lr_decay_style: LRDecaySchedule,
     lr_decay_factor: float,
     params_group_method: ParamsGroupMethod,
+    extra_lr_scheduler_args: dict,
 ) -> Tuple[Optimizer, LambdaLR]:
     trainable_parameters_or_param_groups = _get_param_groups(model, optimizer_class_args, params_group_method)
 
@@ -42,6 +43,7 @@ def get_optimizer_and_lr_scheduler(
         num_training_steps=num_training_steps,
         lr_decay_style=lr_decay_style,
         lr_decay_factor=lr_decay_factor,
+        extra_lr_scheduler_args=extra_lr_scheduler_args,
     )
 
     return optimizer, lr_scheduler
@@ -51,8 +53,8 @@ def _get_param_groups(model: ModelWrapper, optimizer_class_args: dict, params_gr
     if params_group_method is None:
         trainable_parameters_or_param_groups = model.parameters()
     elif params_group_method == ParamsGroupMethod.mup:
-        assert isinstance(model.config, GPTMegatronConfig), "mup is only supported with GPTMegatronForCausalLM"
-        assert isinstance(model.model, GPTMegatronForCausalLM), "mup is only supported with GPTMegatronForCausalLM"
+        assert isinstance(model.config, GPTDolomiteConfig), "mup is only supported with GPTDolomiteForCausalLM"
+        assert isinstance(model.model, GPTDolomiteForCausalLM), "mup is only supported with GPTDolomiteForCausalLM"
         assert (
             model.config.init_method == "mup"
         ), "both init method for model and params group method for optimizer should be set to mup"
@@ -78,8 +80,8 @@ def _get_param_groups(model: ModelWrapper, optimizer_class_args: dict, params_gr
         ), "params in groups don't sum up to total parameters"
 
         trainable_parameters_or_param_groups = [
-            {"params": list(mup_group.values()), "lr": optimizer_class_args["lr"] / model.config.m_width},
             {"params": normal_group},
+            {"params": list(mup_group.values()), "lr": optimizer_class_args["lr"] / model.config.m_width},
         ]
     else:
         raise ValueError(f"unexpected params_group_method ({params_group_method})")

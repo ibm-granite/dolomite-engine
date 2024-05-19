@@ -6,35 +6,11 @@ import multiprocessing
 import sys
 import time
 
-import numpy as np
-import torch
-
-
-try:
-    import nltk
-
-    nltk_available = True
-except ImportError:
-    nltk_available = False
-
 import pyarrow as pa
+import torch
 from datasets import load_dataset
-from megatron.core.datasets import indexed_dataset
-from megatron.training.tokenizer import build_tokenizer
 
-
-# https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
-class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
-
-    _period_context_fmt = r"""
-        \S*                          # some word material
-        %(SentEndChars)s             # a potential sentence ending
-        \s*                       #  <-- THIS is what I changed
-        (?=(?P<after_tok>
-            %(NonWord)s              # either other punctuation
-            |
-            (?P<next_tok>\S+)     #  <-- Normally you would have \s+ here
-        ))"""
+from dolomite_engine.data.megatron.indexed_dataset import DType, MMapIndexedDatasetBuilder
 
 
 class ArrowIterator:
@@ -67,13 +43,7 @@ class Encoder(object):
             library = "tokenizers/punkt/{}.pickle".format(self.args.lang)
             print("loading: " + library)
             splitter = nltk.load(library)
-            if self.args.keep_newlines:
-                # this prevents punkt from eating newlines after sentences
-                Encoder.splitter = nltk.tokenize.punkt.PunktSentenceTokenizer(
-                    train_text=splitter._params, lang_vars=CustomLanguageVars()
-                )
-            else:
-                Encoder.splitter = splitter
+            Encoder.splitter = splitter
 
         else:
             Encoder.splitter = IdentitySplitter()
@@ -124,7 +94,6 @@ def get_args():
         "--json-keys", nargs="+", default=["text"], help="space separate listed of keys to extract from json"
     )
     group.add_argument("--split-sentences", action="store_true", help="Split documents into sentences.")
-    group.add_argument("--keep-newlines", action="store_true", help="Keep newlines between sentences when splitting.")
 
     group = parser.add_argument_group(title="tokenizer")
     group.add_argument(
@@ -162,7 +131,6 @@ def get_args():
     group.add_argument("--chunk-size", type=int, required=True, help="Chunk size assigned to each worker process")
     group.add_argument("--log-interval", type=int, default=100, help="Interval between progress updates")
     args = parser.parse_args()
-    args.keep_empty = False
 
     if args.tokenizer_type.lower().startswith("bert"):
         if not args.split_sentences:
@@ -180,9 +148,6 @@ def get_args():
 def main():
     args = get_args()
     startup_start = time.time()
-
-    if nltk_available and args.split_sentences:
-        nltk.download("punkt", quiet=True)
 
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
@@ -232,9 +197,8 @@ def main():
     for key in args.json_keys:
         output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix, key, level)
         output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix, key, level)
-        builders[key] = indexed_dataset.IndexedDatasetBuilder(
-            output_bin_files[key],
-            dtype=indexed_dataset.DType.optimal_dtype(tokenizer.vocab_size),
+        builders[key] = MMapIndexedDatasetBuilder(
+            output_bin_files[key], dtype=DType.optimal_dtype(tokenizer.vocab_size)
         )
 
     startup_end = time.time()

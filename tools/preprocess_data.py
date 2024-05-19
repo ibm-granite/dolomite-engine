@@ -5,31 +5,32 @@ import json
 import multiprocessing
 import sys
 import time
+from typing import List
 
 import torch
 from datasets import load_dataset
+from transformers import AutoTokenizer
 
 from dolomite_engine.data.megatron.indexed_dataset import DType, MMapIndexedDatasetBuilder
 
 
 class Encoder(object):
-    def __init__(self, args):
-        self.args = args
-
-    def initializer(self):
-        Encoder.tokenizer = build_tokenizer(self.args)
+    def __init__(self, tokenizer: AutoTokenizer, json_keys: List[str], append_eod: bool) -> None:
+        self.tokenizer = tokenizer
+        self.json_keys = json_keys
+        self.append_eod = append_eod
 
     def _encode_data(self, data):
         ids = {}
-        for key in self.args.json_keys:
+        for key in self.json_keys:
             text = data[key]
             doc_ids = []
             for sentence in [text]:
-                sentence_ids = Encoder.tokenizer.tokenize(sentence)
+                sentence_ids = self.tokenizer.tokenize(sentence)
                 if len(sentence_ids) > 0:
                     doc_ids.append(sentence_ids)
-            if len(doc_ids) > 0 and self.args.append_eod:
-                doc_ids[-1].append(Encoder.tokenizer.eod)
+            if len(doc_ids) > 0 and self.append_eod:
+                doc_ids[-1].append(self.tokenizer.eos_token_id)
             ids[key] = doc_ids
         return ids
 
@@ -78,9 +79,10 @@ def main():
     args = get_args()
     startup_start = time.time()
 
-    encoder = Encoder(args)
-    tokenizer = build_tokenizer(args)
-    pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+    encoder = Encoder(tokenizer, args.json_keys, args.append_eod)
+
+    pool = multiprocessing.Pool(args.workers)
     print("Opening", args.input)
 
     if args.input.endswith(".jsonl"):
@@ -111,16 +113,12 @@ def main():
         ds = load_dataset(args.input, use_auth_token=True, streaming=True, split="train", data_dir=args.subset)
         encoded_docs = pool.imap(encoder.encode_hf, ds, args.chunk_size)
 
-    level = "document"
-    if args.split_sentences:
-        level = "sentence"
-
     output_bin_files = {}
     output_idx_files = {}
     builders = {}
     for key in args.json_keys:
-        output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix, key, level)
-        output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix, key, level)
+        output_bin_files[key] = f"{args.output_prefix}_{key}.bin"
+        output_idx_files[key] = f"{args.output_prefix}_{key}.idx"
         builders[key] = MMapIndexedDatasetBuilder(
             output_bin_files[key], dtype=DType.optimal_dtype(tokenizer.vocab_size)
         )

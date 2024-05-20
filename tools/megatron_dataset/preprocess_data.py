@@ -23,7 +23,7 @@ class Encoder:
         ids = {}
         for key in self.json_keys:
             text = data[key]
-            document_ids = self.tokenizer.tokenize(text)
+            document_ids = self.tokenizer.encode(text)
             if len(document_ids) > 0:
                 if self.append_eod:
                     document_ids.append(self.tokenizer.eos_token_id)
@@ -55,7 +55,7 @@ def get_args() -> Namespace:
     )
 
     group = parser.add_argument_group(title="tokenizer")
-    group.add_argument("--tokenizer", type=str, default=None, help="Path to the tokenizer")
+    group.add_argument("--tokenizer", type=str, required=True, help="Path to the tokenizer")
     group.add_argument("--append-eod", action="store_true", help="Append an <eod> token to the end of a document.")
 
     group = parser.add_argument_group(title="output data")
@@ -114,12 +114,9 @@ def main() -> None:
         for key in args.json_keys
     }
 
-    for doc in tqdm(encoded_docs):
-        for key, sentences in doc.items():
-            if len(sentences) == 0:
-                continue
-            for sentence in sentences:
-                builders[key].add_item(torch.IntTensor(sentence))
+    for item in tqdm(encoded_docs):
+        for key, document in item.items():
+            builders[key].add_item(torch.IntTensor(document))
             builders[key].end_document()
 
     print("Done! Now finalizing.")

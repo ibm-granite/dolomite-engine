@@ -124,7 +124,7 @@ def load_checkpoint_for_training(
     model: ModelWrapper,
     optimizer: Optimizer,
     lr_scheduler: LambdaLR,
-    train_dataloader: DataLoader,
+    train_dataloader: ResumableDataLoader,
 ) -> Tuple[int, dict]:
     """load checkpoint for training
 
@@ -133,7 +133,7 @@ def load_checkpoint_for_training(
         model (ModelWrapper): model to load
         optimizer (Optimizer): optimizer to save
         lr_scheduler (LambdaLR): learning rate scheduler to load
-        train_dataloader (DataLoader): train dataloader to load
+        train_dataloader (ResumableDataLoader): train dataloader to load
 
     Raises:
         ValueError: if unexpected distributed backend is found

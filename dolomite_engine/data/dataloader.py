@@ -25,6 +25,7 @@ class DispatchingDataLoader(DataLoader):
         collate_fn: Callable[[List], Any] | None = None,
         source_rank: int = None,
         broadcast_ranks: List[int] = None,
+        keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
         self.source_rank = source_rank
         self.broadcast_process_group = torch.distributed.new_group(ranks=broadcast_ranks)
@@ -35,7 +36,7 @@ class DispatchingDataLoader(DataLoader):
 
         super().__init__(
             dataset,
-            batch_size * self.broadcast_world_size,
+            batch_size=batch_size * self.broadcast_world_size,
             sampler=sampler,
             collate_fn=collate_fn,
             drop_last=True,
@@ -49,14 +50,14 @@ class DispatchingDataLoader(DataLoader):
         torch.distributed.broadcast(self._length, src=self.source_rank, group=self.broadcast_process_group)
         self._length = self._length.item()
 
-        self.keys = ["input_ids", "attention_mask", "labels"]
+        self.keys = keys
 
     def __iter__(self):
         if self.is_source:
             iterator = super().__iter__()
 
             for batch in iterator:
-                batch_shape = [batch["input_ids"].shape]
+                batch_shape = [batch[self.keys[0]].shape]
                 torch.distributed.broadcast_object_list(
                     batch_shape, src=self.source_rank, group=self.broadcast_process_group
                 )

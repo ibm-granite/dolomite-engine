@@ -67,23 +67,29 @@ def get_dataloader(
     log_rank_0(logging.INFO, f"{'-' * 25} {split.value} {'-' * 25}")
     log_rank_0(logging.INFO, blended_dataset)
 
-    sampler = BlendedDistributedSampler(
-        dataset=blended_dataset,
-        data_sampling_ratios=[1] if len(datasets_list) == 1 else data_sampling_ratios,
-        ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
-        num_replicas=get_world_size(),
-        rank=get_global_rank(),
-        shuffle=split == DatasetSplit.train,
-        seed=args.random_args.seed,
-        drop_last=False,
-    )
-
     micro_batch_size = args.training_parameters.micro_batch_size
 
     if args.distributed_args.dispatching_dataloader:
         source_rank = get_global_rank() // torch.cuda.device_count()
         broadcast_ranks = list(range(source_rank, torch.cuda.device_count()))
+        num_nodes = get_world_size() // torch.cuda.device_count()
 
+        # each node is given a data sampler
+        # TODO modify this when we add model parallelism
+
+        # sampler routes to the dispatching parent worker
+        sampler = BlendedDistributedSampler(
+            dataset=blended_dataset,
+            data_sampling_ratios=[1] if len(datasets_list) == 1 else data_sampling_ratios,
+            ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
+            num_replicas=num_nodes,
+            rank=source_rank,
+            shuffle=split == DatasetSplit.train,
+            seed=args.random_args.seed,
+            drop_last=False,
+        )
+
+        # dataloader does local dispatching and thus needs source_rank and broadcast_ranks
         dataloader = DispatchingDataLoader(
             blended_dataset,
             batch_size=micro_batch_size,
@@ -100,6 +106,19 @@ def get_dataloader(
             broadcast_ranks=broadcast_ranks,
         )
     else:
+        # routing to data parallel worker is done by sampler
+        sampler = BlendedDistributedSampler(
+            dataset=blended_dataset,
+            data_sampling_ratios=[1] if len(datasets_list) == 1 else data_sampling_ratios,
+            ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
+            num_replicas=get_world_size(),
+            rank=get_global_rank(),
+            shuffle=split == DatasetSplit.train,
+            seed=args.random_args.seed,
+            drop_last=False,
+        )
+
+        # dataloader is unaware of data parallel routing
         dataloader = DataLoader(
             blended_dataset,
             batch_size=micro_batch_size,

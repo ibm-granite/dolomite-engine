@@ -141,11 +141,15 @@ def _get_dispatching_dataloader(
 ) -> Tuple[ResumableDataLoader]:
     micro_batch_size = args.training_parameters.micro_batch_size
 
-    source_rank = get_global_rank() // torch.cuda.device_count()
-    broadcast_ranks = list(range(source_rank, torch.cuda.device_count()))
-    num_nodes = get_world_size() // torch.cuda.device_count()
+    num_ranks_per_node = torch.cuda.device_count()
+    node_rank = get_global_rank() // num_ranks_per_node
+    num_nodes = get_world_size() // num_ranks_per_node
 
-    if get_global_rank() == source_rank:
+    # global rank of first GPU on the node
+    source_global_rank = node_rank * num_ranks_per_node
+    broadcast_ranks = list(range(source_global_rank, num_ranks_per_node))
+
+    if get_global_rank() == source_global_rank:
         datasets_list, data_sampling_ratios = get_datasets_list(
             args=args,
             split=split,
@@ -167,9 +171,9 @@ def _get_dispatching_dataloader(
         sampler = BlendedDistributedSampler(
             dataset=blended_dataset,
             data_sampling_ratios=data_sampling_ratios,
-            ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
             num_replicas=num_nodes,
-            rank=source_rank,
+            rank=node_rank,
+            ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
             shuffle=split == DatasetSplit.train,
             seed=args.random_args.seed,
             drop_last=False,
@@ -192,7 +196,7 @@ def _get_dispatching_dataloader(
             is_encoder_decoder=is_encoder_decoder,
             use_padding_free_transformer=args.model_args.use_padding_free_transformer,
         ),
-        source_rank=source_rank,
+        source_rank=source_global_rank,
         broadcast_ranks=broadcast_ranks,
     )
 
@@ -234,9 +238,9 @@ def _get_non_dispatching_dataloader(
     sampler = BlendedDistributedSampler(
         dataset=blended_dataset,
         data_sampling_ratios=[1] if len(datasets_list) == 1 else data_sampling_ratios,
-        ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
         num_replicas=get_world_size(),
         rank=get_global_rank(),
+        ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
         shuffle=split == DatasetSplit.train,
         seed=args.random_args.seed,
         drop_last=False,

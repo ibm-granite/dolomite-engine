@@ -15,9 +15,9 @@ class BlendedDistributedSampler(DistributedSampler):
         self,
         dataset: BlendedDatasets,
         data_sampling_ratios: List[int],
+        num_replicas: int,
+        rank: int,
         ignore_sampling_proportion_for_validation: bool = True,
-        num_replicas: int = None,
-        rank: int = None,
         shuffle: bool = True,
         seed: int = 0,
         drop_last: bool = False,
@@ -74,16 +74,16 @@ class BlendedDistributedSampler(DistributedSampler):
         else:
             indices = list(range(len(self.dataset)))
 
-        if not self.drop_last:
+        if self.drop_last:
+            # remove tail of data to make it evenly divisible.
+            indices = indices[: self.total_size]
+        else:
             # add extra samples to make it evenly divisible
             padding_size = self.total_size - len(indices)
             if padding_size <= len(indices):
                 indices += indices[:padding_size]
             else:
                 indices += (indices * math.ceil(padding_size / len(indices)))[:padding_size]
-        else:
-            # remove tail of data to make it evenly divisible.
-            indices = indices[: self.total_size]
         assert len(indices) == self.total_size
 
         # subsample

@@ -8,7 +8,7 @@ from ..arguments import InferenceArgs, TrainingArgs
 from ..enums import DatasetSplit, Mode, TuningMethod
 from ..utils import get_global_rank, get_world_size, log_rank_0
 from .base import BaseDataset, BlendedDatasets
-from .dataloader import DataLoader
+from .dataloader import DataLoader, DispatchingDataLoader
 from .debug import DebugDataset
 from .instruction_tuning import AlpacaDataset, DollyDataset, SlimOrcaDataset
 from .jsonlines import JSONLinesDataset
@@ -79,19 +79,34 @@ def get_dataloader(
 
     micro_batch_size = args.training_parameters.micro_batch_size
 
-    dataloader = DataLoader(
-        blended_dataset,
-        batch_size=micro_batch_size,
-        sampler=sampler,
-        collate_fn=partial(
-            collate_fn,
-            mode=mode,
-            loss_mask=args.training_parameters.loss_mask,
-            eos_token_id=tokenizer.eos_token_id,
-            is_encoder_decoder=is_encoder_decoder,
-            use_padding_free_transformer=args.model_args.use_padding_free_transformer,
-        ),
-    )
+    if args.distributed_args.dispatching_dataloader:
+        dataloader = DispatchingDataLoader(
+            blended_dataset,
+            batch_size=micro_batch_size,
+            sampler=sampler,
+            collate_fn=partial(
+                collate_fn,
+                mode=mode,
+                loss_mask=args.training_parameters.loss_mask,
+                eos_token_id=tokenizer.eos_token_id,
+                is_encoder_decoder=is_encoder_decoder,
+                use_padding_free_transformer=args.model_args.use_padding_free_transformer,
+            ),
+        )
+    else:
+        dataloader = DataLoader(
+            blended_dataset,
+            batch_size=micro_batch_size,
+            sampler=sampler,
+            collate_fn=partial(
+                collate_fn,
+                mode=mode,
+                loss_mask=args.training_parameters.loss_mask,
+                eos_token_id=tokenizer.eos_token_id,
+                is_encoder_decoder=is_encoder_decoder,
+                use_padding_free_transformer=args.model_args.use_padding_free_transformer,
+            ),
+        )
 
     if split == DatasetSplit.train:
         total_samples_seen = (

@@ -2,6 +2,7 @@ import logging
 from functools import partial
 from typing import Iterable, List, Tuple, Union
 
+import torch
 from transformers import AutoTokenizer
 
 from ..arguments import InferenceArgs, TrainingArgs
@@ -80,6 +81,9 @@ def get_dataloader(
     micro_batch_size = args.training_parameters.micro_batch_size
 
     if args.distributed_args.dispatching_dataloader:
+        source_rank = get_global_rank() // torch.cuda.device_count()
+        broadcast_ranks = list(range(source_rank, torch.cuda.device_count()))
+
         dataloader = DispatchingDataLoader(
             blended_dataset,
             batch_size=micro_batch_size,
@@ -92,6 +96,8 @@ def get_dataloader(
                 is_encoder_decoder=is_encoder_decoder,
                 use_padding_free_transformer=args.model_args.use_padding_free_transformer,
             ),
+            source_rank=source_rank,
+            broadcast_ranks=broadcast_ranks,
         )
     else:
         dataloader = DataLoader(

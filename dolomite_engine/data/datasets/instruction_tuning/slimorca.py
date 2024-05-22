@@ -2,7 +2,7 @@ from typing import List
 
 from datasets import load_dataset
 
-from ...enums import DatasetSplit
+from ....enums import DatasetSplit
 from .base import BaseInstructionDataset
 
 

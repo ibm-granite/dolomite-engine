@@ -15,7 +15,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
 from .arguments import ExportArgs, InferenceArgs, TrainingArgs
-from .data import DataLoader
+from .data import ResumableDataLoader
 from .enums import DistributedBackend, Mode, TuningMethod
 from .model_wrapper import ModelWrapper, get_model
 from .utils import ExperimentsTracker, get_global_rank, load_yaml, log_rank_0, run_rank_n, string_to_torch_dtype
@@ -30,7 +30,7 @@ def save_checkpoint(
     model: ModelWrapper,
     optimizer: Optimizer,
     lr_scheduler: LambdaLR,
-    train_dataloader: DataLoader,
+    train_dataloader: ResumableDataLoader,
     experiments_tracker: ExperimentsTracker,
     iteration: int,
     metadata: dict = None,

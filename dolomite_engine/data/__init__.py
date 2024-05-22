@@ -8,8 +8,8 @@ from transformers import AutoTokenizer
 from ..arguments import InferenceArgs, TrainingArgs
 from ..enums import DatasetSplit, Mode
 from ..utils import get_global_rank, get_world_size, log_rank_0
-from .dataloader import DataLoader, DispatchingDataLoader
-from .datasets import BlendedDatasets, get_datasets_list
+from .dataloader import DispatchingDataLoader, ResumableDataLoader
+from .datasets import BaseDataset, BlendedDatasets, get_datasets_list
 from .megatron import get_megatron_gpt_dataloaders
 from .sampler import BlendedDistributedSampler
 from .utils import collate_fn
@@ -21,7 +21,7 @@ def get_dataloader(
     mode: Mode,
     tokenizer: AutoTokenizer,
     is_encoder_decoder: bool,
-) -> Tuple[DataLoader]:
+) -> Tuple[ResumableDataLoader]:
     """prepares datasets and sampler
 
     Args:
@@ -32,33 +32,34 @@ def get_dataloader(
         is_encoder_decoder (bool): whether the model is an encoder-decoder or a decoder-only model
 
     Returns:
-        Tuple[DataLoader]: dataloader for a blended dataset
+        Tuple[ResumableDataLoader]: dataloader for a blended dataset
     """
 
     assert mode == Mode.training, "blended dataset is only supported in training mode"
 
-    datasets_list, data_sampling_ratios = get_datasets_list(
-        args=args,
-        split=split,
-        mode=Mode.training,
-        tokenizer=tokenizer,
-        is_encoder_decoder=is_encoder_decoder,
-    )
-
-    if len(datasets_list) == 0:
-        return None
-
-    blended_dataset = BlendedDatasets(datasets=datasets_list, split=split)
-
-    log_rank_0(logging.INFO, f"{'-' * 25} {split.value} {'-' * 25}")
-    log_rank_0(logging.INFO, blended_dataset)
-
     micro_batch_size = args.training_parameters.micro_batch_size
+    dispatching_dataloader = args.distributed_args.dispatching_dataloader
 
-    if args.distributed_args.dispatching_dataloader:
+    if dispatching_dataloader:
         source_rank = get_global_rank() // torch.cuda.device_count()
         broadcast_ranks = list(range(source_rank, torch.cuda.device_count()))
         num_nodes = get_world_size() // torch.cuda.device_count()
+
+        if get_global_rank() == source_rank:
+            datasets_list, data_sampling_ratios = get_datasets_list(
+                args=args,
+                split=split,
+                mode=Mode.training,
+                tokenizer=tokenizer,
+                is_encoder_decoder=is_encoder_decoder,
+            )
+
+            if len(datasets_list) == 0:
+                return None
+
+            blended_dataset = BlendedDatasets(datasets=datasets_list, split=split)
+        else:
+            blended_dataset = None
 
         # each node is given a data sampler
         # TODO modify this when we add model parallelism
@@ -92,6 +93,19 @@ def get_dataloader(
             broadcast_ranks=broadcast_ranks,
         )
     else:
+        datasets_list, data_sampling_ratios = get_datasets_list(
+            args=args,
+            split=split,
+            mode=Mode.training,
+            tokenizer=tokenizer,
+            is_encoder_decoder=is_encoder_decoder,
+        )
+
+        if len(datasets_list) == 0:
+            return None
+
+        blended_dataset = BlendedDatasets(datasets=datasets_list, split=split)
+
         # routing to data parallel worker is done by sampler
         sampler = BlendedDistributedSampler(
             dataset=blended_dataset,
@@ -105,7 +119,7 @@ def get_dataloader(
         )
 
         # dataloader is unaware of data parallel routing
-        dataloader = DataLoader(
+        dataloader = ResumableDataLoader(
             blended_dataset,
             batch_size=micro_batch_size,
             sampler=sampler,
@@ -119,13 +133,29 @@ def get_dataloader(
             ),
         )
 
+    log_dataset(
+        blended_dataset,
+        split=split,
+        num_training_steps=args.training_parameters.num_training_steps,
+        gradient_accumulation_steps=args.training_parameters.gradient_accumulation_steps,
+        micro_batch_size=args.training_parameters.micro_batch_size,
+    )
+
+    return dataloader
+
+
+def log_dataset(
+    blended_dataset: BlendedDatasets,
+    split: DatasetSplit,
+    num_training_steps: int,
+    gradient_accumulation_steps: int,
+    micro_batch_size: int,
+) -> None:
+    log_rank_0(logging.INFO, f"{'-' * 25} {split.value} {'-' * 25}")
+    log_rank_0(logging.INFO, blended_dataset)
+
     if split == DatasetSplit.train:
-        total_samples_seen = (
-            args.training_parameters.num_training_steps
-            * args.training_parameters.gradient_accumulation_steps
-            * micro_batch_size
-            * get_world_size()
-        )
+        total_samples_seen = num_training_steps * gradient_accumulation_steps * micro_batch_size * get_world_size()
     else:
         if len(blended_dataset) % (micro_batch_size * get_world_size()) == 0:
             num_steps = len(blended_dataset) // (micro_batch_size * get_world_size())
@@ -139,8 +169,6 @@ def get_dataloader(
     log_rank_0(logging.INFO, f"total epochs for the dataset mixture = {total_samples_seen / len(blended_dataset)}")
     log_rank_0(logging.INFO, sampler)
     log_rank_0(logging.INFO, "-" * 57)
-
-    return dataloader
 
 
 def infinite_iterator(x: Iterable) -> Iterable:

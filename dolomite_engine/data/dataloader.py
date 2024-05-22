@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, Sampler
 from ..utils import get_global_rank
 
 
-class DataLoader(_DataLoader):
+class ResumableDataLoader(_DataLoader):
     def state_dict(self) -> dict:
         return {"dataset": self.dataset.state_dict(), "sampler": self.sampler.state_dict()}
 
@@ -16,7 +16,7 @@ class DataLoader(_DataLoader):
         self.sampler.load_state_dict(state_dict.get("sampler"))
 
 
-class DispatchingDataLoader(DataLoader):
+class DispatchingDataLoader(ResumableDataLoader):
     def __init__(
         self,
         dataset: Dataset,

@@ -57,20 +57,28 @@ class DispatchingDataLoader(DataLoader):
             iterator = super().__iter__()
 
             for batch in iterator:
+                # send tensor shapes
                 batch_shape = [batch[self.keys[0]].shape]
                 torch.distributed.broadcast_object_list(
                     batch_shape, src=self.source_rank, group=self.broadcast_process_group
                 )
 
                 for i in self.keys:
+                    # send batch
                     batch[i] = batch[i].to(torch.cuda.current_device())
                     torch.distributed.broadcast(batch[i], src=self.source_rank, group=self.broadcast_process_group)
 
-                    batch[i] = batch[i][: self.local_batch_size]
+                    # slice batch
+                    batch[i] = batch[i][
+                        self.local_rank_in_broadcast_group
+                        * self.local_batch_size : (self.local_rank_in_broadcast_group + 1)
+                        * self.local_batch_size
+                    ]
 
                 yield batch
         else:
             for _ in range(self._length):
+                # receive tensor shapes
                 batch_shape = [None]
                 torch.distributed.broadcast_object_list(
                     batch_shape, src=self.source_rank, group=self.broadcast_process_group
@@ -78,9 +86,11 @@ class DispatchingDataLoader(DataLoader):
 
                 batch = {}
                 for i in self.keys:
+                    # receive batch
                     batch[i] = torch.empty(batch_shape[0], dtype=torch.long, device=torch.cuda.current_device())
                     torch.distributed.broadcast(batch[i], src=self.source_rank, group=self.broadcast_process_group)
 
+                    # slice batch
                     batch[i] = batch[i][
                         self.local_rank_in_broadcast_group
                         * self.local_batch_size : (self.local_rank_in_broadcast_group + 1)

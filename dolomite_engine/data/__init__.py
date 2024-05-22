@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 
 from ..arguments import InferenceArgs, TrainingArgs
 from ..enums import DatasetSplit, Mode, TuningMethod
-from ..utils import get_global_rank, get_world_size, log_rank_0
+from ..utils import get_global_rank, get_world_size, log_rank_0, run_rank_n
 from .base import BaseDataset, BlendedDatasets
 from .dataloader import DispatchingDataLoader, ResumableDataLoader
 from .debug import DebugDataset
@@ -158,23 +158,26 @@ def _get_dispatching_dataloader(
             return None
 
         blended_dataset = BlendedDatasets(datasets=datasets_list, split=split)
+        data_sampling_ratios = [1] if len(datasets_list) == 1 else data_sampling_ratios
+
+        # each node is given a data sampler
+        # TODO modify this when we add model parallelism
+
+        # sampler routes to the dispatching parent worker
+        sampler = BlendedDistributedSampler(
+            dataset=blended_dataset,
+            data_sampling_ratios=data_sampling_ratios,
+            ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
+            num_replicas=num_nodes,
+            rank=source_rank,
+            shuffle=split == DatasetSplit.train,
+            seed=args.random_args.seed,
+            drop_last=False,
+        )
     else:
         blended_dataset = None
-
-    # each node is given a data sampler
-    # TODO modify this when we add model parallelism
-
-    # sampler routes to the dispatching parent worker
-    sampler = BlendedDistributedSampler(
-        dataset=blended_dataset,
-        data_sampling_ratios=[1] if len(datasets_list) == 1 else data_sampling_ratios,
-        ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
-        num_replicas=num_nodes,
-        rank=source_rank,
-        shuffle=split == DatasetSplit.train,
-        seed=args.random_args.seed,
-        drop_last=False,
-    )
+        data_sampling_ratios = None
+        sampler = None
 
     # dataloader does local dispatching and thus needs source_rank and broadcast_ranks
     dataloader = DispatchingDataLoader(
@@ -266,6 +269,7 @@ def _get_non_dispatching_dataloader(
     return dataloader
 
 
+@run_rank_n
 def _log_dataset(
     blended_dataset: BlendedDatasets,
     sampler: BlendedDistributedSampler,

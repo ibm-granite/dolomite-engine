@@ -199,6 +199,7 @@ def _get_dispatching_dataloader(
         split=split,
         num_training_steps=args.training_parameters.num_training_steps,
         gradient_accumulation_steps=args.training_parameters.gradient_accumulation_steps,
+        micro_batch_size=args.training_parameters.micro_batch_size,
     )
 
     return dataloader
@@ -259,6 +260,7 @@ def _get_non_dispatching_dataloader(
         split=split,
         num_training_steps=args.training_parameters.num_training_steps,
         gradient_accumulation_steps=args.training_parameters.gradient_accumulation_steps,
+        micro_batch_size=args.training_parameters.micro_batch_size,
     )
 
     return dataloader

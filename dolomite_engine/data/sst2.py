@@ -1,15 +1,14 @@
-import glob
-import os
 from typing import List
 
+from datasets import load_dataset
 from transformers import AutoTokenizer
 
-from ...enums import DatasetKeys, DatasetSplit, Mode, TuningMethod
+from ..enums import DatasetSplit, Mode, TuningMethod
 from .base import BaseDataset
 
 
-class JSONLinesDataset(BaseDataset):
-    """A dataset for loading JSON lines files"""
+class SST2Dataset(BaseDataset):
+    """SST2 dataset for sentiment classification"""
 
     def __init__(
         self,
@@ -44,25 +43,21 @@ class JSONLinesDataset(BaseDataset):
         self.examples = self.prepare_examples()
 
     def prepare_examples(self) -> List[dict]:
-        import jsonlines
+        split = self.split.value
+        if split == "val":
+            split = "validation"
 
-        assert "data_path" in self.class_args, "JSONLinesDataset requires additional class_args `data_path`"
-
+        raw_examples = load_dataset("sst2")[split]
         examples = []
-        data_files = glob.glob(os.path.join(self.class_args["data_path"], self.split.value, "*.jsonl"))
+        for raw_example in raw_examples:
+            input = self.construct_input_from_format(raw_example["sentence"].strip())
+            output = (
+                self.construct_output_from_format("positive" if raw_example["label"] == 1 else "negative")
+                if self.mode == Mode.training
+                else None
+            )
 
-        for filename in data_files:
-            json_file = jsonlines.open(filename, "r")
-
-            for raw_example in json_file:
-                input = self.construct_input_from_format(raw_example[DatasetKeys.input.value])
-                output = (
-                    self.construct_output_from_format(raw_example[DatasetKeys.output.value])
-                    if self.mode == Mode.training
-                    else None
-                )
-
-                example = self.get_input_output_token_ids(input, output)
-                examples.append(example)
+            example = self.get_input_output_token_ids(input, output)
+            examples.append(example)
 
         return examples

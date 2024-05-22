@@ -1,12 +1,16 @@
+import glob
+import os
 from typing import List
 
 from transformers import AutoTokenizer
 
-from ....enums import DatasetSplit, Mode, TuningMethod
-from ..base import BaseDataset
+from ..enums import DatasetKeys, DatasetSplit, Mode, TuningMethod
+from .base import BaseDataset
 
 
-class BaseInstructionDataset(BaseDataset):
+class JSONLinesDataset(BaseDataset):
+    """A dataset for loading JSON lines files"""
+
     def __init__(
         self,
         class_args: dict,
@@ -37,17 +41,28 @@ class BaseInstructionDataset(BaseDataset):
             num_virtual_tokens=num_virtual_tokens,
         )
 
-        if self.do_format_input:
-            raise ValueError(f"input_format for {self.__class__.__name__} should be '__input__'")
-
         self.examples = self.prepare_examples()
 
-    def construct_input_from_format(self, instruction: str, input: str) -> List[int]:
-        input_text = instruction + "\n\n"
-        if not (input is None or input == ""):
-            input_text += f"input: {input}\n"
-        input_text += "output:"
-        return input_text
-
     def prepare_examples(self) -> List[dict]:
-        raise NotImplementedError()
+        import jsonlines
+
+        assert "data_path" in self.class_args, "JSONLinesDataset requires additional class_args `data_path`"
+
+        examples = []
+        data_files = glob.glob(os.path.join(self.class_args["data_path"], self.split.value, "*.jsonl"))
+
+        for filename in data_files:
+            json_file = jsonlines.open(filename, "r")
+
+            for raw_example in json_file:
+                input = self.construct_input_from_format(raw_example[DatasetKeys.input.value])
+                output = (
+                    self.construct_output_from_format(raw_example[DatasetKeys.output.value])
+                    if self.mode == Mode.training
+                    else None
+                )
+
+                example = self.get_input_output_token_ids(input, output)
+                examples.append(example)
+
+        return examples

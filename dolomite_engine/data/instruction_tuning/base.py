@@ -1,15 +1,12 @@
 from typing import List
 
-from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from ...enums import DatasetSplit, Mode, TuningMethod
-from .base import BaseDataset
+from ..base import BaseDataset
 
 
-class SST2Dataset(BaseDataset):
-    """SST2 dataset for sentiment classification"""
-
+class BaseInstructionDataset(BaseDataset):
     def __init__(
         self,
         class_args: dict,
@@ -40,24 +37,17 @@ class SST2Dataset(BaseDataset):
             num_virtual_tokens=num_virtual_tokens,
         )
 
+        if self.do_format_input:
+            raise ValueError(f"input_format for {self.__class__.__name__} should be '__input__'")
+
         self.examples = self.prepare_examples()
 
+    def construct_input_from_format(self, instruction: str, input: str) -> List[int]:
+        input_text = instruction + "\n\n"
+        if not (input is None or input == ""):
+            input_text += f"input: {input}\n"
+        input_text += "output:"
+        return input_text
+
     def prepare_examples(self) -> List[dict]:
-        split = self.split.value
-        if split == "val":
-            split = "validation"
-
-        raw_examples = load_dataset("sst2")[split]
-        examples = []
-        for raw_example in raw_examples:
-            input = self.construct_input_from_format(raw_example["sentence"].strip())
-            output = (
-                self.construct_output_from_format("positive" if raw_example["label"] == 1 else "negative")
-                if self.mode == Mode.training
-                else None
-            )
-
-            example = self.get_input_output_token_ids(input, output)
-            examples.append(example)
-
-        return examples
+        raise NotImplementedError()

@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer
 
-from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
-from ...enums import DatasetSplit, Mode, TuningMethod
+from ..defaults import INPUT_FORMAT, OUTPUT_FORMAT
+from ..enums import DatasetSplit, Mode, TuningMethod
 
 
 class BaseDataset(torch.utils.data.Dataset):

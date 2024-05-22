@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer
 
-from ...enums import DatasetSplit, Mode, TuningMethod
+from ..enums import DatasetSplit, Mode, TuningMethod
 from .base import BaseDataset
 
 

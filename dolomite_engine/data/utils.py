@@ -1,12 +1,8 @@
-import logging
 from typing import Iterable, List
 
 import torch
 
-from ..enums import DatasetSplit, LossMask, Mode
-from ..utils import get_world_size, log_rank_0
-from .base import BlendedDatasets
-from .sampler import BlendedDistributedSampler
+from ..enums import LossMask, Mode
 
 
 def collate_fn(
@@ -86,34 +82,6 @@ def collate_fn(
         result["labels"] = labels
 
     return result
-
-
-def log_dataset(
-    blended_dataset: BlendedDatasets,
-    sampler: BlendedDistributedSampler,
-    split: DatasetSplit,
-    num_training_steps: int,
-    gradient_accumulation_steps: int,
-    micro_batch_size: int,
-) -> None:
-    log_rank_0(logging.INFO, f"{'-' * 25} {split.value} {'-' * 25}")
-    log_rank_0(logging.INFO, blended_dataset)
-
-    if split == DatasetSplit.train:
-        total_samples_seen = num_training_steps * gradient_accumulation_steps * micro_batch_size * get_world_size()
-    else:
-        if len(blended_dataset) % (micro_batch_size * get_world_size()) == 0:
-            num_steps = len(blended_dataset) // (micro_batch_size * get_world_size())
-        else:
-            num_steps = (len(blended_dataset) // (micro_batch_size * get_world_size())) + 1
-
-        total_samples_seen = num_steps * micro_batch_size * get_world_size()
-
-    log_rank_0(logging.INFO, "*" * 57)
-    log_rank_0(logging.INFO, f"total samples seen = {total_samples_seen}")
-    log_rank_0(logging.INFO, f"total epochs for the dataset mixture = {total_samples_seen / len(blended_dataset)}")
-    log_rank_0(logging.INFO, sampler)
-    log_rank_0(logging.INFO, "-" * 57)
 
 
 def infinite_iterator(x: Iterable) -> Iterable:

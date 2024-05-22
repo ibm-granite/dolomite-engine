@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DistributedSampler
 
 from ..enums import DatasetSplit
-from .sft_datasets import BlendedDatasets
+from .base import BlendedDatasets
 
 
 class BlendedDistributedSampler(DistributedSampler):

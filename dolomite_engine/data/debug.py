@@ -42,16 +42,21 @@ class DebugDataset(BaseDataset):
         if self.do_format_output:
             raise ValueError("DebugDataset does not support output formatting")
 
+        self._length = class_args.get("num_examples")
+        assert isinstance(self._length, int) and self._length > 0
+
+        self._token_id = class_args.get("token_id", self.tokenizer.eos_token_id)
+
         if mode == Mode.training:
-            self.example = (
-                [self.tokenizer.eos_token_id] * self.max_input_tokens,
-                [self.tokenizer.eos_token_id] * self.max_output_tokens,
-            )
+            self._example = {
+                "input": [self._token_id] * self.max_input_tokens,
+                "output": [self._token_id] * self.max_output_tokens,
+            }
         else:
-            self.example = [self.tokenizer.eos_token_id] * self.max_input_tokens
+            self._example = {"output": [self._token_id] * self.max_input_tokens}
 
     def __getitem__(self, index: int) -> dict:
-        return self.example
+        return self._example
 
     def __len__(self) -> int:
-        return 100
+        return self._length

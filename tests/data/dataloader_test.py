@@ -1,25 +1,21 @@
-from unittest import TestCase
+from transformers import AutoTokenizer
 
-from transformers import AutoConfig, AutoTokenizer
-
-from dolomite_engine.arguments import TrainingArgs
 from dolomite_engine.data import get_dataloader
 from dolomite_engine.enums import DatasetSplit, Mode
-from dolomite_engine.utils import load_yaml
+
+from .test_commons import TestCommons
 
 
-class DataLoaderTest(TestCase):
+class DataLoaderTest(TestCommons):
     def test_dataloader(self) -> None:
-        args = self.load_training_args_for_unit_tests()
+        args = TestCommons.load_training_args_for_unit_tests()
+        split = DatasetSplit.train
+        mode = Mode.training
 
-        config = AutoConfig.from_pretrained(args.model_args.model_name)
         tokenizer = AutoTokenizer.from_pretrained(args.model_args.model_name)
 
-        dataloader = get_dataloader(args, DatasetSplit.train, Mode.training, tokenizer, config.is_encoder_decoder)
+        dataloader = get_dataloader(args, split=split, mode=mode, tokenizer=tokenizer, is_encoder_decoder=False)
 
         for example in dataloader:
             assert example["input_ids"].shape[0] == args.training_parameters.micro_batch_size
             break
-
-    def load_training_args_for_unit_tests(self) -> TrainingArgs:
-        return TrainingArgs(**load_yaml("tests/data/test_config.yml"))

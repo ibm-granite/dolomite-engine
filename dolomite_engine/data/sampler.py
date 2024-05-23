@@ -1,6 +1,7 @@
 import math
 from typing import Iterator, List
 
+import numpy as np
 import torch
 from torch.utils.data import DistributedSampler
 
@@ -38,6 +39,7 @@ class BlendedDistributedSampler(DistributedSampler):
             self.generator = torch.Generator()
             self.generator.manual_seed(seed)
 
+        self.start_indices = np.cumsum([0] + self.num_examples_in_each_dataset[:-1]).tolist()
         # this is just needed to store the state
         self.index = 0
 
@@ -65,7 +67,7 @@ class BlendedDistributedSampler(DistributedSampler):
                 sampler = self.get_indices_in_data_subset(
                     self.num_samples_by_dataset[i], self.num_examples_in_each_dataset[i]
                 )
-                sampler += self.dataset.start_indices[i]
+                sampler += self.start_indices[i]
 
                 data_samples.extend(sampler.tolist())
 

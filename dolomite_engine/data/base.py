@@ -267,16 +267,3 @@ def get_max_output_length(
             max_output_tokens -= num_virtual_tokens
 
     return max_output_tokens
-
-
-# def _binary_search_index(x: List[int], i: int) -> int:
-#     middle = len(x) // 2
-
-#     if x[middle] <= i < x[middle + 1]:
-#         result = middle
-#     elif x[middle] <= i:
-#         result = middle + _binary_search_index(x[middle + 1:], i)
-#     elif x[middle] > i:
-#         result = _binary_search_index(x[:middle], i)
-
-#     return result

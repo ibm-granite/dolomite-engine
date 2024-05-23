@@ -7,7 +7,7 @@ from .test_commons import TestCommons
 
 
 class DataLoaderTest(TestCommons):
-    def test_dataloader(self) -> None:
+    def test_dataloader_returns_correct_batch_size(self) -> None:
         args = TestCommons.load_training_args_for_unit_tests()
         split = DatasetSplit.train
         mode = Mode.training

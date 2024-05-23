@@ -30,6 +30,6 @@ class BlendedDatasetsTest(TestCommons):
                 example = next(blended_dataset)
 
                 assert len(example["input"]) == 1024
-                assert len(example["output"]) == 127
+                assert len(example["output"]) == 128
                 assert all([i == dataset_index for i in example["input"]])
                 assert all([i == dataset_index for i in example["output"]])

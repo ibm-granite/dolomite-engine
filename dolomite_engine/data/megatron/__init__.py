@@ -39,7 +39,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
             class_args.get("eval_steps"),
         ),
         config=GPTDatasetConfig(
-            is_built_on_rank=_is_dataset_built_on_rank,
+            is_built_on_rank=True,
             random_seed=class_args.get("seed", args.random_args.seed),
             sequence_length=class_args.get("sequence_length"),
             blend=class_args.get("data_path"),
@@ -140,10 +140,6 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     test_ds = [_get_dataloader(i, 0) for i in test_ds]
 
     return train_ds, val_ds, test_ds
-
-
-def _is_dataset_built_on_rank() -> bool:
-    return True
 
 
 def _get_train_val_test_samples(

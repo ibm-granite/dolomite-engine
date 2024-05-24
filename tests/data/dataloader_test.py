@@ -44,7 +44,7 @@ class DataLoaderTest(TestCommons):
         blended_dataset = BlendedDatasets(datasets=datasets_list, split=split)
 
         world_size = 8
-        all_tokens = []
+        all_tokens = {}
         for rank in range(world_size):
             sampler = BlendedDistributedSampler(
                 dataset=blended_dataset,
@@ -68,8 +68,16 @@ class DataLoaderTest(TestCommons):
                 ),
             )
 
+            all_tokens[rank] = []
             for batch in dataloader:
                 for example in batch["input_ids"]:
-                    all_tokens.append(example[0].item())
+                    all_tokens[rank].append(example[0].item())
 
-        assert len(set(all_tokens)) == num_examples
+            assert len(all_tokens[rank]) == len(set(all_tokens[rank])), f"all tokens were not unique for rank {rank}"
+
+            all_tokens[rank] = list(set(all_tokens[rank]))
+            all_tokens[rank].sort()
+
+        assert (
+            sum([len(all_tokens[rank]) for rank in all_tokens]) == num_examples
+        ), "all tokens were not iterated through"

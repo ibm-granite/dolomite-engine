@@ -347,7 +347,7 @@ class BlendedMegatronDatasetBuilder(object):
             # First, build on rank 0
             if caching_allowed and self.config.is_built_on_rank:
                 try:
-                    dataset = cls(**kwargs, caching_allowed=caching_allowed)
+                    dataset = cls(**kwargs, caching_allowed=True)
                 except OSError as err:
                     log = (
                         f"Failed to write dataset materials to the data cache directory. "

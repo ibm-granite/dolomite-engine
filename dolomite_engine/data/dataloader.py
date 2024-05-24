@@ -22,7 +22,11 @@ class DispatchingDataLoader(ResumableDataLoader):
         dataset: Dataset,
         batch_size: int | None = 1,
         sampler: Sampler | Iterable | None = None,
+        batch_sampler: Sampler[List] | Iterable[List] | None = None,
+        num_workers: int = 0,
         collate_fn: Callable[[List], Any] | None = None,
+        pin_memory: bool = False,
+        drop_last: bool = False,
         source_rank: int = None,
         broadcast_ranks: List[int] = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
@@ -35,11 +39,14 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.local_batch_size = batch_size
 
         super().__init__(
-            dataset,
-            batch_size=batch_size * self.broadcast_world_size,
+            dataset=dataset,
+            batch_size=batch_size * self.broadcast_world_size if batch_sampler is None else 1,
             sampler=sampler,
+            batch_sampler=batch_sampler,
+            num_workers=num_workers,
             collate_fn=collate_fn,
-            drop_last=True,
+            pin_memory=pin_memory,
+            drop_last=drop_last,
         )
 
         if self.is_source:

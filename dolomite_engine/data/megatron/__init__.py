@@ -1,16 +1,17 @@
 import logging
 from typing import List, Tuple
 
+import torch
 from transformers import AutoTokenizer
 
 from ...arguments import TrainingArgs
 from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
-from ...utils import get_world_size, log_rank_0
-from ..dataloader import ResumableDataLoader
+from ...utils import get_global_rank, get_world_size, log_rank_0
+from ..dataloader import DispatchingDataLoader, ResumableDataLoader
 from .blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from .blended_megatron_dataset_config import GPTDatasetConfig
 from .gpt_dataset import GPTDataset
-from .sampler import MegatronPretrainingSampler
+from .sampler import MegatronBatchSampler
 from .utils import Split, compile_helpers
 
 
@@ -28,6 +29,21 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
 
     log_rank_0(logging.INFO, "> building train, validation, and test datasets for GPT ...")
 
+    dispatching_dataloader = args.distributed_args.dispatching_dataloader
+
+    if dispatching_dataloader:
+        num_ranks_per_node = torch.cuda.device_count()
+        node_rank = get_global_rank() // num_ranks_per_node
+        num_nodes = get_world_size() // num_ranks_per_node
+
+        # global rank of first GPU on the node
+        source_global_rank = node_rank * num_ranks_per_node
+        broadcast_ranks = list(range(source_global_rank, num_ranks_per_node))
+
+        is_built_on_rank = get_global_rank() == source_global_rank
+    else:
+        is_built_on_rank = True
+
     gpt_dataset_builder = BlendedMegatronDatasetBuilder(
         GPTDataset,
         sizes=_get_train_val_test_samples(
@@ -38,7 +54,8 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
             class_args.get("eval_steps"),
         ),
         config=GPTDatasetConfig(
-            is_built_on_rank=True,
+            # the dataset is None if is_built_on_rank is False
+            is_built_on_rank=is_built_on_rank,
             random_seed=class_args.get("seed", args.random_args.seed),
             sequence_length=class_args.get("sequence_length"),
             blend=class_args.get("data_path"),
@@ -116,19 +133,46 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     log_rank_0(logging.INFO, "> finished creating GPT datasets ...")
 
     def _get_dataloader(dataset: GPTDataset, consumed_samples: int):
-        if dataset is None:
-            return None
+        # we use batch sampler here to match the data order of NVIDIA's megatron repo
+        if dispatching_dataloader:
+            if is_built_on_rank:
+                assert dataset is not None, "dataset shouldn't be None when is_built_on_rank is True"
 
-        dataloader = ResumableDataLoader(
-            dataset,
-            batch_sampler=MegatronPretrainingSampler(
+                batch_sampler = MegatronBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=args.training_parameters.micro_batch_size,
+                    num_replicas=num_nodes,
+                    rank=node_rank,
+                )
+            else:
+                assert dataset is None, "dataset should be None when is_built_on_rank is False"
+
+                batch_sampler = None
+
+            dataloader = DispatchingDataLoader(
+                dataset,
+                batch_sampler=batch_sampler,
+                num_workers=class_args.get("num_workers", 2),
+                pin_memory=True,
+                source_rank=source_global_rank,
+                broadcast_ranks=broadcast_ranks,
+                keys=["text"],
+            )
+        else:
+            assert dataset is not None
+
+            batch_sampler = MegatronBatchSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=args.training_parameters.micro_batch_size,
-            ),
-            num_workers=class_args.get("num_workers", 2),
-            pin_memory=True,
-        )
+                num_replicas=get_world_size(),
+                rank=get_global_rank(),
+            )
+
+            dataloader = ResumableDataLoader(
+                dataset, batch_sampler=batch_sampler, num_workers=class_args.get("num_workers", 2), pin_memory=True
+            )
 
         return iter(dataloader)
 

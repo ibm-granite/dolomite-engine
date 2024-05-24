@@ -3,16 +3,23 @@ from typing import Tuple
 from ...utils import get_global_rank, get_world_size
 
 
-class MegatronPretrainingSampler:
+class MegatronBatchSampler:
     def __init__(
-        self, total_samples: int, consumed_samples: int, micro_batch_size: int, drop_last: bool = True
+        self,
+        total_samples: int,
+        consumed_samples: int,
+        micro_batch_size: int,
+        num_replicas: int,
+        rank: int,
+        drop_last: bool = True,
     ) -> None:
         self.total_samples = total_samples
         self.consumed_samples = consumed_samples
         self.micro_batch_size = micro_batch_size
-        self.micro_batch_times_data_parallel_size = self.micro_batch_size * get_world_size()
         self.drop_last = drop_last
-        self.data_parallel_rank = get_global_rank()
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.micro_batch_times_num_replicas = self.micro_batch_size * self.num_replicas
 
         # Sanity checks.
         assert self.total_samples > 0, "no sample to consume: {}".format(self.total_samples)
@@ -34,7 +41,7 @@ class MegatronPretrainingSampler:
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):
             batch.append(idx)
-            if len(batch) == self.micro_batch_times_data_parallel_size:
+            if len(batch) == self.micro_batch_times_num_replicas:
                 start_idx, end_idx = self._get_start_end_idx()
                 yield batch[start_idx:end_idx]
                 batch = []

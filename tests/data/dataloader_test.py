@@ -75,9 +75,6 @@ class DataLoaderTest(TestCommons):
 
             assert len(all_tokens[rank]) == len(set(all_tokens[rank])), f"all tokens were not unique for rank {rank}"
 
-            all_tokens[rank] = list(set(all_tokens[rank]))
-            all_tokens[rank].sort()
-
         assert (
             sum([len(all_tokens[rank]) for rank in all_tokens]) == num_examples
         ), "all tokens were not iterated through"

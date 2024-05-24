@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 
 from ...arguments import TrainingArgs
 from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
-from ...utils import get_global_rank, get_world_size, log_rank_0, print_rank_0
+from ...utils import get_global_rank, get_world_size, log_rank_0
 from ..dataloader import ResumableDataLoader
 from .blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from .blended_megatron_dataset_config import GPTDatasetConfig
@@ -27,7 +27,6 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     compile_helpers()
 
     log_rank_0(logging.INFO, "> building train, validation, and test datasets for GPT ...")
-    print_rank_0()
 
     gpt_dataset_builder = BlendedMegatronDatasetBuilder(
         GPTDataset,
@@ -114,9 +113,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     else:
         raise NotImplementedError("No dataloading argument passed")
 
-    print_rank_0()
     log_rank_0(logging.INFO, "> finished creating GPT datasets ...")
-    print_rank_0()
 
     def _get_dataloader(dataset: GPTDataset, consumed_samples: int):
         if dataset is None:

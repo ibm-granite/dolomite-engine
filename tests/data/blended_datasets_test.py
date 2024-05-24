@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from transformers import AutoTokenizer
 
 from dolomite_engine.data import BlendedDatasets, get_datasets_list
@@ -11,6 +13,15 @@ class BlendedDatasetsTest(TestCommons):
         args = TestCommons.load_training_args_for_unit_tests()
         split = DatasetSplit.train
         mode = Mode.training
+
+        for i in range(1, 4):
+            dataset = deepcopy(args.datasets[0])
+
+            dataset.data_name = f"debug{i}"
+            dataset.class_args["num_examples"] = (i + 1) * 100
+            dataset.class_args["token_id"] = i
+
+            args.datasets.append(dataset)
 
         tokenizer = AutoTokenizer.from_pretrained(args.model_args.model_name)
 

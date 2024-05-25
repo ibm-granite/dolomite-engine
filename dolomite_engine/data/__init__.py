@@ -147,7 +147,7 @@ def _get_dispatching_dataloader(
 
     # global rank of first GPU on the node
     source_global_rank = node_rank * num_ranks_per_node
-    broadcast_ranks = list(range(source_global_rank, num_ranks_per_node))
+    broadcast_ranks = list(range(source_global_rank, source_global_rank + num_ranks_per_node))
 
     if get_global_rank() == source_global_rank:
         datasets_list, data_sampling_ratios = get_datasets_list(

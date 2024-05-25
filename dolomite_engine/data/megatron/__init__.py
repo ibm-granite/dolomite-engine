@@ -164,7 +164,6 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 pin_memory=True,
                 source_ranks_broadcast_ranks_broadcast_groups=source_ranks_broadcast_ranks_broadcast_groups,
                 keys=["text"],
-                static_shape=True,
             )
         else:
             assert dataset is not None

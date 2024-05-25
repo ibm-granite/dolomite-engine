@@ -81,45 +81,39 @@ class DispatchingDataLoader(ResumableDataLoader):
                 torch.distributed.broadcast_object_list(item, src=src, group=grp)
 
     def __iter__(self):
-        if self.is_source:
-            iterator = super().__iter__()
-        else:
-            iterator = range(self._length)
+        iterator = super().__iter__() if self.is_source else range(self._length)
 
         for batch in iterator:
             # if using dynamic shapes at every batch or when batch buffer is None during static batch, we need to get shape
             if not self.static_shape or self._batch_buffer is None:
                 # send/recv tensor shapes
-                if self.is_source:
-                    batch_shape = [batch[self.keys[0]].shape]
-                else:
-                    batch_shape = [None]
+                batch_shape = [batch[self.keys[0]].shape if self.is_source else None]
                 self._broadcast(batch_shape, is_tensor=False)
                 batch_shape = batch_shape[0]
 
             # check first iteration when using static shapes, if yes then allocate a buffer
             if self.static_shape and self._batch_buffer is None:
-                if self.is_source:
-                    # can be anything but not None so that this is not hit again
-                    self._batch_buffer = {}
-                else:
-                    self._batch_buffer = {
+                self._batch_buffer = (
+                    {}
+                    if self.is_source
+                    else {
                         key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
                         for key in self.keys
                     }
+                )
 
             if self.is_source:
                 for key in self.keys:
                     batch[key] = batch[key].to(torch.cuda.current_device())
             else:
-                if self.static_shape:
-                    batch = self._batch_buffer
-                else:
-                    # note batch is just a number on non source ranks for now, we need to fix it
-                    batch = {
+                batch = (
+                    self._batch_buffer
+                    if self.static_shape
+                    else {
                         key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
                         for key in self.keys
                     }
+                )
 
             for key in batch:
                 # send/recv batch

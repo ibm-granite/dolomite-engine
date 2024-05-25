@@ -33,7 +33,6 @@ class DispatchingDataLoader(ResumableDataLoader):
         static_shape: bool = False,
     ) -> None:
         self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
-        self.local_batch_size = batch_size
         self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
 
         global_rank = get_global_rank()
@@ -120,10 +119,11 @@ class DispatchingDataLoader(ResumableDataLoader):
                 self._broadcast(batch[key])
 
                 # slice batch
+                local_batch_size = batch[key].shape[0] // self.broadcast_world_size
                 batch[key] = batch[key][
                     self.local_rank_in_broadcast_group
-                    * self.local_batch_size : (self.local_rank_in_broadcast_group + 1)
-                    * self.local_batch_size
+                    * local_batch_size : (self.local_rank_in_broadcast_group + 1)
+                    * local_batch_size
                 ]
 
             yield batch

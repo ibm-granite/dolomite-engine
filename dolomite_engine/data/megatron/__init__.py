@@ -2,6 +2,7 @@ import logging
 from typing import List, Tuple
 
 import torch
+import torch.distributed
 from transformers import AutoTokenizer
 
 from ...arguments import TrainingArgs
@@ -36,11 +37,17 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
         node_rank = get_global_rank() // num_ranks_per_node
         num_nodes = get_world_size() // num_ranks_per_node
 
-        # global rank of first GPU on the node
-        source_global_rank = node_rank * num_ranks_per_node
-        broadcast_ranks = list(range(source_global_rank, num_ranks_per_node))
+        def _get_source_ranks_broadcast_ranks_broadcast_groups():
+            result = []
+            for i in range(num_nodes):
+                source = i * num_ranks_per_node
+                ranks = list(range(source, source + num_ranks_per_node))
+                result.append((source, ranks, torch.distributed.new_group(ranks)))
+            return result
 
-        is_built_on_rank = get_global_rank() == source_global_rank
+        source_ranks_broadcast_ranks_broadcast_groups = _get_source_ranks_broadcast_ranks_broadcast_groups()
+
+        is_built_on_rank = get_global_rank() == node_rank * num_ranks_per_node
     else:
         is_built_on_rank = True
 
@@ -155,8 +162,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 batch_sampler=batch_sampler,
                 num_workers=class_args.get("num_workers", 2),
                 pin_memory=True,
-                source_rank=source_global_rank,
-                broadcast_ranks=broadcast_ranks,
+                source_ranks_broadcast_ranks_broadcast_groups=source_ranks_broadcast_ranks_broadcast_groups,
                 keys=["text"],
             )
         else:

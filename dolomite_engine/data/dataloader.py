@@ -28,12 +28,27 @@ class DispatchingDataLoader(ResumableDataLoader):
         collate_fn: Callable[[List], Any] | None = None,
         pin_memory: bool = False,
         drop_last: bool = False,
-        all_source_ranks_and_broadcast_groups: List[Tuple[int, ProcessGroup]] = None,
+        source_ranks_broadcast_ranks_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]] = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
-        self.broadcast_world_size = torch.distributed.get_world_size(all_source_ranks_and_broadcast_groups[0][1])
+        self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
         self.local_batch_size = batch_size
-        self.all_source_ranks_and_broadcast_groups = all_source_ranks_and_broadcast_groups
+        self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
+
+        global_rank = get_global_rank()
+
+        self.is_source = False
+        for src, _, _ in self.all_source_ranks_and_broadcast_groups:
+            if src == global_rank:
+                self.is_source = True
+                break
+
+        self.local_rank_in_broadcast_group = None
+        for _, broadcast_ranks, _ in self.all_source_ranks_and_broadcast_groups:
+            if global_rank in broadcast_ranks:
+                self.local_rank_in_broadcast_group = broadcast_ranks.index(global_rank)
+                break
+        assert self.local_rank_in_broadcast_group is not None
 
         global_rank = get_global_rank()
 
@@ -71,7 +86,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.keys = keys
 
     def _broadcast_all_groups(self, item: torch.Tensor, is_tensor: bool = True) -> None:
-        for src, grp in self.all_source_ranks_and_broadcast_groups:
+        for src, _, grp in self.all_source_ranks_and_broadcast_groups:
             if is_tensor:
                 torch.distributed.broadcast(item, src=src, group=grp)
             else:

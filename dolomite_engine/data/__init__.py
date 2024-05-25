@@ -146,15 +146,15 @@ def _get_dispatching_dataloader(
     node_rank = get_global_rank() // num_ranks_per_node
     num_nodes = get_world_size() // num_ranks_per_node
 
-    def _get_source_ranks_and_broadcast_groups():
+    def _get_source_ranks_broadcast_ranks_broadcast_groups():
         result = []
         for i in range(num_nodes):
             source = i * num_ranks_per_node
             ranks = list(range(source, source + num_ranks_per_node))
-            result.append((source, torch.distributed.new_group(ranks)))
+            result.append((source, ranks, torch.distributed.new_group(ranks)))
         return result
 
-    all_source_ranks_and_broadcast_groups = _get_source_ranks_and_broadcast_groups()
+    source_ranks_broadcast_ranks_broadcast_groups = _get_source_ranks_broadcast_ranks_broadcast_groups()
 
     # check if node's first rank
     if get_global_rank() == node_rank * num_ranks_per_node:
@@ -204,7 +204,7 @@ def _get_dispatching_dataloader(
             is_encoder_decoder=is_encoder_decoder,
             use_padding_free_transformer=args.model_args.use_padding_free_transformer,
         ),
-        all_source_ranks_and_broadcast_groups=all_source_ranks_and_broadcast_groups,
+        source_ranks_broadcast_ranks_broadcast_groups=source_ranks_broadcast_ranks_broadcast_groups,
     )
 
     _log_dataset(

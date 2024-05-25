@@ -30,7 +30,6 @@ class DispatchingDataLoader(ResumableDataLoader):
         drop_last: bool = False,
         source_ranks_broadcast_ranks_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]] = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
-        static_shape: bool = False,
     ) -> None:
         self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
         self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
@@ -69,9 +68,6 @@ class DispatchingDataLoader(ResumableDataLoader):
 
         self.keys = keys
 
-        self.static_shape = static_shape
-        self._batch_buffer = None
-
     def _broadcast(self, item: torch.Tensor, is_tensor: bool = True) -> None:
         for src, _, grp in self.all_source_ranks_and_broadcast_groups:
             if is_tensor:
@@ -84,35 +80,19 @@ class DispatchingDataLoader(ResumableDataLoader):
 
         for batch in iterator:
             # if using dynamic shapes at every batch or when batch buffer is None during static batch, we need to get shape
-            if not self.static_shape or self._batch_buffer is None:
-                # send/recv tensor shapes
-                batch_shape = [batch[self.keys[0]].shape if self.is_source else None]
-                self._broadcast(batch_shape, is_tensor=False)
-                batch_shape = batch_shape[0]
-
-            # check first iteration when using static shapes, if yes then allocate a buffer
-            if self.static_shape and self._batch_buffer is None:
-                self._batch_buffer = (
-                    {}
-                    if self.is_source
-                    else {
-                        key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
-                        for key in self.keys
-                    }
-                )
+            # send/recv tensor shapes
+            batch_shape = [batch[self.keys[0]].shape if self.is_source else None]
+            self._broadcast(batch_shape, is_tensor=False)
+            batch_shape = batch_shape[0]
 
             if self.is_source:
                 for key in self.keys:
                     batch[key] = batch[key].to(torch.cuda.current_device())
             else:
-                batch = (
-                    self._batch_buffer
-                    if self.static_shape
-                    else {
-                        key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
-                        for key in self.keys
-                    }
-                )
+                batch = {
+                    key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
+                    for key in self.keys
+                }
 
             for key in batch:
                 # send/recv batch

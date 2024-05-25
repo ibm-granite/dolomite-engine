@@ -148,7 +148,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 batch_sampler = MegatronBatchSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    micro_batch_size=args.training_parameters.micro_batch_size,
+                    micro_batch_size=args.training_parameters.micro_batch_size * num_ranks_per_node,
                     num_replicas=num_nodes,
                     rank=node_rank,
                 )

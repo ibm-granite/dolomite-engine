@@ -32,7 +32,7 @@ class MegatronBatchSampler:
         return self.total_samples
 
     def _get_start_end_idx(self) -> Tuple[int, int]:
-        start_idx = self.data_parallel_rank * self.micro_batch_size
+        start_idx = self.rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 

@@ -50,22 +50,6 @@ class DispatchingDataLoader(ResumableDataLoader):
                 break
         assert self.local_rank_in_broadcast_group is not None
 
-        global_rank = get_global_rank()
-
-        self.is_source = False
-        for src, _ in self.all_source_ranks_and_broadcast_groups:
-            if src == global_rank:
-                self.is_source = True
-                break
-
-        self.local_rank_in_broadcast_group = None
-        for _, grp in self.all_source_ranks_and_broadcast_groups:
-            grp = torch.distributed.get_process_group_ranks(grp)
-            if global_rank in grp:
-                self.local_rank_in_broadcast_group = grp.index(global_rank)
-                break
-        assert self.local_rank_in_broadcast_group is not None
-
         super().__init__(
             dataset=dataset,
             batch_size=batch_size * self.broadcast_world_size if batch_sampler is None else 1,

@@ -68,49 +68,35 @@ class DispatchingDataLoader(ResumableDataLoader):
     def __iter__(self):
         if self.is_source:
             iterator = super().__iter__()
-
-            for batch in iterator:
-                # send tensor shapes
-                batch_shape = [batch[self.keys[0]].shape]
-                torch.distributed.broadcast_object_list(
-                    batch_shape, src=self.source_rank, group=self.broadcast_process_group
-                )
-
-                for i in self.keys:
-                    # send batch
-                    batch[i] = batch[i].to(torch.cuda.current_device())
-                    torch.distributed.broadcast(batch[i], src=self.source_rank, group=self.broadcast_process_group)
-
-                    # slice batch
-                    batch[i] = batch[i][
-                        self.local_rank_in_broadcast_group
-                        * self.local_batch_size : (self.local_rank_in_broadcast_group + 1)
-                        * self.local_batch_size
-                    ]
-
-                yield batch
         else:
-            for _ in range(self._length):
-                # receive tensor shapes
-                batch_shape = [None]
-                torch.distributed.broadcast_object_list(
-                    batch_shape, src=self.source_rank, group=self.broadcast_process_group
-                )
+            iterator = range(self._length)
 
+        for batch in iterator:
+            # send/recv tensor shapes
+            batch_shape = [batch[self.keys[0]].shape if self.is_source else None]
+            self._broadcast_all_groups(batch_shape, is_tensor=False)
+
+            # note batch is just a number on non source ranks for now, we need to fix it
+            if not self.is_source:
                 batch = {}
-                for i in self.keys:
-                    # receive batch
-                    batch[i] = torch.empty(batch_shape[0], dtype=torch.long, device=torch.cuda.current_device())
-                    torch.distributed.broadcast(batch[i], src=self.source_rank, group=self.broadcast_process_group)
 
-                    # slice batch
-                    batch[i] = batch[i][
-                        self.local_rank_in_broadcast_group
-                        * self.local_batch_size : (self.local_rank_in_broadcast_group + 1)
-                        * self.local_batch_size
-                    ]
+            for key in self.keys:
+                # send/recv batch
+                batch[key] = (
+                    batch[key].to(torch.cuda.current_device())
+                    if self.is_source
+                    else torch.empty(batch_shape[0], dtype=torch.long, device=torch.cuda.current_device())
+                )
+                self._broadcast_all_groups(batch[key])
 
-                yield batch
+                # slice batch
+                batch[key] = batch[key][
+                    self.local_rank_in_broadcast_group
+                    * self.local_batch_size : (self.local_rank_in_broadcast_group + 1)
+                    * self.local_batch_size
+                ]
+
+            yield batch
 
     def __len__(self) -> int:
         return self._length

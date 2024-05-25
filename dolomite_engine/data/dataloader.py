@@ -1,6 +1,7 @@
-from typing import Any, Callable, Iterable, List
+from typing import Any, Callable, Iterable, List, Tuple
 
-import torch.distributed
+import torch
+from torch.distributed import ProcessGroup, broadcast, broadcast_object_list
 from torch.utils.data import DataLoader as _DataLoader
 from torch.utils.data import Dataset, Sampler
 
@@ -29,7 +30,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         drop_last: bool = False,
         source_rank: int = None,
         broadcast_ranks: List[int] = None,
-        all_source_and_broadcast_groups: List = None,
+        all_source_ranks_and_broadcast_groups: List[Tuple[int, ProcessGroup]] = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
         self.source_rank = source_rank
@@ -37,7 +38,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.is_source = get_global_rank() == self.source_rank
         self.local_rank_in_broadcast_group = broadcast_ranks.index(get_global_rank())
         self.local_batch_size = batch_size
-        self.all_source_and_broadcast_groups = all_source_and_broadcast_groups
+        self.all_source_ranks_and_broadcast_groups = all_source_ranks_and_broadcast_groups
 
         super().__init__(
             dataset=dataset,
@@ -59,11 +60,11 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.keys = keys
 
     def _broadcast_all_groups(self, item: torch.Tensor, is_tensor: bool = True) -> None:
-        for src, grp in self.all_source_and_broadcast_groups:
+        for src, grp in self.all_source_ranks_and_broadcast_groups:
             if is_tensor:
-                torch.distributed.broadcast(item, src=src, group=grp)
+                broadcast(item, src=src, group=grp)
             else:
-                torch.distributed.broadcast_object_list(item, src=src, group=grp)
+                broadcast_object_list(item, src=src, group=grp)
 
     def __iter__(self):
         if self.is_source:

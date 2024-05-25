@@ -65,7 +65,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         _length = torch.tensor(
             [super().__len__() if self.is_source else 0], dtype=torch.long, device=torch.cuda.current_device()
         )
-        self._broadcast_all_groups(_length)
+        self._broadcast(_length)
         self._length = _length.item()
 
         self.keys = keys
@@ -73,7 +73,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.static_shape = static_shape
         self._batch_buffer = None
 
-    def _broadcast_all_groups(self, item: torch.Tensor, is_tensor: bool = True) -> None:
+    def _broadcast(self, item: torch.Tensor, is_tensor: bool = True) -> None:
         for src, _, grp in self.all_source_ranks_and_broadcast_groups:
             if is_tensor:
                 torch.distributed.broadcast(item, src=src, group=grp)
@@ -94,7 +94,7 @@ class DispatchingDataLoader(ResumableDataLoader):
                     batch_shape = [batch[self.keys[0]].shape]
                 else:
                     batch_shape = [None]
-                self._broadcast_all_groups(batch_shape, is_tensor=False)
+                self._broadcast(batch_shape, is_tensor=False)
                 batch_shape = batch_shape[0]
 
             # check first iteration when using static shapes, if yes then allocate a buffer
@@ -123,7 +123,7 @@ class DispatchingDataLoader(ResumableDataLoader):
 
             for key in batch:
                 # send/recv batch
-                self._broadcast_all_groups(batch[key])
+                self._broadcast(batch[key])
 
                 # slice batch
                 batch[key] = batch[key][

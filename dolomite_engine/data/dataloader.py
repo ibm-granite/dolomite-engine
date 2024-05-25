@@ -30,6 +30,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         drop_last: bool = False,
         source_ranks_broadcast_ranks_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]] = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
+        static_shape: bool = False,
     ) -> None:
         self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
         self.local_batch_size = batch_size
@@ -69,6 +70,9 @@ class DispatchingDataLoader(ResumableDataLoader):
 
         self.keys = keys
 
+        self.static_shape = static_shape
+        self._batch_buffer = None
+
     def _broadcast_all_groups(self, item: torch.Tensor, is_tensor: bool = True) -> None:
         for src, _, grp in self.all_source_ranks_and_broadcast_groups:
             if is_tensor:
@@ -83,21 +87,42 @@ class DispatchingDataLoader(ResumableDataLoader):
             iterator = range(self._length)
 
         for batch in iterator:
-            # send/recv tensor shapes
-            batch_shape = [batch[self.keys[0]].shape if self.is_source else None]
-            self._broadcast_all_groups(batch_shape, is_tensor=False)
+            # if using dynamic shapes at every batch or when batch buffer is None during static batch, we need to get shape
+            if not self.static_shape or self._batch_buffer is None:
+                # send/recv tensor shapes
+                if self.is_source:
+                    batch_shape = [batch[self.keys[0]].shape]
+                else:
+                    batch_shape = [None]
+                self._broadcast_all_groups(batch_shape, is_tensor=False)
+                batch_shape = batch_shape[0]
 
-            # note batch is just a number on non source ranks for now, we need to fix it
-            if not self.is_source:
-                batch = {}
+            # check first iteration when using static shapes, if yes then allocate a buffer
+            if self.static_shape and self._batch_buffer is None:
+                if self.is_source:
+                    # can be anything but not None so that this is not hit again
+                    self._batch_buffer = {}
+                else:
+                    self._batch_buffer = {
+                        key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
+                        for key in self.keys
+                    }
 
-            for key in self.keys:
+            if self.is_source:
+                for key in self.keys:
+                    batch[key] = batch[key].to(torch.cuda.current_device())
+            else:
+                if self.static_shape:
+                    batch = self._batch_buffer
+                else:
+                    # note batch is just a number on non source ranks for now, we need to fix it
+                    batch = {
+                        key: torch.empty(batch_shape, dtype=torch.long, device=torch.cuda.current_device())
+                        for key in self.keys
+                    }
+
+            for key in batch:
                 # send/recv batch
-                batch[key] = (
-                    batch[key].to(torch.cuda.current_device())
-                    if self.is_source
-                    else torch.empty(batch_shape[0], dtype=torch.long, device=torch.cuda.current_device())
-                )
                 self._broadcast_all_groups(batch[key])
 
                 # slice batch

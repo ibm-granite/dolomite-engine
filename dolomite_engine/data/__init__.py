@@ -146,10 +146,6 @@ def _get_dispatching_dataloader(
     node_rank = get_global_rank() // num_ranks_per_node
     num_nodes = get_world_size() // num_ranks_per_node
 
-    # global rank of first GPU on the node
-    source_global_rank = node_rank * num_ranks_per_node
-    broadcast_ranks = list(range(source_global_rank, source_global_rank + num_ranks_per_node))
-
     def _get_source_ranks_and_broadcast_groups():
         result = []
         for i in range(num_nodes):
@@ -160,7 +156,8 @@ def _get_dispatching_dataloader(
 
     all_source_ranks_and_broadcast_groups = _get_source_ranks_and_broadcast_groups()
 
-    if get_global_rank() == source_global_rank:
+    # check if node's first rank
+    if get_global_rank() == node_rank * num_ranks_per_node:
         datasets_list, data_sampling_ratios = get_datasets_list(
             args=args,
             split=split,
@@ -207,8 +204,6 @@ def _get_dispatching_dataloader(
             is_encoder_decoder=is_encoder_decoder,
             use_padding_free_transformer=args.model_args.use_padding_free_transformer,
         ),
-        source_rank=source_global_rank,
-        broadcast_ranks=broadcast_ranks,
         all_source_ranks_and_broadcast_groups=all_source_ranks_and_broadcast_groups,
     )
 

@@ -29,14 +29,15 @@ class DispatchingDataLoader(ResumableDataLoader):
         drop_last: bool = False,
         source_rank: int = None,
         broadcast_ranks: List[int] = None,
+        all_source_and_broadcast_groups: List = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
         self.source_rank = source_rank
-        self.broadcast_process_group = torch.distributed.new_group(ranks=broadcast_ranks)
         self.broadcast_world_size = len(broadcast_ranks)
         self.is_source = get_global_rank() == self.source_rank
         self.local_rank_in_broadcast_group = broadcast_ranks.index(get_global_rank())
         self.local_batch_size = batch_size
+        self.all_source_and_broadcast_groups = all_source_and_broadcast_groups
 
         super().__init__(
             dataset=dataset,
@@ -49,15 +50,20 @@ class DispatchingDataLoader(ResumableDataLoader):
             drop_last=drop_last,
         )
 
-        if self.is_source:
-            self._length = torch.tensor([super().__len__()], dtype=torch.long, device=torch.cuda.current_device())
-        else:
-            self._length = torch.empty(1, dtype=torch.long, device=torch.cuda.current_device())
-
-        torch.distributed.broadcast(self._length, src=self.source_rank, group=self.broadcast_process_group)
-        self._length = self._length.item()
+        _length = torch.tensor(
+            [super().__len__() if self.is_source else 0], dtype=torch.long, device=torch.cuda.current_device()
+        )
+        self._broadcast_all_groups(_length)
+        self._length = _length.item()
 
         self.keys = keys
+
+    def _broadcast_all_groups(self, item: torch.Tensor, is_tensor: bool = True) -> None:
+        for src, grp in self.all_source_and_broadcast_groups:
+            if is_tensor:
+                torch.distributed.broadcast(item, src=src, group=grp)
+            else:
+                torch.distributed.broadcast_object_list(item, src=src, group=grp)
 
     def __iter__(self):
         if self.is_source:

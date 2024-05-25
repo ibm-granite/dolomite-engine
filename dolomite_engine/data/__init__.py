@@ -3,6 +3,7 @@ from functools import partial
 from typing import List, Tuple, Union
 
 import torch
+import torch.distributed
 from transformers import AutoTokenizer
 
 from ..arguments import InferenceArgs, TrainingArgs
@@ -149,6 +150,16 @@ def _get_dispatching_dataloader(
     source_global_rank = node_rank * num_ranks_per_node
     broadcast_ranks = list(range(source_global_rank, source_global_rank + num_ranks_per_node))
 
+    def _get_source_and_broadcast_groups():
+        result = []
+        for i in range(num_nodes):
+            source = i * num_ranks_per_node
+            ranks = list(range(source, source + num_ranks_per_node))
+            result.append((source, torch.distributed.new_group(ranks)))
+        return result
+
+    all_source_and_broadcast_groups = _get_source_and_broadcast_groups()
+
     if get_global_rank() == source_global_rank:
         datasets_list, data_sampling_ratios = get_datasets_list(
             args=args,
@@ -198,6 +209,7 @@ def _get_dispatching_dataloader(
         ),
         source_rank=source_global_rank,
         broadcast_ranks=broadcast_ranks,
+        all_source_and_broadcast_groups=all_source_and_broadcast_groups,
     )
 
     _log_dataset(

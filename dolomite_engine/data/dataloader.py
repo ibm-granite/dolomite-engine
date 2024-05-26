@@ -87,7 +87,7 @@ class DispatchingDataLoader(ResumableDataLoader):
                     for key in self.keys
                 }
 
-            for key in batch:
+            for key in self.keys:
                 # send/recv batch
                 broadcast_in_local_data_group(batch[key], self.all_source_ranks_and_broadcast_groups)
 

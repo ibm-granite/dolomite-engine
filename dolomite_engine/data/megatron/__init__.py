@@ -174,9 +174,6 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 source_ranks_broadcast_ranks_broadcast_groups=source_ranks_broadcast_ranks_broadcast_groups,
                 keys=["text"],
             )
-
-            if len(dataloader) == 0:
-                dataloader = None
         else:
             if dataset is None:
                 return None

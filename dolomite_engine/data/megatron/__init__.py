@@ -146,6 +146,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
             broadcast_in_local_data_group(
                 is_dataset_none_on_source_rank, source_ranks_broadcast_ranks_broadcast_groups, is_tensor=False
             )
+            is_dataset_none_on_source_rank = is_dataset_none_on_source_rank[0]
 
             if is_dataset_none_on_source_rank:
                 return None

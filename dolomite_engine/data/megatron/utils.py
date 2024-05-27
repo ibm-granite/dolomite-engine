@@ -54,7 +54,12 @@ def build_blending_indices(
 
 
 def build_sample_idx(
-    sizes: numpy.ndarray, doc_idx: numpy.ndarray, sequence_length: int, num_epochs: int, tokens_per_epoch: int
+    sizes: numpy.ndarray,
+    doc_idx: numpy.ndarray,
+    sequence_length: int,
+    num_epochs: int,
+    tokens_per_epoch: int,
+    use_int64: bool,
 ) -> numpy.ndarray:
     try:
         from dolomite_engine.data.megatron import helpers
@@ -63,7 +68,7 @@ def build_sample_idx(
 
         from dolomite_engine.data.megatron import helpers
 
-    return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
+    return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, use_int64)
 
 
 def normalize(weights: List[float]) -> List[float]:

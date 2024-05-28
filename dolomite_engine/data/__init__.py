@@ -131,7 +131,8 @@ def get_dataloader(
         )
 
     # don't really need this
-    torch.distributed.barrier()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     return dataloader
 

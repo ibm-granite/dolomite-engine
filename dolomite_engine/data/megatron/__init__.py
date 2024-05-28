@@ -197,7 +197,8 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     test_ds = [_get_dataloader(i, 0) for i in test_ds]
 
     # don't really need this
-    torch.distributed.barrier()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     return train_ds, val_ds, test_ds
 

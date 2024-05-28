@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from transformers import set_seed
 
 from .arguments import TrainingArgs, get_args
-from .checkpointing import load_checkpoint_for_training, save_checkpoint
+from .checkpointing import load_checkpoint_for_training, load_metadata, save_checkpoint
 from .data import get_megatron_gpt_dataloaders
 from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, FP8Backend, Mode
@@ -237,17 +237,10 @@ def main() -> None:
     set_seed(args.random_args.seed)
 
     model = get_model(args, mode)
-    model, optimizer, lr_scheduler = wrap_model_for_distributed_training(args, model)
 
-    log_model(model)
-
-    starting_iteration = 0
     metadata = None
-    experiments_tracker_state_dict = None
     if args.load_args is not None:
-        starting_iteration, metadata, experiments_tracker_state_dict = load_checkpoint_for_training(
-            args, model, optimizer, lr_scheduler, None
-        )
+        metadata = load_metadata(args.load_args.load_path)
 
         # metadata field contains the dataloader state so we need to reset it here
         if not args.load_args.load_dataloader_state and metadata is not None:
@@ -256,6 +249,16 @@ def main() -> None:
     train_dataloader, val_dataloaders, test_dataloaders = get_megatron_gpt_dataloaders(
         args, model.tokenizer, 0 if metadata is None else metadata["consumed_samples"]
     )
+
+    model, optimizer, lr_scheduler = wrap_model_for_distributed_training(args, model)
+    log_model(model)
+
+    starting_iteration = 0
+    experiments_tracker_state_dict = None
+    if args.load_args is not None:
+        starting_iteration, _, experiments_tracker_state_dict = load_checkpoint_for_training(
+            args, model, optimizer, lr_scheduler, None
+        )
 
     experiments_tracker = ExperimentsTracker(
         args.logging_args.experiments_tracker_name,

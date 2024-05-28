@@ -203,9 +203,7 @@ def load_checkpoint_for_training(
         torch.set_rng_state(rng_state["torch_rng_state"])
         torch.cuda.set_rng_state(rng_state["cuda_rng_state"])
 
-    metadata = None
-    if os.path.isfile(_get_metadata_path(load_path)):
-        metadata = json.load(open(_get_metadata_path(load_path), "r"))
+    metadata = load_metadata(load_path)
 
     if load_dataloader_state and train_dataloader is not None:
         train_dataloader.load_state_dict(torch.load(_get_dataloader_path(load_path)))
@@ -282,6 +280,14 @@ def save_args(args: Union[TrainingArgs, InferenceArgs], save_path: str, mode: Mo
     file_prefix = _TRAINING_CONFIG_PREFIX if mode == Mode.training else _INFERENCE_CONFIG_PREFIX
     save_path = os.path.join(save_path, f"{file_prefix}.yml")
     yaml.dump(args.to_dict(), open(save_path, "w"), indent=2)
+
+
+def load_metadata(load_path: str) -> dict:
+    metadata = None
+    if os.path.isfile(_get_metadata_path(load_path)):
+        metadata = json.load(open(_get_metadata_path(load_path), "r"))
+
+    return metadata
 
 
 def _get_checkpoint_tag(iteration: int) -> str:

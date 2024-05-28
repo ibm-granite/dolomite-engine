@@ -130,6 +130,9 @@ def get_dataloader(
             args, split=split, mode=mode, tokenizer=tokenizer, is_encoder_decoder=is_encoder_decoder
         )
 
+    # don't really need this
+    torch.distributed.barrier()
+
     return dataloader
 
 

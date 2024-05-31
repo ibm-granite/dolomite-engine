@@ -212,12 +212,11 @@ class ModelWrapper(torch.nn.Module):
             model_kwargs["use_padding_free_transformer"] = True
 
         def _get_model(**extras):
-            if self.model_name is None:
-                model = args.model_args.model_class.from_config(**model_kwargs, **extras)
-            else:
-                model = args.model_args.model_class.from_pretrained(**model_kwargs, **extras)
-
-            return model
+            return (
+                self.model_class.from_config(**model_kwargs, **extras)
+                if self.model_name is None
+                else self.model_class.from_pretrained(**model_kwargs, **extras)
+            )
 
         if self.mode == Mode.training:
             if self.distributed_backend == DistributedBackend.deepspeed:
@@ -232,22 +231,26 @@ class ModelWrapper(torch.nn.Module):
                     self.model = _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
             elif self.distributed_backend == DistributedBackend.torch:
                 if self.efficient_initialization:
-                    if self.tie_word_embeddings:
-                        assert is_custom_model(
-                            self.model_class, self.config.model_type
-                        ), "either there should be no weight tying or the model should be a custom class"
-
                     if self.model_name is None:
                         with torch.device("meta"):
                             self.model = _get_model()
                     else:
-                        if get_global_rank() == 0:
-                            self.model = (
-                                _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
-                            )
+                        if is_custom_model(self.model_class, self.config.model_type):
+                            if get_global_rank() == 0:
+                                self.model = (
+                                    _get_model()
+                                    if self.initialize_on_cpu
+                                    else _get_model(device_map=self.input_device)
+                                )
+                            else:
+                                with torch.device("meta"):
+                                    self.model = _get_model()
                         else:
-                            with torch.device("meta"):
-                                self.model = _get_model()
+                            self.model = (
+                                _get_model(low_cpu_mem_usage=True)
+                                if self.initialize_on_cpu
+                                else _get_model(device_map=self.input_device, low_cpu_mem_usage=True)
+                            )
                 else:
                     self.model = _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
         else:

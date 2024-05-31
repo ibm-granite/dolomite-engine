@@ -40,6 +40,7 @@ class ModelWrapperForPretraining(ModelWrapper):
             model_outputs = self.model(input_ids=input_ids)
 
         logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
+        logits = logits.float()
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
 
         return loss

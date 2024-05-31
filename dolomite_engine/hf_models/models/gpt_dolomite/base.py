@@ -94,6 +94,8 @@ class GPTDolomitePreTrainedModel(PreTrainedModel):
 
         # Flatten the tokens
         loss_fct = nn.CrossEntropyLoss()
+
+        shift_logits = shift_logits.float()
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
         return loss

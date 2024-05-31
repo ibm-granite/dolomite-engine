@@ -31,7 +31,6 @@ class ModelWrapper(torch.nn.Module):
         self.gradient_checkpointing_method = args.distributed_args.gradient_checkpointing_method
         self.gradient_checkpointing_args = args.distributed_args.gradient_checkpointing_args
         self.efficient_initialization = args.model_args.efficient_initialization
-        self.initialize_on_cpu = args.model_args.initialize_on_cpu
         self.tuning_method = args.tuning_args.tuning_method
         self.dtype = args.mixed_precision_args.dtype
         self.reset_attention_mask = args.model_args.reset_attention_mask
@@ -224,10 +223,7 @@ class ModelWrapper(torch.nn.Module):
 
                     self.deepspeed_config = HfDeepSpeedConfig(get_deepspeed_config(args))
 
-                    # model is initialized on meta device here due to the HfDeepSpeedConfig object created above
-                    self.model = _get_model()
-                else:
-                    self.model = _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
+                self.model = _get_model()
             elif self.distributed_backend == DistributedBackend.torch:
                 if self.efficient_initialization:
                     if self.model_name is None:
@@ -236,22 +232,14 @@ class ModelWrapper(torch.nn.Module):
                     else:
                         if is_custom_model(self.model_class, self.config.model_type):
                             if get_global_rank() == 0:
-                                self.model = (
-                                    _get_model()
-                                    if self.initialize_on_cpu
-                                    else _get_model(device_map=self.input_device)
-                                )
+                                self.model = _get_model()
                             else:
                                 with torch.device("meta"):
                                     self.model = _get_model()
                         else:
-                            self.model = (
-                                _get_model(low_cpu_mem_usage=True)
-                                if self.initialize_on_cpu
-                                else _get_model(device_map=self.input_device, low_cpu_mem_usage=True)
-                            )
+                            self.model = _get_model(low_cpu_mem_usage=True)
                 else:
-                    self.model = _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
+                    self.model = _get_model()
         else:
             if self.dtype == "fp8":
                 log_rank_0(logging.WARN, "dtype fp8 was passed but loading model in fp16")
@@ -259,11 +247,7 @@ class ModelWrapper(torch.nn.Module):
             else:
                 torch_dtype = string_to_torch_dtype(self.dtype)
 
-            self.model = (
-                _get_model(torch_dtype=torch_dtype)
-                if self.initialize_on_cpu
-                else _get_model(device_map=self.input_device, torch_dtype=torch_dtype)
-            )
+            self.model = _get_model(device_map=self.input_device, torch_dtype=torch_dtype)
 
         num_parameters = 0
         for param in self.model.parameters():

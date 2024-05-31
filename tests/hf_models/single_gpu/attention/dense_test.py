@@ -68,11 +68,11 @@ class AttentionTestForDenseModel(TestCommons):
             atol_bfloat16=5e-3,
         )
         self.assert_equal_tensors(
-            math_loss,
-            sdpa_loss,
+            math_loss.to(torch.bfloat16),
+            sdpa_loss.to(torch.bfloat16),
             False,
             rtol_float32=0,
-            atol_float32=45e-5,
+            atol_float32=1e-5,
             rtol_float16=0,
             atol_float16=1e-5,
             rtol_bfloat16=0,

@@ -114,6 +114,9 @@ class ModelWrapper(torch.nn.Module):
         return generated_text, num_generated_tokens
 
     def get_model_tflops(self, batch_size: int, sequence_length: int) -> None:
+        if not is_custom_model(self.model_class, self.config.model_type):
+            return 0
+
         b = batch_size
         s = sequence_length
         h = self.config.n_embd

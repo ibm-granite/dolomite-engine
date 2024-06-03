@@ -58,28 +58,28 @@ def save_checkpoint(
     os.makedirs(save_path, exist_ok=True)
 
     if distributed_backend == DistributedBackend.deepspeed:
-        from deepspeed import DeepSpeedEngine
-
-        assert isinstance(model, DeepSpeedEngine)
         assert save_optimizer
-
         model.save_checkpoint(args.save_args.save_path, tag=_get_checkpoint_tag(iteration))
     elif distributed_backend == DistributedBackend.torch:
-        assert isinstance(model, FSDP)
-
-        # TODO add support for local state dict
-        with FSDP.state_dict_type(
-            model,
-            state_dict_type=StateDictType.FULL_STATE_DICT,
-            state_dict_config=FullStateDictConfig(offload_to_cpu=True, rank0_only=True),
-            optim_state_dict_config=FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=True),
-        ):
+        if args.distributed_args.stage == 0:
             run_rank_n(torch.save)(model.state_dict(), _get_model_path(save_path))
 
             if save_optimizer:
-                run_rank_n(torch.save)(
-                    FSDP.optim_state_dict(model=model, optim=optimizer), _get_optimizer_path(save_path)
-                )
+                run_rank_n(torch.save)(optimizer.state_dict(), _get_optimizer_path(save_path))
+        else:
+            # TODO add support for local state dict
+            with FSDP.state_dict_type(
+                model,
+                state_dict_type=StateDictType.FULL_STATE_DICT,
+                state_dict_config=FullStateDictConfig(offload_to_cpu=True, rank0_only=True),
+                optim_state_dict_config=FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=True),
+            ):
+                run_rank_n(torch.save)(model.state_dict(), _get_model_path(save_path))
+
+                if save_optimizer:
+                    run_rank_n(torch.save)(
+                        FSDP.optim_state_dict(model=model, optim=optimizer), _get_optimizer_path(save_path)
+                    )
 
         run_rank_n(torch.save)(lr_scheduler.state_dict(), _get_lr_scheduler_path(save_path))
     else:

@@ -24,7 +24,9 @@ def get_args() -> Namespace:
     args = parser.parse_args()
 
     for inp in args.input_prefixes:
-        assert os.path.exists(inp), f"{inp} is not a valid prefix and doesn't exist"
+        bin = get_bin_path(inp)
+        idx = get_idx_path(inp)
+        assert os.path.exists(bin) and os.path.exists(idx), f"{inp} is not a valid prefix and doesn't exist"
 
 
 def main() -> None:

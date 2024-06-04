@@ -69,19 +69,18 @@ class ReduceFromTensorParallelRegion(torch.autograd.Function):
 
 class ColumnParallelLinear(ParameterizedLinear):
     def __init__(self, in_features: int, out_features: int, bias: bool = True) -> None:
-        tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
+        self.tp_world_size = get_tensor_parallel_group_manager().get_world_size()
 
         assert (
-            out_features % tp_world_size == 0
-        ), f"`out_features` ({out_features}) must be divisible by `tensor_parallel_world_size` ({tp_world_size})"
+            out_features % self.tp_world_size == 0
+        ), f"`out_features` ({out_features}) must be divisible by `tensor_parallel_world_size` ({self.tp_world_size})"
 
-        self.out_features_per_device = out_features // tp_world_size
+        self.out_features_per_device = out_features // self.tp_world_size
         super().__init__(in_features, self.out_features_per_device, bias)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         input = CopyToTensorParallelRegion.apply(input)
-        input = super().forward(input)
-        return input
+        return super().forward(input)
 
     def load_unsharded_weights(self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = "") -> None:
         weight = safetensors_weight_manager.get_slice(prefix + "weight")
@@ -100,14 +99,10 @@ class ColumnParallelLinear(ParameterizedLinear):
             self.in_features, self.out_features_per_device, self.bias is not None
         )
 
-    def _save_to_state_dict(self, destination, prefix, keep_vars):
-        destination[prefix + "weight"] = _all_gather(self.weight, dim=0)
-        destination[prefix + "bias"] = _all_gather(self.bias, dim=0)
-
 
 class RowParallelLinear(ParameterizedLinear):
     def __init__(self, in_features: int, out_features: int, bias: bool = True) -> None:
-        self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
+        self.tp_world_size = get_tensor_parallel_group_manager().get_world_size()
         self.is_tp_first_rank = get_tensor_parallel_group_manager().get_first_rank() == torch.distributed.get_rank()
 
         assert (
@@ -122,8 +117,7 @@ class RowParallelLinear(ParameterizedLinear):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         input = super().forward(input)
-        input = ReduceFromTensorParallelRegion.apply(input)
-        return input
+        return ReduceFromTensorParallelRegion.apply(input)
 
     def load_unsharded_weights(self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = "") -> None:
         weight = safetensors_weight_manager.get_slice(prefix + "weight")
@@ -145,18 +139,14 @@ class RowParallelLinear(ParameterizedLinear):
             self.in_features_per_device, self.out_features, self.tp_bias
         )
 
-    def _save_to_state_dict(self, destination, prefix, keep_vars):
-        destination[prefix + "weight"] = _all_gather(self.weight, dim=1)
-        destination[prefix + "bias"] = self.bias
-
 
 def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int, int] = None) -> torch.Tensor:
     shape = slice.get_shape()
     dimensionality = len(shape)
     assert 1 <= dimensionality <= 2, f"tensor should be either 1 or 2 dimensional but {dimensionality} was found"
 
-    tp_rank = ProcessGroupManager.get_tensor_parallel_rank()
-    tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
+    tp_rank = get_tensor_parallel_group_manager().get_rank()
+    tp_world_size = get_tensor_parallel_group_manager().get_world_size()
 
     if start_end is None:
         assert (

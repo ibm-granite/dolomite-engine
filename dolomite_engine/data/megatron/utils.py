@@ -1,16 +1,11 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
-import logging
-import os
-import subprocess
-import sys
 from enum import Enum
 from typing import List
 
 import numpy
 import torch
-
-from ...utils import log_rank_0
+from torch.utils.cpp_extension import load as load_cpp_extension
 
 
 class Split(Enum):
@@ -23,11 +18,7 @@ def compile_helpers() -> None:
     """Compile C++ helper functions at runtime. Make sure this is invoked on a single process."""
 
     if torch.cuda.current_device() == 0:
-        command = ["make", "-C", os.path.abspath(os.path.dirname(__file__))]
-
-        if subprocess.run(command).returncode != 0:
-            log_rank_0(logging.ERROR, "Failed to compile the C++ dataset helper functions")
-            sys.exit(1)
+        load_cpp_extension("helpers", sources="helpers.cpp")
 
     torch.distributed.barrier()
 
@@ -40,7 +31,7 @@ def build_blending_indices(
     size: int,
     verbose: bool,
 ) -> None:
-    from dolomite_engine.data.megatron import helpers
+    import helpers
 
     helpers.build_blending_indices(dataset_index, dataset_sample_index, weights, num_datasets, size, verbose)
 
@@ -53,7 +44,7 @@ def build_sample_idx(
     tokens_per_epoch: int,
     sample_idx_int64: bool,
 ) -> numpy.ndarray:
-    from dolomite_engine.data.megatron import helpers
+    import helpers
 
     return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, sample_idx_int64)
 

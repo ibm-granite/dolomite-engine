@@ -71,26 +71,6 @@ void build_blending_indices(py::array_t<int16_t>& dataset_index,
     }
 }
 
-py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
-                           const py::array_t<int32_t>& doc_idx_,
-                           const int32_t seq_length,
-                           const int32_t num_epochs,
-                           const int64_t tokens_per_epoch,
-                           const bool use_int_64)
-{
-    py::array result;
-
-    if (use_int_64) {
-        cout << "using int64 for sample_idx" << endl << std::flush;
-        result = _build_sample_idx_int64(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
-    } else {
-        cout << "using int32 for sample_idx" << endl << std::flush;
-        result = _build_sample_idx_int32(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
-    }
-
-    return result;
-}
-
 py::array _build_sample_idx_int32(const py::array_t<int32_t>& sizes_,
                                   const py::array_t<int32_t>& doc_idx_,
                                   const int32_t seq_length,
@@ -245,6 +225,26 @@ py::array _build_sample_idx_int64(const py::array_t<int32_t>& sizes_,
                      {2 * byte_size, byte_size},               // C-style contiguous strides
                      sample_idx,                               // the data pointer
                      free_when_done);                          // numpy array references
+}
+
+py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
+                           const py::array_t<int32_t>& doc_idx_,
+                           const int32_t seq_length,
+                           const int32_t num_epochs,
+                           const int64_t tokens_per_epoch,
+                           const bool use_int_64)
+{
+    py::array result;
+
+    if (use_int_64) {
+        cout << "using int64 for sample_idx" << endl << std::flush;
+        result = _build_sample_idx_int64(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
+    } else {
+        cout << "using int32 for sample_idx" << endl << std::flush;
+        result = _build_sample_idx_int32(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
+    }
+
+    return result;
 }
 
 inline int32_t get_target_sample_len(const int32_t short_seq_ratio, const int32_t max_length, std::mt19937& rand32_gen)

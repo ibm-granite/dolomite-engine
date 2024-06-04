@@ -9,7 +9,7 @@ from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
 from ..enums import AttentionImplementation, DistributedBackend, GradientCheckpointingMethod, LossMask, Mode
 from ..hf_models import is_custom_model
 from ..hf_models.modeling_utils import is_glu
-from ..utils import ProcessGroupManager, log_rank_0, string_to_torch_dtype
+from ..utils import get_global_rank, log_rank_0, string_to_torch_dtype
 
 
 class ModelWrapper(torch.nn.Module):
@@ -233,13 +233,14 @@ class ModelWrapper(torch.nn.Module):
                         with torch.device("meta"):
                             self.model = _get_model()
                     else:
-                        if ProcessGroupManager.get_global_rank() == 0:
-                            self.model = (
-                                _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
-                            )
-                        else:
-                            with torch.device("meta"):
+                        if is_custom_model(self.model_class, self.config.model_type):
+                            if get_global_rank() == 0:
                                 self.model = _get_model()
+                            else:
+                                with torch.device("meta"):
+                                    self.model = _get_model()
+                        else:
+                            self.model = _get_model(low_cpu_mem_usage=True)
                 else:
                     self.model = _get_model()
         else:

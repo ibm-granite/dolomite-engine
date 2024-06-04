@@ -11,6 +11,7 @@ from .packages import (
     is_transformer_engine_available,
     is_triton_available,
 )
+from .parallel import ProcessGroupManager
 from .pydantic import BaseArgs
 from .ranks import get_global_rank, get_local_rank, get_world_size, run_rank_n
 from .safetensors import SafeTensorsWeightsManager

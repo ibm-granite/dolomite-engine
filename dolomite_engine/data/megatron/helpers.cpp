@@ -81,8 +81,10 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
     py::array result;
 
     if (use_int_64) {
+        cout << "using int64 for sample_idx" << endl << std::flush;
         result = _build_sample_idx_int64(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
     } else {
+        cout << "using int32 for sample_idx" << endl << std::flush;
         result = _build_sample_idx_int32(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
     }
 

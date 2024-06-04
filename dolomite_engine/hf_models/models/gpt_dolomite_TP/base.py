@@ -7,7 +7,7 @@ from tqdm import tqdm
 from ....utils import SafeTensorsWeightsManager
 from ...enums import AttentionHeadType, PositionEmbeddingType
 from ...modeling_utils import ParameterizedEmbedding, RoPE, YaRNScaledRoPE, get_normalization_function
-from ...modeling_utils_TP import Alibi_TP, Dropout_TP, Embedding_TP
+from ...modeling_utils_TP import Alibi_TP, Dropout_TP, Embedding_TP, get_tensor_parallel_group_manager
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteModel, GPTDolomitePreTrainedModel
 from .layer import GPTDolomiteBlock_TP
 

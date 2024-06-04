@@ -13,7 +13,11 @@ def get_args() -> Namespace:
     parser = ArgumentParser()
 
     parser.add_argument(
-        "--input-prefixes", type=str, required=True, help="Path to directory containing all document files to merge"
+        "--input-prefixes",
+        type=str,
+        nargs="+",
+        required=True,
+        help="Path to directory containing all document files to merge",
     )
     parser.add_argument("--output-prefix", type=str, required=True, help="Path to binary output file without suffix")
 

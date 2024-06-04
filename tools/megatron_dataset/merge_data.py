@@ -28,6 +28,8 @@ def get_args() -> Namespace:
         idx = get_idx_path(inp)
         assert os.path.exists(bin) and os.path.exists(idx), f"{inp} is not a valid prefix and doesn't exist"
 
+    return args
+
 
 def main() -> None:
     args = get_args()

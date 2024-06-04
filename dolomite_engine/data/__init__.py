@@ -245,8 +245,8 @@ def _get_non_dispatching_dataloader(
     sampler = BlendedDistributedSampler(
         dataset=blended_dataset,
         data_sampling_ratios=[1] if len(datasets_list) == 1 else data_sampling_ratios,
-        num_replicas=ProcessGroupManager.get_world_size(),
-        rank=ProcessGroupManager.get_global_rank(),
+        num_replicas=get_world_size(),
+        rank=get_global_rank(),
         ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
         shuffle=split == DatasetSplit.train,
         seed=args.random_args.seed,
@@ -293,16 +293,14 @@ def _log_dataset(
     log_rank_0(logging.INFO, blended_dataset)
 
     if split == DatasetSplit.train:
-        total_samples_seen = (
-            num_training_steps * gradient_accumulation_steps * micro_batch_size * ProcessGroupManager.get_world_size()
-        )
+        total_samples_seen = num_training_steps * gradient_accumulation_steps * micro_batch_size * get_world_size()
     else:
-        if len(blended_dataset) % (micro_batch_size * ProcessGroupManager.get_world_size()) == 0:
-            num_steps = len(blended_dataset) // (micro_batch_size * ProcessGroupManager.get_world_size())
+        if len(blended_dataset) % (micro_batch_size * get_world_size()) == 0:
+            num_steps = len(blended_dataset) // (micro_batch_size * get_world_size())
         else:
-            num_steps = (len(blended_dataset) // (micro_batch_size * ProcessGroupManager.get_world_size())) + 1
+            num_steps = (len(blended_dataset) // (micro_batch_size * get_world_size())) + 1
 
-        total_samples_seen = num_steps * micro_batch_size * ProcessGroupManager.get_world_size()
+        total_samples_seen = num_steps * micro_batch_size * get_world_size()
 
     log_rank_0(logging.INFO, "*" * 57)
     log_rank_0(logging.INFO, f"total samples seen = {total_samples_seen}")

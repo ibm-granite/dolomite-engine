@@ -19,7 +19,7 @@ from .enums import (
     ParamsGroupMethod,
     TuningMethod,
 )
-from .utils import BaseArgs, ProcessGroupManager, load_yaml, log_rank_0, normalize_dtype_string, run_rank_n, set_logger
+from .utils import BaseArgs, get_world_size, load_yaml, log_rank_0, normalize_dtype_string, run_rank_n, set_logger
 
 
 def _check_not_None(object_name_list: List[Tuple[Any, str]]) -> None:
@@ -546,7 +546,7 @@ def log_args(args: Union[TrainingArgs, InferenceArgs, ExportArgs]) -> None:
         result.sort(key=lambda x: x.lower())
         return result
 
-    log_rank_0(logging.INFO, f"total GPUs = {ProcessGroupManager.get_world_size()}")
+    log_rank_0(logging.INFO, f"total GPUs = {get_world_size()}")
     log_rank_0(logging.INFO, "------------------------ arguments ------------------------")
     for line in _iterate_args_recursively(args):
         line = line.split("\n")

@@ -46,10 +46,10 @@ class GPTDataset(MegatronDataset):
         tokenizer: AutoTokenizer,
         config: GPTDatasetConfig,
         caching_allowed: bool,
-        use_int64: bool,
+        sample_idx_int64: bool,
     ) -> None:
         super().__init__(
-            indexed_dataset, indexed_indices, num_samples, index_split, config, caching_allowed, use_int64
+            indexed_dataset, indexed_indices, num_samples, index_split, config, caching_allowed, sample_idx_int64
         )
 
         self.tokenizer = tokenizer
@@ -357,7 +357,7 @@ class GPTDataset(MegatronDataset):
                 sequence_length,
                 num_epochs,
                 num_tokens_per_epoch,
-                self.use_int64,
+                self.sample_idx_int64,
             )
             numpy.save(path_to_sample_index, sample_index, allow_pickle=True)
             t_end = time.time()

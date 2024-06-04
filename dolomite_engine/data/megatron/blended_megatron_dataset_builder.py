@@ -36,13 +36,13 @@ class BlendedMegatronDatasetBuilder(object):
         sizes: List[int],
         config: BlendedMegatronDatasetConfig,
         tokenizer: AutoTokenizer,
-        use_int64: bool,
+        sample_idx_int64: bool,
     ):
         self.cls = cls
         self.sizes = sizes
         self.config = config
         self.tokenizer = tokenizer
-        self.use_int64 = use_int64
+        self.sample_idx_int64 = sample_idx_int64
 
     def build(self) -> List[Optional[Union[BlendedDataset, MegatronDataset]]]:
         """Build all dataset splits according to the provided blend(s)
@@ -223,7 +223,7 @@ class BlendedMegatronDatasetBuilder(object):
                         index_split=_split,
                         tokenizer=self.tokenizer,
                         config=self.config,
-                        use_int64=self.use_int64,
+                        sample_idx_int64=self.sample_idx_int64,
                     )
                 )
 
@@ -316,7 +316,7 @@ class BlendedMegatronDatasetBuilder(object):
                 index_split=data_split,
                 tokenizer=self.tokenizer,
                 config=modified_config,
-                use_int64=self.use_int64,
+                sample_idx_int64=self.sample_idx_int64,
             )
 
         return megatron_dataset

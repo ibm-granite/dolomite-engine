@@ -3,7 +3,7 @@ from typing import Union
 
 from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
 from ..enums import Mode, TuningMethod
-from ..utils import log_rank_0
+from ..utils import log_rank_0, run_rank_n
 from .base import ModelWrapper
 from .finetuning import ModelWrapperForFinetuning
 from .peft import ModelWrapperForPEFT
@@ -26,6 +26,7 @@ def get_model(args: Union[TrainingArgs, InferenceArgs, ExportArgs], mode: Mode) 
     raise ValueError(f"unexpected tuning_method ({tuning_method})")
 
 
+@run_rank_n
 def log_model(model: ModelWrapper) -> None:
     """print model
 

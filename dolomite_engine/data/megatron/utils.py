@@ -1,5 +1,6 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
+import logging
 import os
 from enum import Enum
 from typing import List
@@ -7,6 +8,8 @@ from typing import List
 import numpy
 import torch
 from torch.utils.cpp_extension import load as load_cpp_extension
+
+from ...utils import log_rank_0
 
 
 class Split(Enum):
@@ -17,6 +20,8 @@ class Split(Enum):
 
 def compile_helpers() -> None:
     """Compile C++ helper functions at runtime. Make sure this is invoked on a single process."""
+
+    log_rank_0(logging.INFO, "compiling helpers.cpp")
 
     if torch.cuda.current_device() == 0:
         load_cpp_extension(

@@ -22,15 +22,12 @@ class Split(Enum):
 def compile_helpers() -> None:
     """Compile C++ helper functions at runtime. Make sure this is invoked on a single process."""
 
-    try:
-        from dolomite_engine.data.megatron import helpers
-    except ImportError:
-        if torch.cuda.current_device() == 0:
-            command = ["make", "-C", os.path.abspath(os.path.dirname(__file__))]
+    if torch.cuda.current_device() == 0:
+        command = ["make", "-C", os.path.abspath(os.path.dirname(__file__))]
 
-            if subprocess.run(command).returncode != 0:
-                log_rank_0(logging.ERROR, "Failed to compile the C++ dataset helper functions")
-                sys.exit(1)
+        if subprocess.run(command).returncode != 0:
+            log_rank_0(logging.ERROR, "Failed to compile the C++ dataset helper functions")
+            sys.exit(1)
 
     torch.distributed.barrier()
 
@@ -43,12 +40,7 @@ def build_blending_indices(
     size: int,
     verbose: bool,
 ) -> None:
-    try:
-        from dolomite_engine.data.megatron import helpers
-    except ImportError:
-        compile_helpers()
-
-        from dolomite_engine.data.megatron import helpers
+    from dolomite_engine.data.megatron import helpers
 
     helpers.build_blending_indices(dataset_index, dataset_sample_index, weights, num_datasets, size, verbose)
 
@@ -61,12 +53,7 @@ def build_sample_idx(
     tokens_per_epoch: int,
     sample_idx_int64: bool,
 ) -> numpy.ndarray:
-    try:
-        from dolomite_engine.data.megatron import helpers
-    except ImportError:
-        compile_helpers()
-
-        from dolomite_engine.data.megatron import helpers
+    from dolomite_engine.data.megatron import helpers
 
     return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, sample_idx_int64)
 

@@ -1,6 +1,11 @@
 from .enums import AttentionHeadType, PositionEmbeddingType
 from .model_conversion import export_to_huggingface, import_from_huggingface
-from .modeling_utils_TP import CUDA_RNGStatesTracker
+from .modeling_utils_TP import (
+    CUDA_RNGStatesTracker,
+    get_tensor_parallel_group_manager,
+    set_cuda_rng_tracker,
+    set_tensor_parallel_group_manager,
+)
 from .models import (
     DenseMoEConfig,
     DenseMoEForCausalLM,

@@ -65,10 +65,7 @@ class MegatronDatasetTest(TestCommons):
 
             assert len(dataset) == num_documents1 + num_documents2
             for i, d in enumerate(dataset):
-                if i < num_documents1:
-                    assert (d == document1).all()
-                else:
-                    assert (d == document2).all()
+                assert (d == (document1 if i < num_documents1 else document2)).all()
 
     def _build_dataset(self, bin_path: str, idx_path: str, num_documents: int, repeated_document: np.ndarray) -> None:
         builder = MMapIndexedDatasetBuilder(bin_path)

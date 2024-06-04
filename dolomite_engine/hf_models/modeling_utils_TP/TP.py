@@ -5,17 +5,40 @@ import torch.distributed
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ..modeling_utils import ParameterizedLinear
+from .random import CUDA_RNGStatesTracker
+
+
+_TENSOR_PARALLEL_GROUP_MANAGER: ProcessGroupManager = None
+_RNG_TRACKER: CUDA_RNGStatesTracker = None
+
+
+def get_cuda_rng_tracker() -> CUDA_RNGStatesTracker:
+    return _RNG_TRACKER
+
+
+def set_cuda_rng_tracker(tracker: CUDA_RNGStatesTracker) -> None:
+    global _RNG_TRACKER
+    _RNG_TRACKER = tracker
+
+
+def get_tensor_parallel_group_manager() -> ProcessGroupManager:
+    return _TENSOR_PARALLEL_GROUP_MANAGER
+
+
+def set_tensor_parallel_group_manager(process_group_manager: ProcessGroupManager) -> None:
+    global _TENSOR_PARALLEL_GROUP_MANAGER
+    _TENSOR_PARALLEL_GROUP_MANAGER = process_group_manager
 
 
 def _reduce(input: torch.Tensor) -> torch.Tensor:
     """All-reduce the input tensor across model parallel group."""
 
     # Bypass the function if we are using only 1 GPU.
-    if ProcessGroupManager.get_tensor_parallel_world_size() == 1:
+    if get_tensor_parallel_group_manager().get_world_size() == 1:
         return input
 
     # All-reduce.
-    torch.distributed.all_reduce(input, group=ProcessGroupManager.get_tensor_parallel_group())
+    torch.distributed.all_reduce(input, group=get_tensor_parallel_group_manager().get_process_group())
 
     return input
 
@@ -42,30 +65,6 @@ class ReduceFromTensorParallelRegion(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
         return grad_output
-
-
-def _all_gather(input: torch.Tensor, dim: int) -> torch.Tensor:
-    """All-reduce the input tensor across model parallel group."""
-
-    tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-
-    # Bypass the function if we are using only 1 GPU.
-    if tp_world_size == 1:
-        return input
-
-    if dim == 0:
-        shape = input.shape[0] * tp_world_size, input.shape[1]
-    else:
-        shape = input.shape[0], input.shape[1] * tp_world_size
-
-    # All-reduce.
-    torch.distributed.all_gather_into_tensor(
-        torch.empty(*shape, dtype=input.dtype, device=torch.cuda.current_device()),
-        input,
-        group=ProcessGroupManager.get_tensor_parallel_group(),
-    )
-
-    return input
 
 
 class ColumnParallelLinear(ParameterizedLinear):

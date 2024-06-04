@@ -179,8 +179,8 @@ def _get_dispatching_dataloader(
         sampler = BlendedDistributedSampler(
             dataset=blended_dataset,
             data_sampling_ratios=data_sampling_ratios,
-            num_replicas=get_world_size(),
-            rank=get_global_rank(),
+            num_replicas=num_nodes,
+            rank=node_rank,
             ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
             shuffle=split == DatasetSplit.train,
             seed=args.random_args.seed,

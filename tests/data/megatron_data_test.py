@@ -1,29 +1,43 @@
-from functools import partial
+import os
+import tempfile
 
-from transformers import AutoTokenizer
+import numpy as np
+import torch
 
-from dolomite_engine.data import (
-    BlendedDatasets,
-    BlendedDistributedSampler,
-    ResumableDataLoader,
-    collate_fn,
-    get_dataloader,
-    get_datasets_list,
+from dolomite_engine.data.megatron.indexed_dataset import (
+    MMapIndexedDataset,
+    MMapIndexedDatasetBuilder,
+    get_bin_path,
+    get_idx_path,
 )
-from dolomite_engine.enums import DatasetSplit, Mode
 
 from .test_commons import TestCommons
 
 
 class MegatronDatasetTest(TestCommons):
-    def test_dataloader_returns_correct_batch_size(self) -> None:
-        args = TestCommons.load_training_args_for_unit_tests()
-        split = DatasetSplit.train
-        mode = Mode.training
+    def test_megatron_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prefix = os.path.join(tmpdir, "file")
+            bin_path = get_bin_path(prefix)
+            idx_path = get_idx_path(prefix)
 
-        tokenizer = AutoTokenizer.from_pretrained(args.model_args.model_name)
-        dataloader = get_dataloader(args, split=split, mode=mode, tokenizer=tokenizer, is_encoder_decoder=False)
+            builder = MMapIndexedDatasetBuilder(bin_path)
 
-        for example in dataloader:
-            assert example["input_ids"].shape[0] == args.training_parameters.micro_batch_size
-            break
+            num_documents = 1000
+
+            document = np.array([1, 2])
+
+            for _ in range(num_documents):
+                builder.add_item(torch.tensor(document))
+                builder.end_document()
+
+            builder.finalize(idx_path)
+
+            assert os.path.exists(bin_path)
+            assert os.path.exists(idx_path)
+
+            dataset = MMapIndexedDataset(prefix)
+
+            assert len(dataset) == num_documents
+            for i in dataset:
+                assert (i == document).all()

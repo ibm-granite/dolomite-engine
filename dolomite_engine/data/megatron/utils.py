@@ -1,5 +1,6 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
+import os
 from enum import Enum
 from typing import List
 
@@ -20,7 +21,7 @@ def compile_helpers() -> None:
     if torch.cuda.current_device() == 0:
         load_cpp_extension(
             "helpers",
-            sources="helpers.cpp",
+            sources=os.path.join(os.path.dirname(__file__), "helpers.cpp"),
             extra_cflags=["-O3", "-Wall", "-shared", "-std=c++11", "-fPIC", "-fdiagnostics-color"],
         )
 

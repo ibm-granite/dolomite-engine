@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 
 from ..arguments import InferenceArgs, TrainingArgs
 from ..enums import DatasetSplit, Mode, TuningMethod
-from ..utils import ProcessGroupManager, log_rank_0, run_rank_n
+from ..utils import get_global_rank, get_world_size, log_rank_0, run_rank_n
 from .base import BaseDataset, BlendedDatasets
 from .dataloader import DispatchingDataLoader, ResumableDataLoader
 from .debug import DebugDataset
@@ -143,8 +143,8 @@ def _get_dispatching_dataloader(
     micro_batch_size = args.training_parameters.micro_batch_size
 
     num_ranks_per_node = torch.cuda.device_count()
-    node_rank = ProcessGroupManager.get_global_rank() // num_ranks_per_node
-    num_nodes = ProcessGroupManager.get_world_size() // num_ranks_per_node
+    node_rank = get_global_rank() // num_ranks_per_node
+    num_nodes = get_world_size() // num_ranks_per_node
 
     def _get_source_ranks_broadcast_ranks_broadcast_groups():
         result = []
@@ -157,7 +157,7 @@ def _get_dispatching_dataloader(
     source_ranks_broadcast_ranks_broadcast_groups = _get_source_ranks_broadcast_ranks_broadcast_groups()
 
     # check if node's first rank
-    if ProcessGroupManager.get_global_rank() == node_rank * num_ranks_per_node:
+    if get_global_rank() == node_rank * num_ranks_per_node:
         datasets_list, data_sampling_ratios = get_datasets_list(
             args=args,
             split=split,
@@ -179,8 +179,8 @@ def _get_dispatching_dataloader(
         sampler = BlendedDistributedSampler(
             dataset=blended_dataset,
             data_sampling_ratios=data_sampling_ratios,
-            num_replicas=num_nodes,
-            rank=node_rank,
+            num_replicas=get_world_size(),
+            rank=get_global_rank(),
             ignore_sampling_proportion_for_validation=args.training_parameters.ignore_sampling_proportion_for_validation,
             shuffle=split == DatasetSplit.train,
             seed=args.random_args.seed,

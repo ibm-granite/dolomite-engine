@@ -9,7 +9,7 @@ import torch
 import torch.distributed
 from transformers import AutoTokenizer
 
-from ...utils import ProcessGroupManager
+from ...utils import get_global_rank
 from .blended_dataset import BlendedDataset
 from .blended_megatron_dataset_config import BlendedMegatronDatasetConfig
 from .indexed_dataset import MMapIndexedDataset

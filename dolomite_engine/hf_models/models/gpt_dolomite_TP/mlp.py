@@ -7,6 +7,7 @@ from ...modeling_utils_TP import (
     ColumnParallelLinear,
     Dropout_TP,
     RowParallelLinear,
+    get_tensor_parallel_group_manager,
     tensor_parallel_split_safetensor_slice,
 )
 from ..gpt_dolomite.mlp import MLP

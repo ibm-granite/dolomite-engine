@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 
 from ...arguments import TrainingArgs
 from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
-from ...utils import ProcessGroupManager, log_rank_0
+from ...utils import get_global_rank, get_world_size, log_rank_0
 from ..dataloader import DispatchingDataLoader, ResumableDataLoader, broadcast_in_local_data_group
 from .blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from .blended_megatron_dataset_config import GPTDatasetConfig
@@ -34,8 +34,8 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
 
     if dispatching_dataloader:
         num_ranks_per_node = torch.cuda.device_count()
-        node_rank = ProcessGroupManager.get_global_rank() // num_ranks_per_node
-        num_nodes = ProcessGroupManager.get_world_size() // num_ranks_per_node
+        node_rank = get_global_rank() // num_ranks_per_node
+        num_nodes = get_world_size() // num_ranks_per_node
 
         def _get_source_ranks_broadcast_ranks_broadcast_groups():
             result = []
@@ -47,7 +47,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
 
         source_ranks_broadcast_ranks_broadcast_groups = _get_source_ranks_broadcast_ranks_broadcast_groups()
 
-        is_built_on_rank = ProcessGroupManager.get_global_rank() == node_rank * num_ranks_per_node
+        is_built_on_rank = get_global_rank() == node_rank * num_ranks_per_node
     else:
         is_built_on_rank = True
 

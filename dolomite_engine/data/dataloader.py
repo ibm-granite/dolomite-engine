@@ -5,7 +5,7 @@ import torch.distributed
 from torch.distributed import ProcessGroup
 from torch.utils.data import DataLoader, Dataset, Sampler
 
-from ..utils import ProcessGroupManager
+from ..utils import get_global_rank
 
 
 class ResumableDataLoader(DataLoader):
@@ -34,7 +34,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
         self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
 
-        global_rank = ProcessGroupManager.get_global_rank()
+        global_rank = get_global_rank()
 
         self.is_source = False
         for src, _, _ in self.all_source_ranks_and_broadcast_groups:

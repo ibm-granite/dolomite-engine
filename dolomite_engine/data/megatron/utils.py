@@ -18,7 +18,11 @@ def compile_helpers() -> None:
     """Compile C++ helper functions at runtime. Make sure this is invoked on a single process."""
 
     if torch.cuda.current_device() == 0:
-        load_cpp_extension("helpers", sources="helpers.cpp")
+        load_cpp_extension(
+            "helpers",
+            sources="helpers.cpp",
+            extra_cflags=["-O3", "-Wall", "-shared", "-std=c++11", "-fPIC", "-fdiagnostics-color"],
+        )
 
     torch.distributed.barrier()
 

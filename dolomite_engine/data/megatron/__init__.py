@@ -183,8 +183,8 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=args.training_parameters.micro_batch_size,
-                num_replicas=ProcessGroupManager.get_world_size(),
-                rank=ProcessGroupManager.get_global_rank(),
+                num_replicas=get_world_size(),
+                rank=get_global_rank(),
             )
 
             dataloader = ResumableDataLoader(
@@ -207,15 +207,13 @@ def _get_train_val_test_samples(
     eval_interval: int,
     eval_steps: int,
 ) -> Tuple[int]:
-    train_samples = (
-        num_training_steps * micro_batch_size * gradient_accumulation_steps * ProcessGroupManager.get_world_size()
-    )
+    train_samples = num_training_steps * micro_batch_size * gradient_accumulation_steps * get_world_size()
     val_samples = (
         (num_training_steps // eval_interval + 1)
         * eval_steps
         * micro_batch_size
         * gradient_accumulation_steps
-        * ProcessGroupManager.get_world_size()
+        * get_world_size()
     )
     test_samples = eval_steps * micro_batch_size * gradient_accumulation_steps * ProcessGroupManager.get_world_size()
 

@@ -86,24 +86,21 @@ class ProcessGroupManager:
     def get_tensor_parallel_world_size() -> int:
         return ProcessGroupManager.get_tensor_parallel_mesh().size()
 
-    # data parallel
-    @staticmethod
-    def get_data_parallel_mesh() -> DeviceMesh:
-        return _DEVICE_MESH["dp"]
+    def get_process_group(self) -> torch.distributed.ProcessGroup:
+        return self.process_group
+
+    def get_ranks(self) -> List[int]:
+        return self.ranks
+
+    def get_world_size(self) -> int:
+        return self.world_size
 
     @staticmethod
     def get_data_parallel_rank() -> int:
         return ProcessGroupManager.get_data_parallel_mesh().get_rank()
 
-    @staticmethod
-    def get_data_parallel_world_size() -> int:
-        return ProcessGroupManager.get_data_parallel_mesh().size()
+    def get_first_rank(self) -> int:
+        return self.ranks[0]
 
-    @staticmethod
-    def get_data_parallel_mesh_for_hsdp() -> DeviceMesh:
-        group = _DEVICE_MESH.get_group("dp")
-        ranks = get_process_group_ranks(group)
-        ranks = torch.tensor(ranks).view(
-            (_ZERO_HPZ_PARTITION_SIZE, ProcessGroupManager.get_data_parallel_world_size() // _ZERO_HPZ_PARTITION_SIZE)
-        )
-        return DeviceMesh("cuda", mesh=ranks, mesh_dim_names=("ddp", "zero_dp"))
+    def get_rank(self) -> int:
+        return self.rank

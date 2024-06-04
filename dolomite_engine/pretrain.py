@@ -20,6 +20,7 @@ from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
     RunningMean,
+    get_world_size,
     init_distributed,
     is_transformer_engine_available,
     log_rank_0,
@@ -105,6 +106,7 @@ def train(
     micro_batch_size = args.training_parameters.micro_batch_size
     sequence_length = args.datasets[0].class_args.get("sequence_length")
     model_flops = model.get_model_tflops(micro_batch_size * gradient_accumulation_steps, sequence_length)
+    tokens_per_batch = micro_batch_size * gradient_accumulation_steps * get_world_size() * sequence_length
     tokens_per_batch = (
         micro_batch_size * gradient_accumulation_steps * ProcessGroupManager.get_world_size() * sequence_length
     )
@@ -172,12 +174,7 @@ def train(
                 None,
                 experiments_tracker,
                 global_step,
-                {
-                    "consumed_samples": global_step
-                    * micro_batch_size
-                    * gradient_accumulation_steps
-                    * ProcessGroupManager.get_world_size()
-                },
+                {"consumed_samples": global_step * micro_batch_size * gradient_accumulation_steps * get_world_size()},
             )
 
             start_time = time.perf_counter()
@@ -240,7 +237,7 @@ def main() -> None:
     args: TrainingArgs = get_args(mode)
 
     # initialize distributed with nccl for multi-node communications
-    init_distributed(args.distributed_args.zero_hpz_partition_size)
+    init_distributed()
     set_seed(args.random_args.seed)
 
     model = get_model(args, mode)

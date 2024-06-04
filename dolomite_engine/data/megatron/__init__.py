@@ -215,6 +215,6 @@ def _get_train_val_test_samples(
         * gradient_accumulation_steps
         * get_world_size()
     )
-    test_samples = eval_steps * micro_batch_size * gradient_accumulation_steps * ProcessGroupManager.get_world_size()
+    test_samples = eval_steps * micro_batch_size * gradient_accumulation_steps * get_world_size()
 
     return train_samples, val_samples, test_samples

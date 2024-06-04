@@ -18,7 +18,6 @@ from .finetune import track_train_metrics, train_step
 from .model_wrapper import ModelWrapperForPretraining, get_model, log_model
 from .utils import (
     ExperimentsTracker,
-    ProcessGroupManager,
     RunningMean,
     get_world_size,
     init_distributed,
@@ -107,9 +106,6 @@ def train(
     sequence_length = args.datasets[0].class_args.get("sequence_length")
     model_flops = model.get_model_tflops(micro_batch_size * gradient_accumulation_steps, sequence_length)
     tokens_per_batch = micro_batch_size * gradient_accumulation_steps * get_world_size() * sequence_length
-    tokens_per_batch = (
-        micro_batch_size * gradient_accumulation_steps * ProcessGroupManager.get_world_size() * sequence_length
-    )
 
     start_time = time.perf_counter()
     steps_since_start_time = 0

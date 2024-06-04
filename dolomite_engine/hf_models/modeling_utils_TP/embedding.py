@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 
-from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
-from .TP import ReduceFromTensorParallelRegion
+from ...utils import SafeTensorsWeightsManager
+from .TP import ReduceFromTensorParallelRegion, get_tensor_parallel_group_manager
 
 
 class Embedding_TP(nn.Embedding):
     def __init__(self, num_embeddings: int, embedding_dim: int, make_vocab_size_divisible_by: int = 64) -> None:
-        self.tp_rank = ProcessGroupManager.get_tensor_parallel_rank()
-        self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
+        self.tp_rank = get_tensor_parallel_group_manager().get_rank()
+        self.tp_world_size = get_tensor_parallel_group_manager().get_world_size()
 
         assert make_vocab_size_divisible_by % self.tp_world_size == 0
 

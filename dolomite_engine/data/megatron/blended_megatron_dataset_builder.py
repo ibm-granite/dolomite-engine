@@ -195,7 +195,6 @@ class BlendedMegatronDatasetBuilder(object):
                 split_idx_bounds = _get_split_indices(split, indexed_dataset.sequence_lengths.shape[0])
             else:
                 split_idx_bounds = _get_split_indices(split, indexed_dataset.document_indices.shape[0] - 1)
-
             split_indices = [
                 numpy.arange(
                     start=split_idx_bounds[i],

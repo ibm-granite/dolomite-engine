@@ -41,17 +41,17 @@ def build_blending_indices(
     size: int,
     verbose: bool,
 ) -> None:
-    import utils
+    import helpers
 
-    utils.build_blending_indices(dataset_index, dataset_sample_index, weights, num_datasets, size, verbose)
+    helpers.build_blending_indices(dataset_index, dataset_sample_index, weights, num_datasets, size, verbose)
 
 
 def build_sample_idx(
     sizes: numpy.ndarray, doc_idx: numpy.ndarray, sequence_length: int, num_epochs: int, tokens_per_epoch: int
 ) -> numpy.ndarray:
-    import utils
+    import helpers
 
-    return utils.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
+    return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
 
 
 def normalize(weights: List[float]) -> List[float]:

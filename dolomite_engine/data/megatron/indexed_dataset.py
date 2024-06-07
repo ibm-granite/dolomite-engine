@@ -171,9 +171,6 @@ class _IndexWriter:
         self.idx_writer.write(struct.pack("<Q", document_count))
 
         # the number of tokens per sequence
-        assert (
-            max(sequence_lengths) <= numpy.iinfo(numpy.int32).max
-        ), "sequence lenghts are assumed to be smaller than tha max value of np.int32"
         sequence_lengths = numpy.array(sequence_lengths, dtype=numpy.int32)
         self.idx_writer.write(sequence_lengths.tobytes(order="C"))
         del sequence_lengths

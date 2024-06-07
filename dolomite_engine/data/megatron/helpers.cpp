@@ -110,8 +110,8 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
         int64_t remaining_seq_length = seq_length + 1;
         while (remaining_seq_length != 0) {
             // Get the document length.
-            auto doc_id = static_cast<int64_t>(doc_idx[doc_idx_index]);
-            auto doc_length = static_cast<int64_t>(sizes[doc_id]) - doc_offset;
+            auto doc_id = doc_idx[doc_idx_index];
+            auto doc_length = sizes[doc_id]) - doc_offset;
             // And add it to the current sequence.
             remaining_seq_length -= doc_length;
             // If we have more than a full sequence, adjust offset and set

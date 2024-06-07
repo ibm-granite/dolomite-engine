@@ -443,5 +443,7 @@ def _get_appropriate_dtype_from_bounds(split_idx_bounds: List[int]) -> numpy.dty
     dtype = numpy.int32
     if max(split_idx_bounds) > numpy.iinfo(numpy.int32).max:
         dtype = numpy.int64
+    elif max(split_idx_bounds) > numpy.iinfo(numpy.int64).max:
+        raise ValueError(f"value in split_idx_bound exceeds int64's max value. WTF are you doing?")
 
     return dtype

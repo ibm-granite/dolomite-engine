@@ -1,3 +1,5 @@
+"""copied from BLOOM's code with some minor changes"""
+
 import math
 
 import torch

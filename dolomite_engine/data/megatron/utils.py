@@ -47,21 +47,11 @@ def build_blending_indices(
 
 
 def build_sample_idx(
-    sizes: numpy.ndarray,
-    doc_idx: numpy.ndarray,
-    sequence_length: int,
-    num_epochs: int,
-    tokens_per_epoch: int,
-    sample_idx_uses_int64: bool,
+    sizes: numpy.ndarray, doc_idx: numpy.ndarray, sequence_length: int, num_epochs: int, tokens_per_epoch: int
 ) -> numpy.ndarray:
     import helpers
 
-    if sample_idx_uses_int64:
-        sample_idx = helpers.build_sample_idx_int64(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
-    else:
-        sample_idx = helpers.build_sample_idx_int32(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
-
-    return sample_idx
+    return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
 
 
 def normalize(weights: List[float]) -> List[float]:

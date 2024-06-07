@@ -346,7 +346,6 @@ class GPTDataset(MegatronDataset):
             log_rank_0(logging.INFO, f"\tBuild and save the sample index to {os.path.basename(path_to_sample_index)}")
             t_beg = time.time()
 
-            assert document_index.dtype == numpy.int32
             assert self.indexed_dataset.sequence_lengths.dtype == numpy.int32
             sample_index = build_sample_idx(
                 self.indexed_dataset.sequence_lengths,
@@ -354,7 +353,6 @@ class GPTDataset(MegatronDataset):
                 sequence_length,
                 num_epochs,
                 num_tokens_per_epoch,
-                sample_idx_uses_int64=self.indexed_indices.dtype == numpy.int64,
             )
             numpy.save(path_to_sample_index, sample_index, allow_pickle=True)
             t_end = time.time()

@@ -56,9 +56,12 @@ def build_sample_idx(
 ) -> numpy.ndarray:
     import helpers
 
-    return helpers.build_sample_idx(
-        sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, sample_idx_uses_int64
-    )
+    if sample_idx_uses_int64:
+        sample_idx = helpers.build_sample_idx_int64(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
+    else:
+        sample_idx = helpers.build_sample_idx_int32(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
+
+    return sample_idx
 
 
 def normalize(weights: List[float]) -> List[float]:

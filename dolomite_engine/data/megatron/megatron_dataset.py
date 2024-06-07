@@ -38,7 +38,6 @@ class MegatronDataset(ABC, torch.utils.data.Dataset):
         index_split: Split,
         config: BlendedMegatronDatasetConfig,
         caching_allowed: bool,
-        sample_idx_int64: bool,
     ) -> None:
         assert indexed_indices.size > 0
         assert num_samples > 0
@@ -63,7 +62,6 @@ class MegatronDataset(ABC, torch.utils.data.Dataset):
         self.unique_description_hash = hashlib.md5(self.unique_description.encode("utf-8")).hexdigest()
 
         self.caching_allowed = caching_allowed
-        self.sample_idx_int64 = sample_idx_int64
 
         self._finalize()
 

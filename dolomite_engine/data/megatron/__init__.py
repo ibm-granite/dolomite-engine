@@ -79,7 +79,6 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
             node_uses_local_storage=class_args.get("node_uses_local_storage", False),
         ),
         tokenizer=tokenizer,
-        sample_idx_int64=class_args.get("sample_idx_int64", False),
     )
 
     data_path = class_args.get("data_path")

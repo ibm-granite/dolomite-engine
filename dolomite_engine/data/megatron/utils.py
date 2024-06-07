@@ -52,11 +52,13 @@ def build_sample_idx(
     sequence_length: int,
     num_epochs: int,
     tokens_per_epoch: int,
-    sample_idx_int64: bool,
+    sample_idx_uses_int64: bool,
 ) -> numpy.ndarray:
     import helpers
 
-    return helpers.build_sample_idx(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, sample_idx_int64)
+    return helpers.build_sample_idx(
+        sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, sample_idx_uses_int64
+    )
 
 
 def normalize(weights: List[float]) -> List[float]:

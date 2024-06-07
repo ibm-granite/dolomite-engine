@@ -232,11 +232,11 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
                            const int32_t seq_length,
                            const int32_t num_epochs,
                            const int64_t tokens_per_epoch,
-                           const bool use_int_64)
+                           const bool sample_idx_uses_int64)
 {
     py::array result;
 
-    if (use_int_64) {
+    if (sample_idx_uses_int64) {
         cout << "using int64 for sample_idx" << endl << std::flush;
         result = _build_sample_idx_int64(sizes_, doc_idx_, seq_length, num_epochs, tokens_per_epoch);
     } else {

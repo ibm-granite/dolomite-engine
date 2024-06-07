@@ -46,11 +46,8 @@ class GPTDataset(MegatronDataset):
         tokenizer: AutoTokenizer,
         config: GPTDatasetConfig,
         caching_allowed: bool,
-        sample_idx_int64: bool,
     ) -> None:
-        super().__init__(
-            indexed_dataset, indexed_indices, num_samples, index_split, config, caching_allowed, sample_idx_int64
-        )
+        super().__init__(indexed_dataset, indexed_indices, num_samples, index_split, config, caching_allowed)
 
         self.tokenizer = tokenizer
 
@@ -357,7 +354,7 @@ class GPTDataset(MegatronDataset):
                 sequence_length,
                 num_epochs,
                 num_tokens_per_epoch,
-                self.sample_idx_int64,
+                sample_idx_uses_int64=self.indexed_indices.dtype == numpy.int64,
             )
             numpy.save(path_to_sample_index, sample_index, allow_pickle=True)
             t_end = time.time()
@@ -471,7 +468,6 @@ def _build_document_index(
         document_index = numpy.mgrid[0:num_epochs, 0 : len(documents)][1]
         document_index[:] = documents
         document_index = document_index.reshape(-1)
-        document_index = document_index.astype(numpy.int32)
         numpy_random_state.shuffle(document_index)
         return document_index
 

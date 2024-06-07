@@ -171,6 +171,9 @@ class _IndexWriter:
         self.idx_writer.write(struct.pack("<Q", document_count))
 
         # the number of tokens per sequence
+        assert (
+            max(sequence_lengths) <= numpy.iinfo(numpy.int32).max
+        ), "sequence lenghts are assumed to be smaller than tha max value of np.int32"
         sequence_lengths = numpy.array(sequence_lengths, dtype=numpy.int32)
         self.idx_writer.write(sequence_lengths.tobytes(order="C"))
         del sequence_lengths
@@ -331,7 +334,7 @@ class _IndexReader:
             idx (int): The index into the dataset
 
         Returns:
-            Tuple[numpy.int32, numpy.int64, Optional[numpy.int8]]: The pointer, length and mode at
+            Tuple[numpy.int64, numpy.int32, Optional[numpy.int8]]: The pointer, length and mode at
             the index
         """
         return (

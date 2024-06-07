@@ -22,6 +22,7 @@ class Alibi(nn.Module):
         `softmax(l+a) = softmax(l)`. Based on
         https://github.com/ofirpress/attention_with_linear_biases/blob/a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
         TODO @thomasw21 this doesn't work as nicely due to the masking strategy, and so masking varies slightly.
+
         Args:
             attention_mask (torch.Tensor): attention_mask tensor of shape (`batch_size`, `key_length`)
             num_heads (int): `num_heads` for the model
@@ -29,6 +30,7 @@ class Alibi(nn.Module):
             key_length (int): `key_length`
             device (torch.device): device for the tensors
             dtype (torch.dtype): dtype to use for the tensors
+
         Returns:
             torch.Tensor: alibi tensor of shape (`batch_size`, `num_heads`, `key_length`)
         """

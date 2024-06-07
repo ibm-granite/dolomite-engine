@@ -301,6 +301,7 @@ class BlendedMegatronDatasetBuilder(object):
             )
             start = int(start * num_elements)
             end = int(end * num_elements)
+            split_indices = numpy.arange(start=start, stop=end, step=1, dtype=numpy.int32)
 
         megatron_dataset = None
         if start != end:

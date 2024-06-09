@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 from ...arguments import TrainingArgs
 from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
 from ...utils import get_global_rank, get_world_size, log_rank_0
-from ..dataloader import DispatchingDataLoader, ResumableDataLoader, broadcast_in_local_data_group
+from ..dataloader import DispatchingDataLoader, ResumableDataLoader
 from .blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from .blended_megatron_dataset_config import GPTDatasetConfig
 from .gpt_dataset import GPTDataset

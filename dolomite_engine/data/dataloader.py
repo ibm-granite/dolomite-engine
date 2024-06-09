@@ -43,9 +43,11 @@ class DispatchingDataLoader(ResumableDataLoader):
                 break
 
         self.local_rank_in_broadcast_group = None
-        for _, broadcast_ranks, _ in self.all_source_ranks_and_broadcast_groups:
+        for source_rank, broadcast_ranks, group in self.all_source_ranks_and_broadcast_groups:
             if global_rank in broadcast_ranks:
                 self.local_rank_in_broadcast_group = broadcast_ranks.index(global_rank)
+                self.broadcast_group = group
+                self.source_rank = source_rank
                 break
         assert self.local_rank_in_broadcast_group is not None
 
@@ -63,7 +65,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         _length = torch.tensor(
             [super().__len__() if self.is_source else 0], dtype=torch.long, device=torch.cuda.current_device()
         )
-        broadcast_in_local_data_group(_length, self.all_source_ranks_and_broadcast_groups)
+        torch.distributed.broadcast(_length, src=self.source_rank, group=self.broadcast_group)
         self._length = _length.item()
 
         self.keys = keys
@@ -75,7 +77,7 @@ class DispatchingDataLoader(ResumableDataLoader):
             # if using dynamic shapes at every batch or when batch buffer is None during static batch, we need to get shape
             # send/recv tensor shapes
             batch_shape = [batch[self.keys[0]].shape if self.is_source else None]
-            broadcast_in_local_data_group(batch_shape, self.all_source_ranks_and_broadcast_groups, is_tensor=False)
+            torch.distributed.broadcast_object_list(batch_shape, src=self.source_rank, group=self.broadcast_group)
             batch_shape = batch_shape[0]
 
             if self.is_source:
@@ -89,7 +91,7 @@ class DispatchingDataLoader(ResumableDataLoader):
 
             for key in self.keys:
                 # send/recv batch
-                broadcast_in_local_data_group(batch[key], self.all_source_ranks_and_broadcast_groups)
+                torch.distributed.broadcast(batch[key], src=self.source_rank, group=self.broadcast_group)
 
                 # slice batch
                 local_batch_size = batch[key].shape[0] // self.broadcast_world_size
@@ -103,18 +105,3 @@ class DispatchingDataLoader(ResumableDataLoader):
 
     def __len__(self) -> int:
         return self._length
-
-
-def broadcast_in_local_data_group(
-    item: torch.Tensor,
-    all_source_ranks_and_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]],
-    is_tensor: bool = True,
-) -> None:
-    for src, ranks, grp in all_source_ranks_and_broadcast_groups:
-        if get_global_rank() not in ranks:
-            continue
-
-        if is_tensor:
-            torch.distributed.broadcast(item, src=src, group=grp)
-        else:
-            torch.distributed.broadcast_object_list(item, src=src, group=grp)

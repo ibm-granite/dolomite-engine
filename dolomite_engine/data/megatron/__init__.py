@@ -177,7 +177,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 pin_memory=True,
                 source_broadcast_mapping=source_broadcast_mapping,
                 broadcast_world_size=num_ranks_per_node,
-                static_shape_per_rank=(micro_batch_size, sequence_length),
+                static_shape_per_rank=(micro_batch_size, sequence_length + 1),
                 keys=["text"],
             )
         else:

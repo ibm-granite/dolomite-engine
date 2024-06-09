@@ -110,7 +110,10 @@ def broadcast_in_local_data_group(
     all_source_ranks_and_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]],
     is_tensor: bool = True,
 ) -> None:
-    for src, _, grp in all_source_ranks_and_broadcast_groups:
+    for src, ranks, grp in all_source_ranks_and_broadcast_groups:
+        if get_global_rank() not in ranks:
+            continue
+
         if is_tensor:
             torch.distributed.broadcast(item, src=src, group=grp)
         else:

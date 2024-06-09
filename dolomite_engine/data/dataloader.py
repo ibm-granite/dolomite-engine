@@ -28,7 +28,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         collate_fn: Callable[[List], Any] | None = None,
         pin_memory: bool = False,
         drop_last: bool = False,
-        source_ranks_and_broadcast_groups: List[Tuple[int, ProcessGroup]] = None,
+        source_broadcast_mapping: dict[int, ProcessGroup] = None,
         broadcast_world_size: int = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
@@ -37,7 +37,7 @@ class DispatchingDataLoader(ResumableDataLoader):
         global_rank = get_global_rank()
 
         self.is_source = False
-        for src, group in source_ranks_and_broadcast_groups:
+        for src, group in source_broadcast_mapping.items():
             ranks = torch.distributed.get_process_group_ranks(group)
 
             if global_rank in ranks:

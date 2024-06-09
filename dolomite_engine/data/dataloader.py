@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterable, List, Tuple
+from typing import Any, Callable, Iterable, List
 
 import torch
 import torch.distributed
@@ -34,22 +34,9 @@ class DispatchingDataLoader(ResumableDataLoader):
     ) -> None:
         self.broadcast_world_size = broadcast_world_size
 
-        global_rank = get_global_rank()
-
-        self.is_source = False
-        for src, group in source_broadcast_mapping.items():
-            ranks = torch.distributed.get_process_group_ranks(group)
-
-            if global_rank in ranks:
-                self.is_source = global_rank == src
-                self.source_rank = src
-
-                self.local_rank_in_broadcast_group = ranks.index(global_rank)
-                self.broadcast_group = group
-
-                break
-
-        assert self.local_rank_in_broadcast_group is not None
+        self.is_source, self.source_rank, self.local_rank_in_broadcast_group, self.broadcast_group = (
+            get_source_and_broadcast_group(source_broadcast_mapping)
+        )
 
         super().__init__(
             dataset=dataset,
@@ -105,3 +92,20 @@ class DispatchingDataLoader(ResumableDataLoader):
 
     def __len__(self) -> int:
         return self._length
+
+
+def get_source_and_broadcast_group(
+    source_broadcast_mapping: dict[int, ProcessGroup]
+) -> tuple[bool, int, int, ProcessGroup]:
+    global_rank = get_global_rank()
+
+    for source_rank, broadcast_group in source_broadcast_mapping.items():
+        ranks = torch.distributed.get_process_group_ranks(broadcast_group)
+
+        if global_rank in ranks:
+            is_source = global_rank == source_rank
+            local_rank_in_broadcast_group = ranks.index(global_rank)
+
+            return is_source, source_rank, local_rank_in_broadcast_group, broadcast_group
+
+    assert False, "code shouldn't reach here"

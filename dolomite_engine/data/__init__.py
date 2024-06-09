@@ -146,6 +146,8 @@ def _get_dispatching_dataloader(
     node_rank = get_global_rank() // num_ranks_per_node
     num_nodes = get_world_size() // num_ranks_per_node
 
+    source_rank = node_rank * num_ranks_per_node
+
     def _get_source_ranks_broadcast_ranks_broadcast_groups():
         result = []
         for i in range(num_nodes):
@@ -205,6 +207,7 @@ def _get_dispatching_dataloader(
             use_padding_free_transformer=args.model_args.use_padding_free_transformer,
         ),
         source_ranks_broadcast_ranks_broadcast_groups=source_ranks_broadcast_ranks_broadcast_groups,
+        source_rank=source_rank,
     )
 
     _log_dataset(

@@ -29,18 +29,14 @@ class DispatchingDataLoader(ResumableDataLoader):
         pin_memory: bool = False,
         drop_last: bool = False,
         source_ranks_broadcast_ranks_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]] = None,
+        source_rank: int = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
         self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
         self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
 
         global_rank = get_global_rank()
-
-        self.is_source = False
-        for src, _, _ in self.all_source_ranks_and_broadcast_groups:
-            if src == global_rank:
-                self.is_source = True
-                break
+        self.is_source = source_rank == global_rank
 
         self.local_rank_in_broadcast_group = None
         for source_rank, broadcast_ranks, group in self.all_source_ranks_and_broadcast_groups:

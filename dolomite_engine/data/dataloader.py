@@ -28,25 +28,27 @@ class DispatchingDataLoader(ResumableDataLoader):
         collate_fn: Callable[[List], Any] | None = None,
         pin_memory: bool = False,
         drop_last: bool = False,
-        source_ranks_broadcast_ranks_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]] = None,
-        source_rank: int = None,
-        broadcast_group: ProcessGroup = None,
+        source_ranks_and_broadcast_groups: List[Tuple[int, ProcessGroup]] = None,
+        broadcast_world_size: int = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
-        self.broadcast_world_size = broadcast_group.size()
-        self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
+        self.broadcast_world_size = broadcast_world_size
 
         global_rank = get_global_rank()
 
-        self.is_source = source_rank == global_rank
-        self.source_rank = source_rank
+        self.is_source = False
+        for src, group in source_ranks_and_broadcast_groups:
+            ranks = torch.distributed.get_process_group_ranks(group)
 
-        self.local_rank_in_broadcast_group = None
-        for _, broadcast_ranks, group in self.all_source_ranks_and_broadcast_groups:
-            if global_rank in broadcast_ranks:
-                self.local_rank_in_broadcast_group = broadcast_ranks.index(global_rank)
+            if global_rank in ranks:
+                self.is_source = global_rank == src
+                self.source_rank = src
+
+                self.local_rank_in_broadcast_group = ranks.index(global_rank)
                 self.broadcast_group = group
+
                 break
+
         assert self.local_rank_in_broadcast_group is not None
 
         super().__init__(

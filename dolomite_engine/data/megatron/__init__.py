@@ -173,6 +173,7 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
                 num_workers=class_args.get("num_workers", 2),
                 pin_memory=True,
                 source_broadcast_mapping=source_broadcast_mapping,
+                broadcast_world_size=num_ranks_per_node,
                 keys=["text"],
             )
         else:

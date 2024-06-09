@@ -56,7 +56,11 @@ class DispatchingDataLoader(ResumableDataLoader):
         torch.distributed.broadcast(_length, src=self.source_rank, group=self.broadcast_group)
         self._length = _length.item()
 
-        self.global_static_shape = (static_shape_per_rank[0] * self.broadcast_world_size, static_shape_per_rank[1])
+        if static_shape_per_rank is None:
+            self.global_static_shape = None
+        else:
+            self.global_static_shape = (static_shape_per_rank[0] * self.broadcast_world_size, static_shape_per_rank[1])
+
         self.keys = keys
 
     def __iter__(self):

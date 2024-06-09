@@ -147,6 +147,8 @@ def _get_dispatching_dataloader(
     num_nodes = get_world_size() // num_ranks_per_node
 
     source_rank = node_rank * num_ranks_per_node
+    broadcast_ranks = list(range(source_rank, source_rank + num_ranks_per_node))
+    broadcast_group = torch.distributed.new_group(broadcast_ranks)
 
     def _get_source_ranks_broadcast_ranks_broadcast_groups():
         result = []
@@ -208,6 +210,7 @@ def _get_dispatching_dataloader(
         ),
         source_ranks_broadcast_ranks_broadcast_groups=source_ranks_broadcast_ranks_broadcast_groups,
         source_rank=source_rank,
+        broadcast_group=broadcast_group,
     )
 
     _log_dataset(

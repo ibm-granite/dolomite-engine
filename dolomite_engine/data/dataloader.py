@@ -30,9 +30,10 @@ class DispatchingDataLoader(ResumableDataLoader):
         drop_last: bool = False,
         source_ranks_broadcast_ranks_broadcast_groups: List[Tuple[int, List[int], ProcessGroup]] = None,
         source_rank: int = None,
+        broadcast_group: ProcessGroup = None,
         keys: List[str] = ["input_ids", "attention_mask", "labels"],
     ) -> None:
-        self.broadcast_world_size = len(source_ranks_broadcast_ranks_broadcast_groups[0][1])
+        self.broadcast_world_size = broadcast_group.size()
         self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
 
         global_rank = get_global_rank()

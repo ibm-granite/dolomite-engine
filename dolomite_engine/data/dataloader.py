@@ -37,14 +37,15 @@ class DispatchingDataLoader(ResumableDataLoader):
         self.all_source_ranks_and_broadcast_groups = source_ranks_broadcast_ranks_broadcast_groups
 
         global_rank = get_global_rank()
+
         self.is_source = source_rank == global_rank
+        self.source_rank = source_rank
 
         self.local_rank_in_broadcast_group = None
-        for source_rank, broadcast_ranks, group in self.all_source_ranks_and_broadcast_groups:
+        for _, broadcast_ranks, group in self.all_source_ranks_and_broadcast_groups:
             if global_rank in broadcast_ranks:
                 self.local_rank_in_broadcast_group = broadcast_ranks.index(global_rank)
                 self.broadcast_group = group
-                self.source_rank = source_rank
                 break
         assert self.local_rank_in_broadcast_group is not None
 

@@ -445,8 +445,13 @@ def _parse_split(start_end: str) -> Tuple[float]:
 
 
 def _get_appropriate_dtype_for_range(split_idx_bounds: list[int]) -> numpy.dtype:
-    for number in split_idx_bounds:
-        if number > numpy.iinfo(numpy.int32).max:
-            return numpy.int64
+    max_value = max(split_idx_bounds)
 
-    return numpy.int32
+    if max_value <= numpy.iinfo(numpy.int32).max:
+        dtype = numpy.int32
+    elif max_value <= numpy.iinfo(numpy.int64).max:
+        dtype = numpy.int64
+    else:
+        raise ValueError("value for split idx is too large")
+
+    return dtype

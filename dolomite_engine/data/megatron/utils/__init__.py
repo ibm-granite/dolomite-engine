@@ -52,10 +52,10 @@ def build_sample_idx(
     import helpers
 
     if doc_idx.dtype == numpy.int32:
-        log_rank_0(f"using int32 for sample idx")
+        log_rank_0(logging.INFO, f"using int32 for sample idx")
         sample_idx = helpers.build_sample_idx_int32(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
     elif doc_idx.dtype == numpy.int64:
-        log_rank_0(f"using int64 for sample idx")
+        log_rank_0(logging.INFO, f"using int64 for sample idx")
         sample_idx = helpers.build_sample_idx_int64(sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch)
     else:
         raise ValueError("unexpected dtype for doc_idx")

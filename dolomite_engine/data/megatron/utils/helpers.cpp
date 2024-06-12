@@ -69,11 +69,12 @@ void build_blending_indices(py::array_t<int16_t>& dataset_index,
     }
 }
 
-py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
-                           const py::array_t<int64_t>& doc_idx_,
-                           const int32_t seq_length,
-                           const int32_t num_epochs,
-                           const int64_t tokens_per_epoch)
+template <typename T>
+py::array _build_sample_idx(const py::array_t<int32_t>& sizes_,
+                            const py::array_t<T>& doc_idx_,
+                            const int32_t seq_length,
+                            const int32_t num_epochs,
+                            const int64_t tokens_per_epoch)
 {
     /* Sample index (sample_idx) is used for gpt2 like dataset for which
        the documents are flattened and the samples are built based on this
@@ -92,14 +93,14 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
 
     // Mapping and it's length (1D).
     int64_t num_samples = (num_epochs * tokens_per_epoch - 1) / seq_length;
-    int64_t* sample_idx = new int64_t[2 * (num_samples + 1)];
+    T* sample_idx = new T[2 * (num_samples + 1)];
 
     // Index into sample_idx.
     int64_t sample_index = 0;
     // Index into doc_idx.
     int64_t doc_idx_index = 0;
     // Begining offset for each document.
-    int64_t doc_offset = 0;
+    T doc_offset = 0;
     // Start with first document and no offset.
     sample_idx[2 * sample_index] = doc_idx_index;
     sample_idx[2 * sample_index + 1] = doc_offset;
@@ -107,11 +108,11 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
 
     while (sample_index <= num_samples) {
         // Start with a fresh sequence.
-        int64_t remaining_seq_length = seq_length + 1;
+        T remaining_seq_length = seq_length + 1;
         while (remaining_seq_length != 0) {
             // Get the document length.
             auto doc_id = doc_idx[doc_idx_index];
-            auto doc_length = static_cast<int64_t>(sizes[doc_id]) - doc_offset;
+            auto doc_length = static_cast<T>(sizes[doc_id]) - doc_offset;
             // And add it to the current sequence.
             remaining_seq_length -= doc_length;
             // If we have more than a full sequence, adjust offset and set
@@ -140,11 +141,27 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
     });
 
     // Return the numpy array.
-    const auto byte_size = sizeof(int64_t);
+    const auto byte_size = sizeof(T);
     return py::array(std::vector<int64_t>{num_samples + 1, 2}, // shape
                      {2 * byte_size, byte_size},               // C-style contiguous strides
                      sample_idx,                               // the data pointer
                      free_when_done);                          // numpy array references
+}
+
+py::array build_sample_idx(const py::array_t<int32_t>& sizes,
+                           const py::array& doc_idx,
+                           const int32_t seq_length,
+                           const int32_t num_epochs,
+                           const int64_t tokens_per_epoch,
+                           const bool use_int64)
+{
+    py::array result;
+    if (use_int64) {
+        result = _build_sample_idx<int64_t>(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch);
+    } else {
+        result = _build_sample_idx<int32_t>(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch);
+    }
+    return result;
 }
 
 PYBIND11_MODULE(helpers, m)

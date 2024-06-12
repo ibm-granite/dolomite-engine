@@ -51,6 +51,8 @@ def build_sample_idx(
 ) -> numpy.ndarray:
     import helpers
 
+    log_rank_0(f"using {doc_idx.dtype} for sample idx")
+
     return helpers.build_sample_idx(
         sizes, doc_idx, sequence_length, num_epochs, tokens_per_epoch, doc_idx.dtype == numpy.int64
     )

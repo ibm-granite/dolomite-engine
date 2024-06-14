@@ -286,10 +286,8 @@ class DistributedArgs(BaseArgs):
     gradient_checkpointing_method: Optional[GradientCheckpointingMethod] = None
     # gradient checkpointint args
     gradient_checkpointing_args: dict = {}
-    # hierarchical partioning for ZeRO (HSDP), 8 will configure to use 8 GPUs (within node for FSDP
-    # and across nodes for DDP)
-    # 2D tuple indicating (replication GPUs, sharding GPUs)
-    zero_topology: Optional[tuple[int, int]] = None
+    # use HSDP
+    hsdp: bool = False
     # whether to use quantized weights (ZeRO++)
     zero_quantized_weights: bool = False
     # whether to use quantized gradients (ZeRO++)
@@ -320,10 +318,10 @@ class DistributedArgs(BaseArgs):
             self.communication_dtype = normalize_dtype_string(self.communication_dtype)
 
         if self.stage == 0:
-            assert self.zero_topology is None, "zero_topology is meaningless with stage 0"
+            assert not self.hsdp, "hsdp is meaningless with stage 0"
 
         if self.tensor_parallel_size is not None and self.tensor_parallel_size > 1:
-            assert self.zero_topology is None, "tensor parallel is not supported with HSDP"
+            assert not self.hsdp, "tensor parallel is not supported with HSDP"
 
 
 class AimArgs(BaseArgs):

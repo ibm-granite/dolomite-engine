@@ -138,6 +138,4 @@ lr_scheduler_args:
 distributed_args:
   distributed_backend: torch
   stage: 3
-  zero_topology:
-    - 16
-    - 8
+  hsdp: true

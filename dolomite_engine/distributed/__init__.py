@@ -57,7 +57,7 @@ def wrap_model_for_distributed_training(
     dtype = args.mixed_precision_args.dtype
     communication_dtype = args.distributed_args.communication_dtype
     fp8_backend = args.mixed_precision_args.fp8_backend
-    zero_topology = args.distributed_args.zero_topology
+    hsdp = args.distributed_args.hsdp
     efficient_initialization = args.model_args.efficient_initialization
 
     tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
@@ -121,22 +121,20 @@ def wrap_model_for_distributed_training(
         assert stage in [0, 2, 3]
         assert not cpu_offload
 
-        if zero_topology is not None:
-            assert (
-                ProcessGroupManager.get_tensor_parallel_world_size() == 1
-            ), "tensor parallel is not supported with HSDP"
+        if hsdp:
+            assert tp_world_size == 1, "tensor parallel is not supported with HSDP"
 
         if stage == 0:
-            assert zero_topology is None
+            assert not hsdp
             assert not efficient_initialization
 
             sharding_strategy = ShardingStrategy.NO_SHARD
         else:
             sharding_strategy = (
-                _STAGE_FULL_SHARDING_STRATEGY_MAP[stage]
-                if zero_topology is None
-                else _STAGE_HYBRID_SHARDING_STRATEGY_MAP[stage]
+                _STAGE_HYBRID_SHARDING_STRATEGY_MAP[stage] if hsdp else _STAGE_FULL_SHARDING_STRATEGY_MAP[stage]
             )
+
+        dp_mesh = None if tp_world_size == 1 else ProcessGroupManager.get_data_parallel_mesh()
 
         mixed_precision_policy = deepcopy(_FSDP_MIXED_PRECISION_POLICIES[dtype])
         if communication_dtype is not None:
@@ -167,7 +165,7 @@ def wrap_model_for_distributed_training(
             # https://github.com/meta-llama/llama-recipes/blob/492455dc080f6c25f356e283e443be0cce86aaeb/src/llama_recipes/finetuning.py#L191
             sync_module_states=efficient_initialization,
             param_init_fn=_param_init if efficient_initialization else None,
-            device_mesh=ProcessGroupManager.get_data_parallel_mesh_with_topology(),
+            device_mesh=dp_mesh,
         )
 
         if args.distributed_args.gradient_checkpointing_method is not None:

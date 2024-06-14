@@ -25,17 +25,12 @@ def get_deepspeed_config(args: TrainingArgs) -> dict:
 
     global _DEEPSPEED_CONFIG
 
-    zero_topology = args.distributed_args.zero_topology
-    zero_hpz_partition_size = 1 if zero_topology is None else zero_topology[1]
-
     if _DEEPSPEED_CONFIG is None:
         config = {
             "zero_optimization": {
                 "stage": args.distributed_args.stage,
                 "overlap_comm": args.distributed_args.overlap_comm,
                 "contiguous_gradients": args.distributed_args.contiguous_gradients,
-                # hierarchical partioning for ZeRO (HSDP)
-                "zero_hpz_partition_size": zero_hpz_partition_size,
                 # whether to use quantized weights (ZeRO++)
                 "zero_quantized_weights": args.distributed_args.zero_quantized_weights,
                 # # whether to use quantized gradients (ZeRO++)
@@ -45,6 +40,9 @@ def get_deepspeed_config(args: TrainingArgs) -> dict:
             "gradient_accumulation_steps": args.training_parameters.gradient_accumulation_steps,
             "gradient_clipping": args.training_parameters.gradient_clipping,
         }
+
+        if args.distributed_args.hsdp:
+            config["zero_optimization"]["zero_hpz_partition_size"] = 8
 
         dtype_config: dict = deepcopy(_DEEPSPEED_MIXED_PRECISION_CONFIG[args.mixed_precision_args.dtype])
         if args.distributed_args.communication_dtype is not None:

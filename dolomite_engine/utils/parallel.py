@@ -27,15 +27,12 @@ _DATA_PARALLEL_GROUP: ProcessGroup = None
 _DATA_PARALLEL_RANK: int = None
 _DATA_PARALLEL_WORLD_SIZE: int = None
 
-_ZERO_TOPOLOGY: tuple[int, int] = None
-
 
 class ProcessGroupManager:
     def __init__(
         self,
         tensor_parallel_size: int = None,
         data_parallel_size: int = None,
-        zero_topology: tuple[int, int] = None,
         timeout_minutes: int = None,
         backend: str = "nccl",
     ) -> None:
@@ -59,17 +56,13 @@ class ProcessGroupManager:
 
         assert tensor_parallel_size * data_parallel_size == total_gpus
 
-        global _MESH, _ZERO_TOPOLOGY
+        global _MESH
 
         _MESH = init_device_mesh(
             "cuda",
             (data_parallel_size, tensor_parallel_size),
             mesh_dim_names=("dp", "tp"),
         )
-
-        _ZERO_TOPOLOGY = zero_topology
-        if zero_topology is not None:
-            assert zero_topology[0] * zero_topology[1] == ProcessGroupManager.get_data_parallel_world_size()
 
         local_rank = int(os.getenv("LOCAL_RANK", 0))
         torch.cuda.set_device(local_rank)
@@ -184,18 +177,6 @@ class ProcessGroupManager:
         if _DATA_PARALLEL_WORLD_SIZE is None:
             _DATA_PARALLEL_WORLD_SIZE = ProcessGroupManager.get_data_parallel_mesh().size()
         return _DATA_PARALLEL_WORLD_SIZE
-
-    @staticmethod
-    def get_data_parallel_mesh_with_topology() -> DeviceMesh:
-        global _ZERO_TOPOLOGY
-
-        dp_mesh = ProcessGroupManager.get_data_parallel_mesh()
-        if _ZERO_TOPOLOGY is not None:
-            mesh_array = dp_mesh.mesh
-            mesh_array = mesh_array.view(_ZERO_TOPOLOGY)
-            dp_mesh = DeviceMesh("cuda", mesh=mesh_array, mesh_dim_names=("ddp", "zero"))
-
-        return dp_mesh
 
     def __str__(self) -> str:
         return str(self.get_mesh())

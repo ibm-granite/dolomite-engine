@@ -3,6 +3,7 @@ import logging
 from typing import Tuple
 
 import torch
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import set_seed
@@ -171,7 +172,11 @@ def train_step(
         loss_micro_step.backward()
 
         if gradient_clipping is not None:
-            grad_norm = model.clip_grad_norm_(gradient_clipping)
+            if isinstance(model, DDP):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
+            else:
+                # FSDP
+                grad_norm = model.clip_grad_norm_(gradient_clipping)
 
         optimizer.step()
         lr_scheduler.step()

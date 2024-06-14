@@ -7,6 +7,7 @@ import torch
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision, ShardingStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -121,8 +122,13 @@ def wrap_model_for_distributed_training(
         assert stage in [0, 2, 3]
         assert not cpu_offload
 
+        mixed_precision_policy = deepcopy(_FSDP_MIXED_PRECISION_POLICIES[dtype])
+        if communication_dtype is not None:
+            mixed_precision_policy.reduce_dtype = string_to_torch_dtype(communication_dtype)
+
         if stage == 0:
-            sharding_strategy = ShardingStrategy.NO_SHARD
+            model = model.to(torch.cuda.current_device())
+            model = DDP(model, mixed_precision=mixed_precision_policy)
         else:
             if args.distributed_args.zero_hpz_partition_size == 1:
                 sharding_strategy = _STAGE_FULL_SHARDING_STRATEGY_MAP[stage]
@@ -131,36 +137,32 @@ def wrap_model_for_distributed_training(
 
                 sharding_strategy = _STAGE_HYBRID_SHARDING_STRATEGY_MAP[stage]
 
-        mixed_precision_policy = deepcopy(_FSDP_MIXED_PRECISION_POLICIES[dtype])
-        if communication_dtype is not None:
-            mixed_precision_policy.reduce_dtype = string_to_torch_dtype(communication_dtype)
-
-        def _param_init(module):
-            if args.model_args.model_name is None:
-                module = module.to_empty(device=torch.cuda.current_device())
-
-                if hasattr(module, "reset_parameters"):
-                    with torch.no_grad():
-                        module.reset_parameters()
-            else:
-                if args.model_args.efficient_initialization and get_global_rank() != 0:
+            def _param_init(module):
+                if args.model_args.model_name is None:
                     module = module.to_empty(device=torch.cuda.current_device())
 
-        model = FSDP(
-            model,
-            sharding_strategy=sharding_strategy,
-            mixed_precision=mixed_precision_policy,
-            auto_wrap_policy=partial(
-                transformer_auto_wrap_policy,
-                transformer_layer_cls=[get_module_class_from_name(model, name) for name in block_names],
-            ),
-            device_id=torch.cuda.current_device(),
-            limit_all_gathers=True,
-            use_orig_params=True,
-            # https://github.com/meta-llama/llama-recipes/blob/492455dc080f6c25f356e283e443be0cce86aaeb/src/llama_recipes/finetuning.py#L191
-            sync_module_states=args.model_args.efficient_initialization,
-            param_init_fn=_param_init,
-        )
+                    if hasattr(module, "reset_parameters"):
+                        with torch.no_grad():
+                            module.reset_parameters()
+                else:
+                    if args.model_args.efficient_initialization and get_global_rank() != 0:
+                        module = module.to_empty(device=torch.cuda.current_device())
+
+            model = FSDP(
+                model,
+                sharding_strategy=sharding_strategy,
+                mixed_precision=mixed_precision_policy,
+                auto_wrap_policy=partial(
+                    transformer_auto_wrap_policy,
+                    transformer_layer_cls=[get_module_class_from_name(model, name) for name in block_names],
+                ),
+                device_id=torch.cuda.current_device(),
+                limit_all_gathers=True,
+                use_orig_params=True,
+                # https://github.com/meta-llama/llama-recipes/blob/492455dc080f6c25f356e283e443be0cce86aaeb/src/llama_recipes/finetuning.py#L191
+                sync_module_states=args.model_args.efficient_initialization,
+                param_init_fn=_param_init,
+            )
 
         if args.distributed_args.gradient_checkpointing_method is not None:
             assert len(block_names) == 1

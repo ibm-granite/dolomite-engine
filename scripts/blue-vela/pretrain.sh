@@ -5,6 +5,7 @@ export CUDA_MODULE_LOADING=LAZY # Recommended
 # NCCl/InfiniBand options
 export NCCL_IB_PCI_RELAXED_ORDERING=2 # only use if available and beneficial
 export NCCL_IB_QPS_PER_CONNECTION=4 #<--April 16 8  #Feb 3 based on @rpands yaml
+export NCCL_IB_SPLIT_DATA_ON_QPS=0
 export NCCL_IB_ADAPTIVE_ROUTING=1
 export NCCL_IB_DISABLE=0
 #comment the next two out - they were for debug 

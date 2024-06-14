@@ -14,12 +14,12 @@ from .base import ModelWrapper
 
 class ModelWrapperForPretraining(ModelWrapper):
     def __init__(self, args: TrainingArgs | InferenceArgs | ExportArgs, mode: Mode):
+        self.micro_batch_size = args.training_parameters.micro_batch_size
+        self.sequence_length = args.datasets[0].class_args.get("sequence_length")
+
         super().__init__(args, mode)
 
         self.upcast_logits_for_loss = getattr(self.config, "upcast_logits_for_loss", False)
-
-        self.micro_batch_size = args.training_parameters.micro_batch_size
-        self.sequence_length = args.datasets[0].class_args.get("sequence_length")
         self.vocab_size = self.config.vocab_size
 
     def forward(self, batch: dict) -> torch.Tensor:

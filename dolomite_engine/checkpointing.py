@@ -276,7 +276,7 @@ def load_checkpoint_for_inference(
                         tp_state_dicts.append(torch.load(_get_model_path(_get_base_path(load_path, iteration))))
 
             state = unshard(
-                config=None,
+                config=model.config,
                 tensor_parallel_state_dicts=tp_state_dicts,
                 tensor_parallel_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
                 prefix="model.",

@@ -127,6 +127,17 @@ class GPTDolomiteForCausalLM(GPTDolomitePreTrainedModel):
             output_attentions=output_attentions,
         )
 
+        # ==========================================================================================
+        # padding_free:
+        #     input_ids -> (total_q)
+        #     attention_mask -> None
+        #     position_ids -> (total_q)
+        # else:
+        #     input_ids -> (batch_size, query_length)
+        #     attention_mask -> None or (batch_size, key_length)
+        #     position_ids -> None or (batch_size, key_length)
+        # ==========================================================================================
+
         transformer_outputs = self.transformer(
             input_ids,
             past_key_values=past_key_values,

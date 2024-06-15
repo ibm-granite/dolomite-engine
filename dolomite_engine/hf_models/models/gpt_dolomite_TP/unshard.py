@@ -11,6 +11,7 @@ def unshard(
     tensor_parallel_state_dicts: list[dict],
     tensor_parallel_embeddings: bool,
     prefix: str = "",
+    check_correctness: bool = True,
 ) -> dict:
     attention_head_type = AttentionHeadType(config.attention_head_type)
     position_embedding_type = PositionEmbeddingType(config.position_embedding_type)
@@ -21,6 +22,7 @@ def unshard(
         tensor_parallel_embeddings=tensor_parallel_embeddings,
         prefix=prefix + "transformer.wte.weight",
         vocab_size=config.vocab_size,
+        check_correctness=check_correctness,
     )
 
     # positional embeddings if using learned positional embeddings
@@ -31,6 +33,7 @@ def unshard(
                 tensor_parallel_embeddings=tensor_parallel_embeddings,
                 prefix=prefix + "transformer.wpe.weight",
                 vocab_size=config.n_positions,
+                check_correctness=check_correctness,
             )
         )
 
@@ -42,6 +45,7 @@ def unshard(
                 tensor_parallel_state_dicts,
                 prefix=prefix + f"transformer.h.{layer_idx}.ln_1.",
                 normalization_function=config.normalization_function,
+                check_correctness=check_correctness,
             )
         )
 
@@ -52,6 +56,7 @@ def unshard(
                 attention_head_type=attention_head_type,
                 add_bias=config.add_bias,
                 prefix=prefix + f"transformer.h.{layer_idx}.attn.",
+                check_correctness=check_correctness,
             )
         )
 
@@ -61,6 +66,7 @@ def unshard(
                 tensor_parallel_state_dicts,
                 prefix=prefix + f"transformer.h.{layer_idx}.ln_2.",
                 normalization_function=config.normalization_function,
+                check_correctness=check_correctness,
             )
         )
 
@@ -71,6 +77,7 @@ def unshard(
                 is_glu=is_glu(config.activation_function),
                 add_bias=config.add_bias,
                 prefix=prefix + f"transformer.h.{layer_idx}.mlp.",
+                check_correctness=check_correctness,
             )
         )
 
@@ -80,6 +87,7 @@ def unshard(
             tensor_parallel_state_dicts,
             prefix=prefix + f"transformer.ln_f.",
             normalization_function=config.normalization_function,
+            check_correctness=check_correctness,
         )
     )
 
@@ -90,6 +98,7 @@ def unshard(
                 tensor_parallel_embeddings=tensor_parallel_embeddings,
                 prefix=prefix + "lm_head.weight",
                 vocab_size=config.vocab_size,
+                check_correctness=check_correctness,
             )
         )
 
@@ -97,13 +106,18 @@ def unshard(
 
 
 def _get_embeddings_or_lm_head(
-    tensor_parallel_state_dicts: list[dict], tensor_parallel_embeddings: bool, prefix: str, vocab_size: int
+    tensor_parallel_state_dicts: list[dict],
+    tensor_parallel_embeddings: bool,
+    prefix: str,
+    vocab_size: int,
+    check_correctness: bool,
 ) -> dict:
-    output = (
-        _concatenate_tensors_from_state_dicts(tensor_parallel_state_dicts, key=prefix, dim=0)
-        if tensor_parallel_embeddings
-        else _get_once_from_state_dicts_with_check(tensor_parallel_state_dicts, key=prefix)
-    )
+    if tensor_parallel_embeddings:
+        output = _concatenate_tensors_from_state_dicts(tensor_parallel_state_dicts, key=prefix, dim=0)
+    else:
+        output = _get_once_from_state_dicts_with_check(
+            tensor_parallel_state_dicts, key=prefix, check_correctness=check_correctness
+        )
 
     # tensor parallel embeddings uses EmbeddingTP class so we need to trim the matrix
     if tensor_parallel_embeddings:
@@ -113,9 +127,14 @@ def _get_embeddings_or_lm_head(
     return {prefix: output}
 
 
-def _get_layernorm(tensor_parallel_state_dicts: list[dict], prefix: str, normalization_function: str) -> dict:
+def _get_layernorm(
+    tensor_parallel_state_dicts: list[dict], prefix: str, normalization_function: str, check_correctness: bool
+) -> dict:
     output = {
-        prefix + "weight": _get_once_from_state_dicts_with_check(tensor_parallel_state_dicts, key=prefix + "weight")
+        prefix
+        + "weight": _get_once_from_state_dicts_with_check(
+            tensor_parallel_state_dicts, key=prefix + "weight", check_correctness=check_correctness
+        )
     }
     if normalization_function == "layernorm":
         output[prefix + "bias"] = _get_once_from_state_dicts_with_check(
@@ -125,7 +144,11 @@ def _get_layernorm(tensor_parallel_state_dicts: list[dict], prefix: str, normali
 
 
 def _get_attention(
-    tensor_parallel_state_dicts: list[dict], attention_head_type: AttentionHeadType, add_bias: bool, prefix: str
+    tensor_parallel_state_dicts: list[dict],
+    attention_head_type: AttentionHeadType,
+    add_bias: bool,
+    prefix: str,
+    check_correctness: bool,
 ) -> dict:
     output = {
         prefix
@@ -135,7 +158,7 @@ def _get_attention(
     }
     if add_bias:
         output[prefix + "c_proj.bias"] = _get_once_from_state_dicts_with_check(
-            tensor_parallel_state_dicts, key=prefix + "c_proj.bias"
+            tensor_parallel_state_dicts, key=prefix + "c_proj.bias", check_correctness=check_correctness
         )
 
     if attention_head_type in [AttentionHeadType.mha, AttentionHeadType.gqa]:
@@ -151,7 +174,7 @@ def _get_attention(
             tensor_parallel_state_dicts, key=prefix + "c_attn.q_attn.weight", dim=0
         )
         kv_weight = _get_once_from_state_dicts_with_check(
-            tensor_parallel_state_dicts, key=prefix + "c_attn.kv_attn.weight"
+            tensor_parallel_state_dicts, key=prefix + "c_attn.kv_attn.weight", check_correctness=check_correctness
         )
         output[prefix + "c_attn.weight"] = torch.cat([q_weight, kv_weight])
         if add_bias:
@@ -159,7 +182,7 @@ def _get_attention(
                 tensor_parallel_state_dicts, key=prefix + "c_attn.q_attn.bias", dim=0
             )
             kv_bias = _get_once_from_state_dicts_with_check(
-                tensor_parallel_state_dicts, key=prefix + "c_attn.kv_attn.bias"
+                tensor_parallel_state_dicts, key=prefix + "c_attn.kv_attn.bias", check_correctness=check_correctness
             )
             output[prefix + "c_attn.bias"] = torch.cat([q_bias, kv_bias])
     else:
@@ -168,7 +191,9 @@ def _get_attention(
     return output
 
 
-def _get_mlp(tensor_parallel_state_dicts: list[dict], is_glu: bool, add_bias: bool, prefix: str) -> dict:
+def _get_mlp(
+    tensor_parallel_state_dicts: list[dict], is_glu: bool, add_bias: bool, prefix: str, check_correctness: bool
+) -> dict:
     output = {
         prefix
         + "c_proj.weight": _concatenate_tensors_from_state_dicts(
@@ -177,7 +202,7 @@ def _get_mlp(tensor_parallel_state_dicts: list[dict], is_glu: bool, add_bias: bo
     }
     if add_bias:
         output[prefix + "c_proj.bias"] = _get_once_from_state_dicts_with_check(
-            tensor_parallel_state_dicts, key=prefix + "c_proj.bias"
+            tensor_parallel_state_dicts, key=prefix + "c_proj.bias", check_correctness=check_correctness
         )
 
     if is_glu:
@@ -207,10 +232,10 @@ def _concatenate_tensors_from_state_dicts(tensor_parallel_state_dicts: list[dict
 
 
 def _get_once_from_state_dicts_with_check(
-    tensor_parallel_state_dicts: list[dict], key: str, check_equal: bool = True
+    tensor_parallel_state_dicts: list[dict], key: str, check_correctness: bool
 ) -> torch.Tensor:
     output: torch.Tensor = tensor_parallel_state_dicts[0][key]
-    if check_equal:
+    if check_correctness:
         for state_dict in tensor_parallel_state_dicts[1:]:
             assert output.equal(state_dict[key])
     return output

@@ -286,6 +286,8 @@ def load_checkpoint_for_inference(
                 tensor_parallel_state_dicts=tp_state_dicts,
                 tensor_parallel_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
                 prefix="model.",
+                # with bf16 nn.Embedding backward pass is non-deteministic
+                check_correctness=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
             )
             del tp_state_dicts
         else:

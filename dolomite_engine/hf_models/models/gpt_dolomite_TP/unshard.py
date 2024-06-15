@@ -7,7 +7,10 @@ from ..gpt_dolomite import GPTDolomiteConfig
 
 
 def unshard(
-    config: GPTDolomiteConfig, tensor_parallel_state_dicts: list[dict], tensor_parallel_embeddings: bool
+    config: GPTDolomiteConfig,
+    tensor_parallel_state_dicts: list[dict],
+    tensor_parallel_embeddings: bool,
+    prefix: str = "",
 ) -> dict:
     attention_head_type = AttentionHeadType(config.attention_head_type)
     position_embedding_type = PositionEmbeddingType(config.position_embedding_type)
@@ -16,7 +19,7 @@ def unshard(
     output_state_dict = _get_embeddings_or_lm_head(
         tensor_parallel_state_dicts,
         tensor_parallel_embeddings=tensor_parallel_embeddings,
-        prefix="transformer.wte.weight",
+        prefix=prefix + "transformer.wte.weight",
         vocab_size=config.vocab_size,
     )
 
@@ -26,7 +29,7 @@ def unshard(
             _get_embeddings_or_lm_head(
                 tensor_parallel_state_dicts,
                 tensor_parallel_embeddings=tensor_parallel_embeddings,
-                prefix="transformer.wpe.weight",
+                prefix=prefix + "transformer.wpe.weight",
                 vocab_size=config.n_positions,
             )
         )
@@ -37,7 +40,7 @@ def unshard(
         output_state_dict.update(
             _get_layernorm(
                 tensor_parallel_state_dicts,
-                prefix=f"transformer.h.{layer_idx}.ln_1.",
+                prefix=prefix + f"transformer.h.{layer_idx}.ln_1.",
                 normalization_function=config.normalization_function,
             )
         )
@@ -48,7 +51,7 @@ def unshard(
                 tensor_parallel_state_dicts,
                 attention_head_type=attention_head_type,
                 add_bias=config.add_bias,
-                prefix=f"transformer.h.{layer_idx}.attn.",
+                prefix=prefix + f"transformer.h.{layer_idx}.attn.",
             )
         )
 
@@ -56,7 +59,7 @@ def unshard(
         output_state_dict.update(
             _get_layernorm(
                 tensor_parallel_state_dicts,
-                prefix=f"transformer.h.{layer_idx}.ln_2.",
+                prefix=prefix + f"transformer.h.{layer_idx}.ln_2.",
                 normalization_function=config.normalization_function,
             )
         )
@@ -67,7 +70,7 @@ def unshard(
                 tensor_parallel_state_dicts,
                 is_glu=is_glu(config.activation_function),
                 add_bias=config.add_bias,
-                prefix=f"transformer.h.{layer_idx}.mlp.",
+                prefix=prefix + f"transformer.h.{layer_idx}.mlp.",
             )
         )
 
@@ -75,7 +78,7 @@ def unshard(
     output_state_dict.update(
         _get_layernorm(
             tensor_parallel_state_dicts,
-            prefix=f"transformer.ln_f.",
+            prefix=prefix + f"transformer.ln_f.",
             normalization_function=config.normalization_function,
         )
     )
@@ -85,7 +88,7 @@ def unshard(
             _get_embeddings_or_lm_head(
                 tensor_parallel_state_dicts,
                 tensor_parallel_embeddings=tensor_parallel_embeddings,
-                prefix="lm_head.weight",
+                prefix=prefix + "lm_head.weight",
                 vocab_size=config.vocab_size,
             )
         )

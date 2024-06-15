@@ -17,6 +17,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from .arguments import ExportArgs, InferenceArgs, TrainingArgs
 from .data import ResumableDataLoader
 from .enums import DistributedBackend, Mode, TuningMethod
+from .hf_models.models.gpt_dolomite_TP import unshard
 from .model_wrapper import ModelWrapper, get_model
 from .utils import ExperimentsTracker, ProcessGroupManager, load_yaml, log_rank_0, run_rank_n, string_to_torch_dtype
 
@@ -241,14 +242,20 @@ def load_checkpoint_for_inference(
         args_from_checkpoint.mixed_precision_args = args.mixed_precision_args
 
     distributed_backend = args_from_checkpoint.distributed_args.distributed_backend
+    checkpoint_tp_world_size = args_from_checkpoint.distributed_args.tensor_parallel_size
 
-    model = get_model(args_from_checkpoint, mode)
-    model = model.to(torch.cuda.current_device())
+    with (
+        torch.device("meta"),
+        ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
+        ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
+    ):
+        model = get_model(args_from_checkpoint, mode)
 
     if distributed_backend == DistributedBackend.deepspeed:
         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
 
         state = get_fp32_state_dict_from_zero_checkpoint(load_path, _get_checkpoint_tag(iteration))
+        model = model.to_empty("cpu")
 
         if model.tuning_method == TuningMethod.prompt_tuning:
             model.load_state_dict(state, strict=False)
@@ -261,7 +268,25 @@ def load_checkpoint_for_inference(
 
             model.load_state_dict(state)
     elif distributed_backend == DistributedBackend.torch:
-        model.load_state_dict(torch.load(_get_model_path(_get_base_path(load_path, iteration))))
+        if checkpoint_tp_world_size > 1:
+            tp_state_dicts = []
+            with ProcessGroupManager.set_dummy_tensor_parallel_world_size(checkpoint_tp_world_size):
+                for rank in range(checkpoint_tp_world_size):
+                    with ProcessGroupManager.set_dummy_tensor_parallel_rank(rank):
+                        tp_state_dicts.append(torch.load(_get_model_path(_get_base_path(load_path, iteration))))
+
+            state = unshard(
+                config=None,
+                tensor_parallel_state_dicts=tp_state_dicts,
+                tensor_parallel_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
+                prefix="model.",
+            )
+            del tp_state_dicts
+        else:
+            state = torch.load(_get_model_path(_get_base_path(load_path, iteration)))
+
+        model = model.to_empty("cpu")
+        model.load_state_dict(state)
     else:
         raise ValueError(f"unexpected distributed_backend ({args['distributed_args']['distributed_backend']})")
 

@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 from datetime import timedelta
 from typing import Callable
 
@@ -177,6 +178,30 @@ class ProcessGroupManager:
 
     def __str__(self) -> str:
         return str(self.get_mesh())
+
+    @contextmanager
+    @staticmethod
+    def set_dummy_tensor_parallel_rank(rank: int):
+        global _TENSOR_PARALLEL_RANK
+
+        original_rank = _TENSOR_PARALLEL_RANK
+        _TENSOR_PARALLEL_RANK = rank
+
+        yield
+
+        _TENSOR_PARALLEL_RANK = original_rank
+
+    @contextmanager
+    @staticmethod
+    def set_dummy_tensor_parallel_world_size(world_size: int):
+        global _TENSOR_PARALLEL_WORLD_SIZE
+
+        original_world_size = _TENSOR_PARALLEL_WORLD_SIZE
+        _TENSOR_PARALLEL_WORLD_SIZE = world_size
+
+        yield
+
+        _TENSOR_PARALLEL_WORLD_SIZE = original_world_size
 
 
 def run_rank_n(func: Callable, rank: int = 0, barrier: bool = False) -> Callable:

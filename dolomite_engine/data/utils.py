@@ -85,7 +85,7 @@ def collate_fn(
 
 
 def infinite_iterator(x: Iterable) -> Iterable:
-    """converts and iterable into a non-ending infinite iterable
+    """converts and iterable into a non-ending infinite iterable, will return None if input is None
 
     Args:
         x (Iterable): the iterable to convert
@@ -96,6 +96,9 @@ def infinite_iterator(x: Iterable) -> Iterable:
     Yields:
         Iterator[Iterable]: an element from the original iterator
     """
+
+    if x is None:
+        return None
 
     while True:
         for i in x:

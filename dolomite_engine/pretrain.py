@@ -269,7 +269,6 @@ def main() -> None:
     set_seed(args.random_args.seed)
 
     model = get_model(args, mode)
-    tokenizer = model.tokenizer
     model, optimizer, lr_scheduler = wrap_model_for_distributed_training(args, model)
 
     log_model(model)
@@ -287,7 +286,7 @@ def main() -> None:
             metadata["consumed_samples"] = 0
 
     train_dataloader, val_dataloaders, test_dataloaders = get_megatron_gpt_dataloaders(
-        args, tokenizer, 0 if metadata is None else metadata["consumed_samples"]
+        args, model.tokenizer, 0 if metadata is None else metadata["consumed_samples"]
     )
 
     experiments_tracker = ExperimentsTracker(

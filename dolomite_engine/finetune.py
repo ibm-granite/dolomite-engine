@@ -226,9 +226,7 @@ def train(
     model.train()
 
     # need this for iterating infinitely
-    train_dataloader_infinite = None
-    if train_dataloader is not None:
-        train_dataloader_infinite = infinite_iterator(train_dataloader)
+    train_dataloader_infinite = None if train_dataloader is None else infinite_iterator(train_dataloader)
 
     if eval_during_training:
         evaluate(val_dataloader, model, starting_iteration, experiments_tracker)

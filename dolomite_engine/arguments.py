@@ -148,7 +148,7 @@ class TrainingParameters(BaseArgs):
     # masking methodology of loss function input
     loss_mask: LossMask = LossMask.output_only
     # gradient clip value
-    gradient_clipping: float = 1
+    gradient_clipping: Optional[float] = 1
 
     def model_post_init(self, __context: Any) -> None:
         _check_not_None([(self.num_training_steps, "num_training_steps"), (self.micro_batch_size, "micro_batch_size")])

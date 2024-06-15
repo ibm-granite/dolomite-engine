@@ -103,3 +103,20 @@ def infinite_iterator(x: Iterable) -> Iterable:
     while True:
         for i in x:
             yield i
+
+
+def get_next_batch(x: Iterable) -> dict:
+    """get next batch
+
+    Args:
+        x (Iterable): dataloader
+
+    Returns:
+        dict: batch
+    """
+
+    # train_dataloader is always None on TP ranks other than 0
+    if x is None:
+        return None
+
+    return next(x)

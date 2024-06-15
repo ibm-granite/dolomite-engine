@@ -10,7 +10,7 @@ from transformers import set_seed
 from .arguments import TrainingArgs, get_args
 from .checkpointing import load_checkpoint_for_training, save_checkpoint
 from .communication import Communication
-from .data import ResumableDataLoader, get_dataloader, infinite_iterator
+from .data import ResumableDataLoader, get_dataloader, get_next_batch, infinite_iterator
 from .distributed import wrap_model_for_distributed_training
 from .enums import DatasetSplit, DistributedBackend, FP8Backend, Mode
 from .model_wrapper import ModelWrapperForFinetuning, get_model, log_model
@@ -142,8 +142,7 @@ def train_step(
 
     with no_sync():
         for _ in range(gradient_accumulation_steps - 1):
-            # train_dataloader is always None on TP ranks other than 0
-            batch = None if train_dataloader is None else next(train_dataloader)
+            batch = get_next_batch(train_dataloader)
             with train_step_context:
                 loss_micro_step = model(batch)
             loss += loss_micro_step
@@ -157,8 +156,7 @@ def train_step(
             else:
                 raise ValueError(f"unexpected distributed backend ({distributed_backend})")
 
-    # train_dataloader is always None on TP ranks other than 0
-    batch = None if train_dataloader is None else next(train_dataloader)
+    batch = get_next_batch(train_dataloader)
     with train_step_context:
         loss_micro_step = model(batch)
     loss += loss_micro_step

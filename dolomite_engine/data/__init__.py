@@ -17,7 +17,7 @@ from .instruction_tuning import AlpacaDataset, DollyDataset, SlimOrcaDataset
 from .megatron import get_megatron_gpt_dataloaders
 from .sampler import BlendedDistributedSampler
 from .sst2 import SST2Dataset
-from .utils import collate_fn, infinite_iterator
+from .utils import collate_fn, get_next_batch, infinite_iterator
 
 
 _DATASETS_LIST = {

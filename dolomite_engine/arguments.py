@@ -299,9 +299,9 @@ class DistributedArgs(BaseArgs):
     # whether to use a dispatching dataloader
     dispatching_dataloader: bool = False
     # tensor parallel world size
-    tensor_parallel_size: Optional[int] = None
+    tensor_parallel_size: int = 1
     # tensor parallel embeddings
-    tensor_parallel_embeddings: Optional[bool] = False
+    tensor_parallel_embeddings: bool = False
     # data parallel world size
     data_parallel_size: Optional[int] = None
     # distributed timeout for NCCL in minutes
@@ -320,7 +320,7 @@ class DistributedArgs(BaseArgs):
         if self.stage == 0:
             assert not self.hsdp, "hsdp is meaningless with stage 0"
 
-        if self.tensor_parallel_size is not None and self.tensor_parallel_size > 1:
+        if self.tensor_parallel_size > 1:
             assert not self.hsdp, "tensor parallel is not supported with HSDP"
 
 

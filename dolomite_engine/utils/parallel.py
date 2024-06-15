@@ -31,7 +31,7 @@ _DATA_PARALLEL_WORLD_SIZE: int = None
 class ProcessGroupManager:
     def __init__(
         self,
-        tensor_parallel_size: int = None,
+        tensor_parallel_size: int = 1,
         data_parallel_size: int = None,
         timeout_minutes: int = None,
         backend: str = "nccl",
@@ -45,9 +45,6 @@ class ProcessGroupManager:
             world_size=ProcessGroupManager.get_world_size(),
             timeout=timeout_minutes,
         )
-
-        if tensor_parallel_size is None:
-            tensor_parallel_size = 1
 
         total_gpus = int(os.getenv("WORLD_SIZE", 1))
 

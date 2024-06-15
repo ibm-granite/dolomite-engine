@@ -283,7 +283,11 @@ def load_checkpoint_for_inference(
             )
             del tp_state_dicts
         else:
-            state = torch.load(_get_model_path(_get_base_path(load_path, iteration)))
+            with (
+                ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
+                ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
+            ):
+                state = torch.load(_get_model_path(_get_base_path(load_path, iteration)))
 
         model = model.to_empty("cpu")
         model.load_state_dict(state)

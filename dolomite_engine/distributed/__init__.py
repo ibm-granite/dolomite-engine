@@ -134,8 +134,6 @@ def wrap_model_for_distributed_training(
                 _STAGE_HYBRID_SHARDING_STRATEGY_MAP[stage] if hsdp else _STAGE_FULL_SHARDING_STRATEGY_MAP[stage]
             )
 
-        dp_mesh = None if tp_world_size == 1 else ProcessGroupManager.get_data_parallel_mesh()
-
         mixed_precision_policy = deepcopy(_FSDP_MIXED_PRECISION_POLICIES[dtype])
         if communication_dtype is not None:
             mixed_precision_policy.reduce_dtype = string_to_torch_dtype(communication_dtype)
@@ -165,7 +163,7 @@ def wrap_model_for_distributed_training(
             # https://github.com/meta-llama/llama-recipes/blob/492455dc080f6c25f356e283e443be0cce86aaeb/src/llama_recipes/finetuning.py#L191
             sync_module_states=efficient_initialization,
             param_init_fn=_param_init if efficient_initialization else None,
-            device_mesh=dp_mesh,
+            device_mesh=None if tp_world_size == 1 else ProcessGroupManager.get_data_parallel_mesh(),
         )
 
         if args.distributed_args.gradient_checkpointing_method is not None:

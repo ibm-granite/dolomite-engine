@@ -220,13 +220,14 @@ def load_checkpoint_for_training(
 
 
 def load_checkpoint_for_inference(
-    args: Union[InferenceArgs, ExportArgs], mode: Mode
+    args: Union[InferenceArgs, ExportArgs], mode: Mode, use_meta: bool = False
 ) -> Tuple[ModelWrapper, TrainingArgs]:
     """load deepspeed checkpoint for inference
 
     Args:
         args (Union[InferenceArgs, ExportArgs]): arguments
         mode (Mode): training/inference mode
+        use_meta (bool): whether to use meta device
     """
 
     load_path = args.load_args.load_path
@@ -244,18 +245,21 @@ def load_checkpoint_for_inference(
     distributed_backend = args_from_checkpoint.distributed_args.distributed_backend
     checkpoint_tp_world_size = args_from_checkpoint.distributed_args.tensor_parallel_size
 
-    with (
-        torch.device("meta"),
+    context_managers = [
+        torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
         ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
         ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
-    ):
+    ]
+    with context_managers:
         model = get_model(args_from_checkpoint, mode)
 
     if distributed_backend == DistributedBackend.deepspeed:
         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
 
         state = get_fp32_state_dict_from_zero_checkpoint(load_path, _get_checkpoint_tag(iteration))
-        model = model.to_empty(device="cpu")
+
+        if use_meta:
+            model = model.to_empty(device="cpu")
 
         if model.tuning_method == TuningMethod.prompt_tuning:
             model.load_state_dict(state, strict=False)
@@ -291,7 +295,9 @@ def load_checkpoint_for_inference(
             ):
                 state = torch.load(_get_model_path(_get_base_path(load_path, iteration)), map_location="cpu")
 
-        model = model.to_empty(device="cpu")
+        if use_meta:
+            model = model.to_empty(device="cpu")
+
         model.load_state_dict(state)
     else:
         raise ValueError(f"unexpected distributed_backend ({args['distributed_args']['distributed_backend']})")

@@ -12,6 +12,7 @@ from ...modeling_utils_TP import (
     RowParallelLinear,
     tensor_parallel_split_safetensor_slice,
 )
+from ...utils import divide_if_divisible
 from ..gpt_dolomite import GPTDolomiteConfig
 from ..gpt_dolomite.mlp import MLP
 
@@ -62,10 +63,11 @@ class MLP_TP(MLP):
             weight = safetensors_weight_manager.get_slice(prefix + "c_fc.weight")
 
             shape = weight.get_shape()
-            assert (
-                shape[0] % (tp_world_size * 2) == 0
-            ), f"split dimension ({0}) is not divisible by 2 x tensor parallel world size (2 x {tp_world_size})"
-            stride = shape[0] // (tp_world_size * 2)
+            stride = divide_if_divisible(
+                shape[0],
+                tp_world_size * 2,
+                f"split dimension ({0}) is not divisible by 2 x tensor parallel world size (2 x {tp_world_size})",
+            )
 
             # split weight tensors into gate and non-gate
             start_end = (tp_rank * stride, (tp_rank + 1) * stride)

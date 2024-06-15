@@ -301,7 +301,7 @@ class DistributedArgs(BaseArgs):
     # tensor parallel world size
     tensor_parallel_size: Optional[int] = None
     # tensor parallel embeddings
-    tensor_parallel_embeddings: Optional[int] = None
+    tensor_parallel_embeddings: Optional[bool] = False
     # data parallel world size
     data_parallel_size: Optional[int] = None
     # distributed timeout for NCCL in minutes

@@ -245,12 +245,11 @@ def load_checkpoint_for_inference(
     distributed_backend = args_from_checkpoint.distributed_args.distributed_backend
     checkpoint_tp_world_size = args_from_checkpoint.distributed_args.tensor_parallel_size
 
-    context_managers = [
+    with (
         torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
         ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
         ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
-    ]
-    with context_managers:
+    ):
         model = get_model(args_from_checkpoint, mode)
 
     if distributed_backend == DistributedBackend.deepspeed:

@@ -255,7 +255,7 @@ def load_checkpoint_for_inference(
         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
 
         state = get_fp32_state_dict_from_zero_checkpoint(load_path, _get_checkpoint_tag(iteration))
-        model = model.to_empty("cpu")
+        model = model.to_empty(device="cpu")
 
         if model.tuning_method == TuningMethod.prompt_tuning:
             model.load_state_dict(state, strict=False)
@@ -289,7 +289,7 @@ def load_checkpoint_for_inference(
             ):
                 state = torch.load(_get_model_path(_get_base_path(load_path, iteration)))
 
-        model = model.to_empty("cpu")
+        model = model.to_empty(device="cpu")
         model.load_state_dict(state)
     else:
         raise ValueError(f"unexpected distributed_backend ({args['distributed_args']['distributed_backend']})")

@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.distributed
 import yaml
+from torch.distributed._tensor.api import DTensor
 from torch.distributed.fsdp import FullOptimStateDictConfig, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
@@ -62,24 +63,8 @@ def save_checkpoint(
         assert save_optimizer
         model.save_checkpoint(args.save_args.save_path, tag=_get_checkpoint_tag(iteration))
     elif distributed_backend == DistributedBackend.torch:
-        dp_rank = ProcessGroupManager.get_data_parallel_rank()
-
-        # TODO add support for local state dict
-        with FSDP.state_dict_type(
-            model,
-            state_dict_type=StateDictType.FULL_STATE_DICT,
-            state_dict_config=FullStateDictConfig(offload_to_cpu=True, rank0_only=True),
-            optim_state_dict_config=FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=True),
-        ):
-            model_state_dict = model.state_dict()
-            if dp_rank == 0:
-                torch.save(model_state_dict, _get_model_path(save_path))
-
-            if save_optimizer:
-                optimizer_state_dict = FSDP.optim_state_dict(model=model, optim=optimizer)
-                if dp_rank == 0:
-                    torch.save(optimizer_state_dict, _get_optimizer_path(save_path))
-
+        torch.save(model.state_dict(), _get_model_path(save_path))
+        torch.save(optimizer.state_dict(), _get_optimizer_path(save_path))
         run_rank_n(torch.save)(lr_scheduler.state_dict(), _get_lr_scheduler_path(save_path))
     else:
         raise ValueError(f"unexpected distributed_backend ({distributed_backend})")
@@ -320,6 +305,12 @@ def save_args(args: Union[TrainingArgs, InferenceArgs], save_path: str, mode: Mo
     yaml.dump(args.to_dict(), open(save_path, "w"), indent=2)
 
 
+def unshard_data_parallel_state_dict_on_cpu(state_dict: dict[str, DTensor]) -> dict:
+    state_dict = {key: value.cpu() for key, value in state_dict.items()}
+    state_dict = {key: value.full_tensor() for key, value in state_dict.items()}
+    return state_dict
+
+
 def _get_checkpoint_tag(iteration: int) -> str:
     return f"global_step{iteration}"
 
@@ -329,19 +320,23 @@ def _get_base_path(path: str, iteration: int) -> str:
 
 
 def _get_model_path(path: str) -> str:
+    suffix = f"model-dp-{ProcessGroupManager.get_data_parallel_rank()}"
+
     if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix = f"model-tp-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
+        suffix += f"-tp-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
     else:
-        suffix = "model.pt"
+        suffix += ".pt"
 
     return os.path.join(path, suffix)
 
 
 def _get_optimizer_path(path: str) -> str:
+    suffix = f"optimizer-dp-{ProcessGroupManager.get_data_parallel_rank()}"
+
     if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix = f"optimizer-tp-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
+        suffix += f"-tp-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
     else:
-        suffix = "optimizer.pt"
+        suffix += ".pt"
 
     return os.path.join(path, suffix)
 

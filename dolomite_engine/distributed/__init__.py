@@ -16,26 +16,10 @@ from ..enums import DistributedBackend, FP8Backend
 from ..gradient_checkpointing import apply_gradient_checkpointing
 from ..model_wrapper import ModelWrapper
 from ..optimization import get_optimizer_and_lr_scheduler
-from ..utils import (
-    ProcessGroupManager,
-    SafeTensorsWeightsManager,
-    get_module_class_from_name,
-    log_rank_0,
-    string_to_torch_dtype,
-)
+from ..utils import ProcessGroupManager, get_module_class_from_name, log_rank_0, string_to_torch_dtype
 from .deepspeed import get_deepspeed_config
 from .fp8 import convert_model_to_transformer_engine
 
-
-_STAGE_FULL_SHARDING_STRATEGY_MAP = {
-    2: ShardingStrategy.SHARD_GRAD_OP,
-    3: ShardingStrategy.FULL_SHARD,
-}
-
-_STAGE_HYBRID_SHARDING_STRATEGY_MAP = {
-    2: ShardingStrategy._HYBRID_SHARD_ZERO2,
-    3: ShardingStrategy.HYBRID_SHARD,
-}
 
 _FSDP1_MIXED_PRECISION_POLICIES = {
     "fp32": MixedPrecision1(param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32),

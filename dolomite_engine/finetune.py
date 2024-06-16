@@ -184,7 +184,7 @@ def train_step(
 
         if gradient_clipping is not None:
             assert ProcessGroupManager.get_tensor_parallel_world_size() == 1
-            grad_norm = model.clip_grad_norm_(gradient_clipping)
+            grad_norm = torch.nn.utils.clip_grad_norm_(gradient_clipping)
 
         optimizer.step()
         lr_scheduler.step()

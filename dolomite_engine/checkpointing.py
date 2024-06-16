@@ -157,23 +157,10 @@ def load_checkpoint_for_training(
             load_lr_scheduler_states=load_lr_scheduler,
         )
     elif distributed_backend == DistributedBackend.torch:
-        assert isinstance(model, FSDP)
+        model.load_state_dict(torch.load(_get_model_path(load_path)))
 
-        # TODO add support for local state dict
-        with FSDP.state_dict_type(
-            model,
-            state_dict_type=StateDictType.FULL_STATE_DICT,
-            state_dict_config=FullStateDictConfig(offload_to_cpu=True, rank0_only=False),
-            optim_state_dict_config=FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False),
-        ):
-            model.load_state_dict(torch.load(_get_model_path(load_path)))
-
-            if load_optimizer:
-                optimizer.load_state_dict(
-                    FSDP.optim_state_dict_to_load(
-                        model=model, optim=optimizer, optim_state_dict=torch.load(_get_optimizer_path(load_path))
-                    )
-                )
+        if load_optimizer:
+            optimizer.load_state_dict(torch.load(_get_optimizer_path(load_path)))
 
         if load_lr_scheduler:
             lr_scheduler.load_state_dict(torch.load(_get_lr_scheduler_path(load_path)))

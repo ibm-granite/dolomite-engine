@@ -134,7 +134,14 @@ def train_step(
         Tuple[float, float]: loss at the current step, grad norm at the current step
     """
 
-    no_sync = model.no_sync if distributed_backend == DistributedBackend.torch else contextlib.nullcontext
+    no_sync = contextlib.nullcontext
+    if distributed_backend == DistributedBackend.torch:
+        # FSDP-2
+        if hasattr(model, "set_requires_gradient_sync"):
+            model.set_requires_gradient_sync(False)
+        else:
+            no_sync = model.no_sync
+
     loss = 0
     grad_norm = None
     if distributed_backend == DistributedBackend.torch:
@@ -155,6 +162,9 @@ def train_step(
                 loss_micro_step.backward()
             else:
                 raise ValueError(f"unexpected distributed backend ({distributed_backend})")
+
+    if distributed_backend == DistributedBackend.torch and hasattr(model, "set_requires_gradient_sync"):
+        model.set_requires_gradient_sync(True)
 
     batch = get_next_batch(train_dataloader)
     with train_step_context:

@@ -27,6 +27,8 @@ _DATA_PARALLEL_MESH: DeviceMesh = None
 _DATA_PARALLEL_GROUP: ProcessGroup = None
 _DATA_PARALLEL_RANK: int = None
 _DATA_PARALLEL_WORLD_SIZE: int = None
+_DATA_PARALLEL_REPLICATION_WORLD_SIZE: int = None
+_DATA_PARALLEL_SHARDING_WORLD_SIZE: int = None
 
 
 class ProcessGroupManager:
@@ -34,6 +36,8 @@ class ProcessGroupManager:
         self,
         tensor_parallel_size: int = 1,
         data_parallel_size: int = None,
+        data_parallel_replication_world_size: int = None,
+        data_parallel_sharding_world_size: int = None,
         timeout_minutes: int = None,
         backend: str = "nccl",
     ) -> None:
@@ -53,6 +57,17 @@ class ProcessGroupManager:
             data_parallel_size = total_gpus // tensor_parallel_size
 
         assert tensor_parallel_size * data_parallel_size == total_gpus
+
+        if data_parallel_replication_world_size is None:
+            assert data_parallel_sharding_world_size is None
+        else:
+            assert data_parallel_sharding_world_size is not None
+            assert data_parallel_replication_world_size * data_parallel_sharding_world_size == data_parallel_size
+
+            global _DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE
+
+            _DATA_PARALLEL_REPLICATION_WORLD_SIZE = data_parallel_replication_world_size
+            _DATA_PARALLEL_SHARDING_WORLD_SIZE = data_parallel_sharding_world_size
 
         global _MESH
 
@@ -202,6 +217,17 @@ class ProcessGroupManager:
         yield
 
         _TENSOR_PARALLEL_WORLD_SIZE = original_world_size
+
+    @staticmethod
+    def get_data_parallel_mesh_with_topology() -> DeviceMesh:
+        global _DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE
+
+        dp_mesh = ProcessGroupManager.get_data_parallel_mesh()
+        dp_mesh = dp_mesh.mesh
+        dp_mesh = dp_mesh.view(_DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE)
+        dp_mesh = DeviceMesh("cuda", dp_mesh, ("replication_world_size", "sharding_world_size"))
+
+        return dp_mesh
 
 
 def run_rank_n(func: Callable, rank: int = 0, barrier: bool = False) -> Callable:

@@ -69,7 +69,7 @@ def wrap_model_for_distributed_training(
     dtype = args.mixed_precision_args.dtype
     communication_dtype = args.distributed_args.communication_dtype
     fp8_backend = args.mixed_precision_args.fp8_backend
-    hsdp = args.distributed_args.hsdp
+    zero_topology = args.distributed_args.zero_topology
     efficient_initialization = args.model_args.efficient_initialization
 
     tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
@@ -133,11 +133,11 @@ def wrap_model_for_distributed_training(
         assert stage in [0, 2, 3]
         assert not cpu_offload
 
-        if hsdp:
-            assert tp_world_size == 1, "tensor parallel is not supported with HSDP"
+        if zero_topology is not None:
+            assert tp_world_size == 1, "tensor parallel is not supported with zero_topology"
 
         if stage == 0:
-            assert not hsdp
+            assert zero_topology is None
             assert not efficient_initialization
 
             mixed_precision_policy = deepcopy(_FSDP1_MIXED_PRECISION_POLICIES[dtype])
@@ -154,14 +154,12 @@ def wrap_model_for_distributed_training(
                 device_mesh=None if tp_world_size == 1 else ProcessGroupManager.get_data_parallel_mesh(),
             )
         else:
-            assert not hsdp
-
             mixed_precision_policy = deepcopy(_FSDP2_MIXED_PRECISION_POLICIES[dtype])
             if communication_dtype is not None:
                 mixed_precision_policy.reduce_dtype = string_to_torch_dtype(communication_dtype)
 
             block_classes = [get_module_class_from_name(model, name) for name in block_names]
-            dp_mesh = ProcessGroupManager.get_data_parallel_mesh()
+            dp_mesh = ProcessGroupManager.get_data_parallel_mesh_with_topology()
             zero3 = stage == 3
 
             for module in model.modules():

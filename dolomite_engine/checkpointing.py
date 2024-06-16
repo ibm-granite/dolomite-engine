@@ -55,6 +55,7 @@ def save_checkpoint(
 
     distributed_backend = args.distributed_args.distributed_backend
     save_optimizer = args.save_args.save_optimizer
+    stage = args.distributed_args.stage
 
     save_path = _get_base_path(args.save_args.save_path, iteration)
     os.makedirs(save_path, exist_ok=True)
@@ -63,9 +64,10 @@ def save_checkpoint(
         assert save_optimizer
         model.save_checkpoint(args.save_args.save_path, tag=_get_checkpoint_tag(iteration))
     elif distributed_backend == DistributedBackend.torch:
-        torch.save(model.state_dict(), _get_model_path(save_path))
-        torch.save(optimizer.state_dict(), _get_optimizer_path(save_path))
-        run_rank_n(torch.save)(lr_scheduler.state_dict(), _get_lr_scheduler_path(save_path))
+        if (stage == 0 and ProcessGroupManager.get_data_parallel_rank() == 0) or stage != 0:
+            torch.save(model.state_dict(), _get_model_path(save_path))
+            torch.save(optimizer.state_dict(), _get_optimizer_path(save_path))
+            run_rank_n(torch.save)(lr_scheduler.state_dict(), _get_lr_scheduler_path(save_path))
     else:
         raise ValueError(f"unexpected distributed_backend ({distributed_backend})")
 

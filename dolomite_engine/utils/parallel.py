@@ -39,13 +39,11 @@ class ProcessGroupManager:
         data_parallel_replication_world_size: int = None,
         data_parallel_sharding_world_size: int = None,
         timeout_minutes: int = None,
-        backend: str = "nccl",
     ) -> None:
         if timeout_minutes is not None:
             timeout_minutes = timedelta(timeout_minutes)
 
         torch.distributed.init_process_group(
-            backend=backend,
             rank=ProcessGroupManager.get_global_rank(),
             world_size=ProcessGroupManager.get_world_size(),
             timeout=timeout_minutes,

@@ -223,9 +223,11 @@ class ProcessGroupManager:
         global _DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE
 
         dp_mesh = ProcessGroupManager.get_data_parallel_mesh()
-        dp_mesh = dp_mesh.mesh
-        dp_mesh = dp_mesh.view(_DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE)
-        dp_mesh = DeviceMesh("cuda", dp_mesh, ("replication_world_size", "sharding_world_size"))
+
+        if _DATA_PARALLEL_REPLICATION_WORLD_SIZE is not None:
+            dp_mesh = dp_mesh.mesh
+            dp_mesh = dp_mesh.view(_DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE)
+            dp_mesh = DeviceMesh("cuda", dp_mesh, ("replication_world_size", "sharding_world_size"))
 
         return dp_mesh
 

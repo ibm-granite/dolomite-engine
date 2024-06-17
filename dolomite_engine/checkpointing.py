@@ -313,12 +313,6 @@ def save_args(args: Union[TrainingArgs, InferenceArgs], save_path: str, mode: Mo
     yaml.dump(args.to_dict(), open(save_path, "w"), indent=2)
 
 
-def unshard_data_parallel_state_dict_on_cpu(state_dict: dict[str, DTensor]) -> dict:
-    state_dict = {key: value.cpu() for key, value in state_dict.items()}
-    state_dict = {key: value.full_tensor() for key, value in state_dict.items()}
-    return state_dict
-
-
 def _get_checkpoint_tag(iteration: int) -> str:
     return f"global_step{iteration}"
 

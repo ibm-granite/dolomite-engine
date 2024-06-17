@@ -7,8 +7,16 @@ from typing import Tuple, Union
 import numpy as np
 import torch
 import torch.distributed
+import torch.distributed.checkpoint as dcp
 import yaml
 from torch.distributed._tensor.api import DTensor
+from torch.distributed.checkpoint.state_dict import (
+    StateDictOptions,
+    get_model_state_dict,
+    get_optimizer_state_dict,
+    set_model_state_dict,
+    set_optimizer_state_dict,
+)
 from torch.distributed.fsdp import FullOptimStateDictConfig, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
@@ -64,10 +72,13 @@ def save_checkpoint(
         assert save_optimizer
         model.save_checkpoint(args.save_args.save_path, tag=_get_checkpoint_tag(iteration))
     elif distributed_backend == DistributedBackend.torch:
-        if (stage == 0 and ProcessGroupManager.get_data_parallel_rank() == 0) or stage != 0:
-            torch.save(model.state_dict(), _get_model_path(save_path))
-            torch.save(optimizer.state_dict(), _get_optimizer_path(save_path))
-            run_rank_n(torch.save)(lr_scheduler.state_dict(), _get_lr_scheduler_path(save_path))
+        dcp.save(get_model_state_dict(model), checkpoint_id=_get_model_path(save_path))
+
+        if save_optimizer:
+            # TODO add options=StateDictOptions(flatten_optimizer_state_dict=True))
+            dcp.save(get_optimizer_state_dict(model, optimizer), checkpoint_id=_get_optimizer_path(save_path))
+
+        run_rank_n(torch.save)(lr_scheduler.state_dict(), _get_lr_scheduler_path(save_path))
     else:
         raise ValueError(f"unexpected distributed_backend ({distributed_backend})")
 
@@ -159,10 +170,17 @@ def load_checkpoint_for_training(
             load_lr_scheduler_states=load_lr_scheduler,
         )
     elif distributed_backend == DistributedBackend.torch:
-        model.load_state_dict(torch.load(_get_model_path(load_path)))
+        model_state_dict = get_model_state_dict(model)
+        dcp.load(model_state_dict, checkpoint_id=_get_model_path(load_path))
+        set_model_state_dict(model, model_state_dict)
+        del model_state_dict
 
         if load_optimizer:
-            optimizer.load_state_dict(torch.load(_get_optimizer_path(load_path)))
+            # TODO add options=StateDictOptions(flatten_optimizer_state_dict=True))
+            optimizer_state_dict = get_optimizer_state_dict(model, optimizer)
+            dcp.load(optimizer_state_dict, checkpoint_id=_get_optimizer_path(load_path))
+            set_optimizer_state_dict(model, optimizer, optim_state_dict=optimizer_state_dict)
+            del optimizer_state_dict
 
         if load_lr_scheduler:
             lr_scheduler.load_state_dict(torch.load(_get_lr_scheduler_path(load_path)))
@@ -309,25 +327,11 @@ def _get_base_path(path: str, iteration: int) -> str:
 
 
 def _get_model_path(path: str) -> str:
-    suffix = f"model-dp-{ProcessGroupManager.get_data_parallel_rank()}"
-
-    if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix += f"-tp-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
-    else:
-        suffix += ".pt"
-
-    return os.path.join(path, suffix)
+    return os.path.join(path, "model")
 
 
 def _get_optimizer_path(path: str) -> str:
-    suffix = f"optimizer-dp-{ProcessGroupManager.get_data_parallel_rank()}"
-
-    if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix += f"-tp-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
-    else:
-        suffix += ".pt"
-
-    return os.path.join(path, suffix)
+    return os.path.join(path, "optimizer")
 
 
 def _get_lr_scheduler_path(path: str) -> str:

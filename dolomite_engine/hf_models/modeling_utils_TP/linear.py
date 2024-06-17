@@ -1,6 +1,9 @@
 import torch
 import torch.distributed
+import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Replicate, Shard
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ..modeling_utils import ParameterizedLinear
@@ -38,6 +41,18 @@ class ColumnParallelLinear(ParameterizedLinear):
             dtype=dtype,
             std=std,
         )
+
+        self.weight = nn.Parameter(
+            DTensor.from_local(
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
+            )
+        )
+        if bias:
+            self.bias = nn.Parameter(
+                DTensor.from_local(
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
+                )
+            )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         input = copy_to_tensor_parallel_region(input)
@@ -90,6 +105,18 @@ class RowParallelLinear(ParameterizedLinear):
             dtype=dtype,
             std=std,
         )
+
+        self.weight = nn.Parameter(
+            DTensor.from_local(
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(1)]
+            )
+        )
+        if bias:
+            self.bias = nn.Parameter(
+                DTensor.from_local(
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+                )
+            )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # we can't call super().forward here since that will add bias to each TP rank

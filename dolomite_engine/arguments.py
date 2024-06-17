@@ -304,7 +304,7 @@ class DistributedArgs(BaseArgs):
     # gradient checkpointint args
     gradient_checkpointing_args: dict = {}
     # zero topology
-    zero_topology: Optional[ZeroTopologyArgs] = ZeroTopologyArgs()
+    zero_topology: Optional[ZeroTopologyArgs] = None
     # whether to use quantized weights (ZeRO++)
     zero_quantized_weights: bool = False
     # whether to use quantized gradients (ZeRO++)

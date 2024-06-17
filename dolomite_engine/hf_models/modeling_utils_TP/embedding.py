@@ -1,6 +1,9 @@
 import math
 
 import torch
+import torch.nn as nn
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Shard
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ..modeling_utils import ParameterizedEmbedding
@@ -8,7 +11,45 @@ from ..utils import divide_if_divisible
 from .TP import reduce_from_tensor_parallel_region
 
 
-class Embedding_TP(ParameterizedEmbedding):
+class DTensorEmbedding(ParameterizedEmbedding):
+    def __init__(
+        self,
+        num_embeddings: int,
+        embedding_dim: int,
+        padding_idx: int | None = None,
+        max_norm: float | None = None,
+        norm_type: float = 2,
+        scale_grad_by_freq: bool = False,
+        sparse: bool = False,
+        _weight: torch.Tensor | None = None,
+        _freeze: bool = False,
+        device=None,
+        dtype=None,
+        std=None,
+    ) -> None:
+        super().__init__(
+            num_embeddings,
+            embedding_dim,
+            padding_idx,
+            max_norm,
+            norm_type,
+            scale_grad_by_freq,
+            sparse,
+            _weight,
+            _freeze,
+            device,
+            dtype,
+            std,
+        )
+
+        self.weight = nn.Parameter(
+            DTensor.from_local(
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
+            )
+        )
+
+
+class Embedding_TP(DTensorEmbedding):
     def __init__(self, num_embeddings: int, embedding_dim: int, std: float = None) -> None:
         self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
         self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(

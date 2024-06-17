@@ -2,6 +2,8 @@ from typing import Union
 
 import torch
 import torch.distributed
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Replicate, Shard
 
 from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
 from ..communication import Communication
@@ -48,6 +50,10 @@ class ModelWrapperForFinetuning(ModelWrapper):
 
                 for key in keys:
                     torch.distributed.broadcast(batch[key], src=tp_source_rank, group=tp_group)
+
+                    # batch[key] = DTensor.from_local(
+                    #     batch[key], device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=Replicate()
+                    # )
             else:
                 for key in batch:
                     batch[key] = batch[key].to(torch.cuda.current_device())

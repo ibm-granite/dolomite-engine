@@ -1,13 +1,11 @@
-from typing import Union
-
 import torch
 import torch.nn as nn
 from tqdm import tqdm
 
 from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...enums import AttentionHeadType, PositionEmbeddingType
-from ...modeling_utils import ParameterizedEmbedding, RoPE, YaRNScaledRoPE, get_normalization_function
-from ...modeling_utils_TP import Alibi_TP, Dropout_TP, Embedding_TP
+from ...modeling_utils import RoPE, YaRNScaledRoPE
+from ...modeling_utils_TP import Alibi_TP, Dropout_TP, DTensorEmbedding, Embedding_TP, get_normalization_function
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteModel, GPTDolomitePreTrainedModel
 from .layer import GPTDolomiteBlock_TP
 
@@ -35,7 +33,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
         if self.tensor_parallel_embeddings:
             self.wte = Embedding_TP(config.vocab_size, self.embed_dim, std=self.initializer_range)
         else:
-            self.wte = ParameterizedEmbedding(config.vocab_size, self.embed_dim, std=self.initializer_range)
+            self.wte = DTensorEmbedding(config.vocab_size, self.embed_dim, std=self.initializer_range)
 
         self.drop = nn.Identity() if config.embd_pdrop == 0 else Dropout_TP(config.embd_pdrop)
         self.h = nn.ModuleList(
@@ -63,10 +61,10 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def get_input_embeddings(self) -> Union[Embedding_TP, ParameterizedEmbedding]:
+    def get_input_embeddings(self) -> DTensorEmbedding:
         return self.wte
 
-    def set_input_embeddings(self, new_embeddings: Union[Embedding_TP, ParameterizedEmbedding]) -> None:
+    def set_input_embeddings(self, new_embeddings: DTensorEmbedding) -> None:
         self.wte = new_embeddings
 
     def load_from_safetensors_weights_manager(
@@ -148,7 +146,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
             if self.tensor_parallel_embeddings:
                 self.wpe = Embedding_TP(max_position_embeddings, self.embed_dim)
             else:
-                self.wpe = ParameterizedEmbedding(max_position_embeddings, self.embed_dim)
+                self.wpe = DTensorEmbedding(max_position_embeddings, self.embed_dim)
         elif self.position_embedding_type == PositionEmbeddingType.alibi:
             self.alibi = Alibi_TP(self.num_heads)
         elif self.position_embedding_type == PositionEmbeddingType.rope:

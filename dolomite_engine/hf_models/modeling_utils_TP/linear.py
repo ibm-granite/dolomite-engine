@@ -57,7 +57,7 @@ class ColumnParallelLinear(ParameterizedLinear):
             )
 
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, expected_placement=Shard(-1)))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -119,7 +119,7 @@ class RowParallelLinear(ParameterizedLinear):
             )
 
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Shard(-1)))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, expected_placement=Replicate()))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

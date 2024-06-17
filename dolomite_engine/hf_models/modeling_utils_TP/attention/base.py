@@ -1,4 +1,5 @@
 import math
+from functools import partial
 from typing import Tuple
 
 import torch
@@ -11,6 +12,7 @@ from ....utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_r
 from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
 from ...modeling_utils import Attention, ParameterizedLinear
+from ...modeling_utils_TP import prepare_tensor_parallel_dtensor_input, prepare_tensor_parallel_tensor_output
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
 from ..linear import ColumnParallelLinear, RowParallelLinear
@@ -196,7 +198,6 @@ class _MQA_QueryKeyValueProjection(nn.Module):
         query = self.q_attn(hidden_states)
 
         key_value = self.kv_attn(hidden_states)
-        key_value = copy_to_tensor_parallel_region(key_value)
         key, value = key_value.chunk(2, -1)
 
         return query, key, value
@@ -248,6 +249,9 @@ class _TensorParallelSharedLinear(ParameterizedLinear):
                     self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
                 )
             )
+
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
 
     @torch.no_grad()
     def reset_parameters(self) -> None:

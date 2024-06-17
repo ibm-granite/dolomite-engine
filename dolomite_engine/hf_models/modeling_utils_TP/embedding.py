@@ -54,7 +54,7 @@ class DTensorEmbedding(ParameterizedEmbedding):
         )
 
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, expected_placement=Replicate()))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
 
 
 class Embedding_TP(DTensorEmbedding):

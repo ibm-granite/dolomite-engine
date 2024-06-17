@@ -9,7 +9,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ....utils import SafeTensorsWeightsManager
 from ...modeling_utils import ParameterizedLinear
-from ...modeling_utils_TP import LMHead_TP, TensorParallelCrossEntropy
+from ...modeling_utils_TP import LMHead_TP, TensorParallelCrossEntropy, gather_from_tensor_parallel_region
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteForCausalLM, GPTDolomitePreTrainedModel
 from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP
 

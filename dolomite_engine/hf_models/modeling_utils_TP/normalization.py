@@ -29,7 +29,7 @@ def get_normalization_function_TP(
         partial(prepare_tensor_parallel_dtensor_input, placement=Replicate())
     )
     normalization_function.register_forward_hook(
-        partial(prepare_tensor_parallel_tensor_output, expected_placement=Replicate)
+        partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate())
     )
 
     return normalization_function

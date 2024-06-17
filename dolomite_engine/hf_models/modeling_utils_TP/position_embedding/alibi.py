@@ -1,6 +1,8 @@
 import math
 
 import torch
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Shard
 
 from ....utils import ProcessGroupManager
 from ...modeling_utils import Alibi
@@ -24,4 +26,10 @@ class Alibi_TP(Alibi):
         num_heads_tp = self.num_heads // tp_world_size
         slopes = slopes[tp_rank * num_heads_tp : (tp_rank + 1) * num_heads_tp]
 
-        self.register_buffer("slopes", slopes, persistent=False)
+        self.register_buffer(
+            "slopes",
+            DTensor.from_local(
+                slopes, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
+            ),
+            persistent=False,
+        )

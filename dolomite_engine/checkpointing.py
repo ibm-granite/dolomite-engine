@@ -63,7 +63,6 @@ def save_checkpoint(
 
     distributed_backend = args.distributed_args.distributed_backend
     save_optimizer = args.save_args.save_optimizer
-    stage = args.distributed_args.stage
 
     save_path = _get_base_path(args.save_args.save_path, iteration)
     os.makedirs(save_path, exist_ok=True)

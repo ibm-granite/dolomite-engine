@@ -3,8 +3,6 @@ from typing import Union
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate
 
 from dolomite_engine.enums import Mode
 

@@ -10,6 +10,8 @@ import torch.distributed
 import torch.distributed.checkpoint as dcp
 import yaml
 from torch.distributed._tensor.api import DTensor
+from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint.format_utils import _EmptyStateDictLoadPlanner
 from torch.distributed.checkpoint.state_dict import (
     StateDictOptions,
     get_model_state_dict,
@@ -17,9 +19,7 @@ from torch.distributed.checkpoint.state_dict import (
     set_model_state_dict,
     set_optimizer_state_dict,
 )
-from torch.distributed.fsdp import FullOptimStateDictConfig, FullStateDictConfig
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import StateDictType
+from torch.distributed.checkpoint.state_dict_loader import _load_state_dict
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -281,11 +281,13 @@ def load_checkpoint_for_inference(
             )
             del tp_state_dicts
         else:
-            with (
-                ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
-                ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
-            ):
-                state = torch.load(_get_model_path(_get_base_path(load_path, iteration)), map_location="cpu")
+            state = {}
+            _load_state_dict(
+                state,
+                storage_reader=FileSystemReader(_get_model_path(_get_base_path(load_path, iteration))),
+                planner=_EmptyStateDictLoadPlanner(),
+                no_dist=True,
+            )
 
         if use_meta:
             model = model.to_empty(device="cpu")

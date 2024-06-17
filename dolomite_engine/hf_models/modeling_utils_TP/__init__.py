@@ -5,7 +5,7 @@ from .embedding import DTensorEmbedding, Embedding_TP
 from .linear import ColumnParallelLinear, RowParallelLinear
 from .lm_head import LMHead_TP
 from .normalization import get_normalization_function
-from .position_embedding import Alibi_TP, RoPE_TP
+from .position_embedding import Alibi_TP
 from .TP import (
     copy_to_tensor_parallel_region,
     gather_from_tensor_parallel_region,

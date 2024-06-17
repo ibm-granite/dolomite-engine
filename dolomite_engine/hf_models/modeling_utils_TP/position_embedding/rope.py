@@ -8,17 +8,34 @@ from ...modeling_utils import RoPE
 
 
 class RoPE_TP(RoPE):
-    def reset_parameters(self) -> None:
-        inv_freq = 1.0 / (self.base ** (torch.arange(0, self.head_dim, 2).float() / self.head_dim))
+    @torch.no_grad()
+    def _set_cos_sin_cache(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> None:
+        self.max_seq_len_cached = seq_len
+        t = torch.arange(self.max_seq_len_cached, device=device, dtype=self.inv_freq.dtype)
+
+        freqs = torch.outer(t, self.inv_freq)
+        # Different from paper, but it uses a different permutation in order to obtain the same calculation
+        emb = torch.cat((freqs, freqs), dim=-1)
+
         self.register_buffer(
-            "inv_freq",
-            DTensor.from_local(
-                inv_freq, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+            "cos_cached",
+            (
+                DTensor.from_local(
+                    (emb.cos() * self.mscale).to(dtype),
+                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
+                    placements=[Replicate()],
+                )
             ),
             persistent=False,
         )
-
-        # Build here to make `torch.jit.trace` work.
-        self._set_cos_sin_cache(
-            seq_len=self.max_position_embeddings, device=self.inv_freq.device, dtype=torch.get_default_dtype()
+        self.register_buffer(
+            "sin_cached",
+            (
+                DTensor.from_local(
+                    (emb.sin() * self.mscale).to(dtype),
+                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
+                    placements=[Replicate()],
+                )
+            ),
+            persistent=False,
         )

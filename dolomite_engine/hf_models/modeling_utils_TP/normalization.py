@@ -23,7 +23,7 @@ def get_normalization_function_TP(
         param = DTensor.from_local(
             param, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
         )
-        setattr(normalization_function, name, param)
+        normalization_function.register_parameter(name, nn.Parameter(param))
 
     normalization_function.register_forward_pre_hook(
         partial(prepare_tensor_parallel_dtensor_input, placements=[Replicate()])

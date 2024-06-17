@@ -50,10 +50,6 @@ class ModelWrapperForFinetuning(ModelWrapper):
 
                 for key in keys:
                     torch.distributed.broadcast(batch[key], src=tp_source_rank, group=tp_group)
-
-                    # batch[key] = DTensor.from_local(
-                    #     batch[key], device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=Replicate()
-                    # )
             else:
                 for key in batch:
                     batch[key] = batch[key].to(torch.cuda.current_device())

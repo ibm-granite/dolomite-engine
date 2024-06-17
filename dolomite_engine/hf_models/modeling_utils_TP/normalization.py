@@ -26,7 +26,7 @@ def get_normalization_function_TP(
         normalization_function.register_parameter(name, nn.Parameter(param))
 
     normalization_function.register_forward_pre_hook(
-        partial(prepare_tensor_parallel_dtensor_input, placements=[Replicate()])
+        partial(prepare_tensor_parallel_dtensor_input, placement=Replicate())
     )
     normalization_function.register_forward_hook(
         partial(prepare_tensor_parallel_tensor_output, expected_placement=Replicate)

@@ -4,9 +4,10 @@ from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate
 
 from ....utils import ProcessGroupManager
+from ...modeling_utils import RoPE
 
 
-class RoPE(nn.Module):
+class RoPE_TP(RoPE):
     def reset_parameters(self) -> None:
         inv_freq = 1.0 / (self.base ** (torch.arange(0, self.head_dim, 2).float() / self.head_dim))
         self.register_buffer(

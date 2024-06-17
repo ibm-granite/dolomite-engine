@@ -3,8 +3,7 @@ from typing import Tuple
 import torch
 import torch.distributed
 from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate, Shard
-from torch.distributed.tensor.parallel import ColwiseParallel
+from torch.distributed._tensor.placement_types import Placement, Replicate, Shard
 
 from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
@@ -135,3 +134,16 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
             return slice[:, start_index:end_index]
     else:
         raise RuntimeError("this code should not be reachable")
+
+
+def prepare_tensor_parallel_dtensor_input(input: torch.Tensor, placement: Placement) -> DTensor:
+    input = DTensor.from_local(
+        input, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[placement]
+    )
+    return input
+
+
+def prepare_tensor_parallel_tensor_output(output: DTensor, expected_placement: type[Placement]) -> torch.Tensor:
+    assert isinstance(output.placements[0], expected_placement)
+    output = output.to_local()
+    return output

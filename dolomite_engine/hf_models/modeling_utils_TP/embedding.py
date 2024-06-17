@@ -1,14 +1,19 @@
 import math
+from functools import partial
 
 import torch
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Shard
+from torch.distributed._tensor.placement_types import Replicate, Shard
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
-from .TP import reduce_from_tensor_parallel_region
+from .TP import (
+    prepare_tensor_parallel_dtensor_input,
+    prepare_tensor_parallel_tensor_output,
+    reduce_from_tensor_parallel_region,
+)
 
 
 class DTensorEmbedding(ParameterizedEmbedding):
@@ -47,6 +52,9 @@ class DTensorEmbedding(ParameterizedEmbedding):
                 self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
             )
         )
+
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placements=[Replicate()]))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, expected_placement=Replicate))
 
 
 class Embedding_TP(DTensorEmbedding):

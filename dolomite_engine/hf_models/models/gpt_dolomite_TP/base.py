@@ -48,7 +48,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
                 for i in range(config.num_hidden_layers)
             ]
         )
-        self.ln_f = get_normalization_function(
+        self.ln_f = get_normalization_function_TP(
             config.normalization_function,
             self.embed_dim,
             eps=config.layer_norm_epsilon,

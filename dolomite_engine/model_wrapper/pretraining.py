@@ -59,10 +59,6 @@ class ModelWrapperForPretraining(ModelWrapper):
             input_ids = tokens[:, :-1]
             labels = tokens[:, 1:]
 
-            input_ids = DTensor.from_local(
-                input_ids, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
-            )
-
             if self.tensor_parallel_embeddings:
                 model_outputs = self.model(input_ids=input_ids, output_parallel_lm_logits=True)
 

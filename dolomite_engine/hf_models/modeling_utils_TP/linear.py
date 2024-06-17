@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 import torch.distributed
 import torch.nn as nn
@@ -9,8 +11,8 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
-    copy_to_tensor_parallel_region,
-    reduce_from_tensor_parallel_region,
+    prepare_tensor_parallel_dtensor_input,
+    prepare_tensor_parallel_tensor_output,
     tensor_parallel_split_safetensor_slice,
 )
 
@@ -54,10 +56,8 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        input = copy_to_tensor_parallel_region(input)
-        input = super().forward(input)
-        return input
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, expected_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -118,14 +118,8 @@ class RowParallelLinear(ParameterizedLinear):
                 )
             )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # we can't call super().forward here since that will add bias to each TP rank
-        # but for tensor parallel, we need to add it on only 1 TP rank
-        input = F.linear(input, self.weight, None)
-        input = reduce_from_tensor_parallel_region(input)
-        if self.bias is not None:
-            input = input + self.bias
-        return input
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Shard(-1)))
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, expected_placement=Replicate()))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

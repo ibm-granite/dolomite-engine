@@ -143,7 +143,11 @@ def prepare_tensor_parallel_dtensor_input(input: torch.Tensor, placement: Placem
     return input
 
 
-def prepare_tensor_parallel_tensor_output(output: DTensor, expected_placement: type[Placement]) -> torch.Tensor:
-    assert isinstance(output.placements[0], expected_placement)
+def prepare_tensor_parallel_tensor_output(output: DTensor, expected_placement: Placement) -> torch.Tensor:
+    if isinstance(expected_placement, Replicate):
+        assert output.placements[0].is_replicate()
+    elif isinstance(expected_placement, Shard):
+        assert output.placements[0].is_shard(expected_placement.dim)
+
     output = output.to_local()
     return output

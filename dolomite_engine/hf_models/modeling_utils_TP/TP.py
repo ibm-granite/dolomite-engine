@@ -2,6 +2,7 @@ from typing import Tuple
 
 import torch
 import torch.distributed
+import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Placement, Replicate, Shard
 
@@ -136,18 +137,29 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
         raise RuntimeError("this code should not be reachable")
 
 
-def prepare_tensor_parallel_dtensor_input(input: torch.Tensor, placement: Placement) -> DTensor:
+def prepare_tensor_parallel_dtensor_input(
+    module: nn.Module, inputs: tuple[torch.Tensor], placement: Placement
+) -> DTensor:
+    assert len(inputs) == 1
+    input = inputs[0]
+
     input = DTensor.from_local(
         input, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[placement]
     )
-    return input
+
+    return (input,)
 
 
-def prepare_tensor_parallel_tensor_output(output: DTensor, expected_placement: Placement) -> torch.Tensor:
+def prepare_tensor_parallel_tensor_output(
+    module: nn.Module, outputs: list[DTensor], expected_placement: Placement
+) -> torch.Tensor:
+    assert len(outputs) == 1
+    output = outputs[0]
+
     if isinstance(expected_placement, Replicate):
         assert output.placements[0].is_replicate()
     elif isinstance(expected_placement, Shard):
         assert output.placements[0].is_shard(expected_placement.dim)
 
     output = output.to_local()
-    return output
+    return (output,)

@@ -74,7 +74,7 @@ class ModelWrapperForPretraining(ModelWrapper):
                     logits = logits.float()
 
                 with loss_parallel():
-                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.view(-1))
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
             else:
                 model_outputs = self.model(input_ids=input_ids)
 

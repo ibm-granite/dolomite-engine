@@ -98,7 +98,7 @@ def prepare_tensor_parallel_tensor_output(
             dim = assert_placement.dim
             if dim == -1:
                 dim = output.dim()
-            assert output.placements[0].is_shard(assert_placement.dim)
+            assert output.placements[0].is_shard(dim)
 
     if desired_placement is not None:
         output = output.redistribute(

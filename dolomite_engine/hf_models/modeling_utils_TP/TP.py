@@ -114,3 +114,12 @@ def prepare_tensor_parallel_tensor_output(
         output = output.to_local()
 
     return output
+
+
+def modify_state_dict_to_densor_dict(module: nn.Module, state_dict: dict) -> dict:
+    result = {}
+    for key, tensor in state_dict.items():
+        device_mesh = getattr(module, key).device_mesh
+        placements = getattr(module, key).placements
+        result[key] = DTensor.from_local(tensor, device_mesh=device_mesh, placements=placements, run_check=False)
+    return result

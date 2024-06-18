@@ -1,4 +1,5 @@
 from functools import partial
+from typing import Any, Mapping
 
 import torch
 import torch.distributed
@@ -10,6 +11,7 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rn
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
+    modify_state_dict_to_densor_dict,
     prepare_tensor_parallel_dtensor_input,
     prepare_tensor_parallel_tensor_output,
     tensor_parallel_split_safetensor_slice,
@@ -77,6 +79,10 @@ class ColumnParallelLinear(ParameterizedLinear):
             self.in_features, self.out_features_per_device, self.bias is not None
         )
 
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)
+
 
 class RowParallelLinear(ParameterizedLinear):
     def __init__(
@@ -137,6 +143,10 @@ class RowParallelLinear(ParameterizedLinear):
             self.in_features_per_device, self.out_features, self.bias is not None
         )
 
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)
+
 
 class TensorParallelSharedLinear(ParameterizedLinear):
     def __init__(
@@ -169,3 +179,7 @@ class TensorParallelSharedLinear(ParameterizedLinear):
     def reset_parameters(self) -> None:
         with get_cuda_rng_tracker().fork():
             return super().reset_parameters()
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)

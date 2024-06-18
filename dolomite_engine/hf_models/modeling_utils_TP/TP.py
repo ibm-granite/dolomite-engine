@@ -82,15 +82,16 @@ def prepare_tensor_parallel_dtensor_input(
 
 
 def prepare_tensor_parallel_tensor_output(
-    module: nn.Module, outputs: list[DTensor], assert_placement: Placement, desired_placement: Placement = None
+    module: nn.Module, outputs: list[DTensor], assert_placement: Placement = None, desired_placement: Placement = None
 ) -> torch.Tensor:
     assert len(outputs) == 1
     output = outputs[0]
 
-    if isinstance(assert_placement, Replicate):
-        assert output.placements[0].is_replicate()
-    elif isinstance(assert_placement, Shard):
-        assert output.placements[0].is_shard(assert_placement.dim)
+    if assert_placement is not None:
+        if isinstance(assert_placement, Replicate):
+            assert output.placements[0].is_replicate()
+        elif isinstance(assert_placement, Shard):
+            assert output.placements[0].is_shard(assert_placement.dim)
 
     if desired_placement is not None:
         output = output.redistribute(

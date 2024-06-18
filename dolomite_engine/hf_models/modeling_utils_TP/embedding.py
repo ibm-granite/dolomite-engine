@@ -16,55 +16,29 @@ from .TP import (
 )
 
 
-class DTensorEmbedding(ParameterizedEmbedding):
+class Embedding_TP(ParameterizedEmbedding):
     def __init__(
-        self,
-        num_embeddings: int,
-        embedding_dim: int,
-        padding_idx: int | None = None,
-        max_norm: float | None = None,
-        norm_type: float = 2,
-        scale_grad_by_freq: bool = False,
-        sparse: bool = False,
-        _weight: torch.Tensor | None = None,
-        _freeze: bool = False,
-        device=None,
-        dtype=None,
-        std=None,
+        self, num_embeddings: int, embedding_dim: int, std: float = None, tensor_parallel_embeddings: bool = False
     ) -> None:
-        super().__init__(
-            num_embeddings,
-            embedding_dim,
-            padding_idx,
-            max_norm,
-            norm_type,
-            scale_grad_by_freq,
-            sparse,
-            _weight,
-            _freeze,
-            device,
-            dtype,
-            std,
-        )
+        self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
 
-        self.weight = nn.Parameter(
-            DTensor.from_local(
-                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
+        if tensor_parallel_embeddings:
+            self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(
+                num_embeddings
             )
-        )
+
+            super().__init__(num_embeddings=num_embeddings_per_tp_rank, embedding_dim=embedding_dim, std=std)
+
+            self.weight = nn.Parameter(
+                DTensor.from_local(
+                    self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
+                )
+            )
+        else:
+            super().__init__(num_embeddings=num_embeddings, embedding_dim=embedding_dim, std=std)
 
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
         self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
-
-
-class Embedding_TP(DTensorEmbedding):
-    def __init__(self, num_embeddings: int, embedding_dim: int, std: float = None) -> None:
-        self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-        self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(
-            num_embeddings
-        )
-
-        super().__init__(num_embeddings_per_tp_rank, embedding_dim, std=std)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.tp_world_size > 1:

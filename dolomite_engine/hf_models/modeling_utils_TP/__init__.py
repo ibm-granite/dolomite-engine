@@ -1,7 +1,7 @@
 from .attention import get_attention_module
 from .cross_entropy import TensorParallelCrossEntropy
 from .dropout import Dropout_TP
-from .embedding import DTensorEmbedding, Embedding_TP
+from .embedding import Embedding_TP
 from .linear import ColumnParallelLinear, RowParallelLinear
 from .lm_head import LMHead_TP
 from .normalization import get_normalization_function_TP

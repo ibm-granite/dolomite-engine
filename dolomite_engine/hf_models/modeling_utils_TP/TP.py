@@ -84,13 +84,10 @@ def prepare_tensor_parallel_dtensor_input(
 def prepare_tensor_parallel_tensor_output(
     module: nn.Module,
     inputs: list[DTensor],
-    outputs: list[DTensor],
+    output: DTensor,
     assert_placement: Placement = None,
     desired_placement: Placement = None,
 ) -> torch.Tensor:
-    assert len(outputs) == 1
-    output = outputs[0]
-
     if assert_placement is not None:
         if isinstance(assert_placement, Replicate):
             assert output.placements[0].is_replicate()
@@ -103,4 +100,4 @@ def prepare_tensor_parallel_tensor_output(
         )
 
     output = output.to_local()
-    return (output,)
+    return output

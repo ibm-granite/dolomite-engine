@@ -5,18 +5,14 @@ from typing import Tuple, Union
 import torch
 import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate
+from torch.distributed._tensor.placement_types import Shard
+from torch.distributed.tensor.parallel import loss_parallel
 from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...modeling_utils import ParameterizedLinear
-from ...modeling_utils_TP import (
-    LMHead_TP,
-    TensorParallelCrossEntropy,
-    copy_to_tensor_parallel_region,
-    gather_from_tensor_parallel_region,
-)
+from ...modeling_utils_TP import LMHead_TP, copy_to_tensor_parallel_region, gather_from_tensor_parallel_region
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteForCausalLM, GPTDolomitePreTrainedModel
 from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP
 
@@ -118,14 +114,17 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
         shift_logits = lm_logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous().to(shift_logits.device)
 
-        if self.tensor_parallel_embeddings:
-            loss = TensorParallelCrossEntropy.apply(
-                shift_logits, shift_labels, self.vocab_size, self.upcast_logits_for_loss
-            )
-        else:
-            if self.upcast_logits_for_loss:
-                shift_logits = shift_logits.float()
+        if self.upcast_logits_for_loss:
+            shift_logits = shift_logits.float()
 
+        if self.tensor_parallel_embeddings:
+            shift_logits = DTensor.from_local(
+                shift_logits, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(-1)]
+            )
+
+            with loss_parallel():
+                loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+        else:
             loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
         return loss

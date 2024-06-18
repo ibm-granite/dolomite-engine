@@ -3,11 +3,13 @@ from typing import Union
 import torch
 import torch.distributed
 import torch.nn.functional as F
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Shard
+from torch.distributed.tensor.parallel import loss_parallel
 
 from dolomite_engine.enums import Mode
 
 from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
-from ..hf_models.modeling_utils_TP import TensorParallelCrossEntropy
 from ..utils import ProcessGroupManager
 from .base import ModelWrapper
 
@@ -59,15 +61,24 @@ class ModelWrapperForPretraining(ModelWrapper):
 
             if self.tensor_parallel_embeddings:
                 model_outputs = self.model(input_ids=input_ids, output_parallel_lm_logits=True)
-
                 logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
-                loss = TensorParallelCrossEntropy.apply(logits, labels, self.vocab_size, self.upcast_logits_for_loss)
-            else:
-                model_outputs = self.model(input_ids=input_ids)
 
-                logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
+                logits = DTensor.from_local(
+                    logits, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(-1)]
+                )
+
                 if self.upcast_logits_for_loss:
                     logits = logits.float()
+
+                with loss_parallel():
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.view(-1))
+            else:
+                model_outputs = self.model(input_ids=input_ids)
+                logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
+
+                if self.upcast_logits_for_loss:
+                    logits = logits.float()
+
                 loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
         else:
             tokens: torch.Tensor = batch["text"]

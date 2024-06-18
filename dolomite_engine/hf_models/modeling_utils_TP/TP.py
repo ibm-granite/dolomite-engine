@@ -80,10 +80,11 @@ def prepare_tensor_parallel_dtensor_input(
 
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
-    input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[placement])
+    with torch.profiler.record_function("TP::prepare_tensor_parallel_dtensor_input"):
+        input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[placement])
 
-    if desired_placement is not None:
-        input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
+        if desired_placement is not None:
+            input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
 
     return (input,)
 
@@ -104,10 +105,12 @@ def prepare_tensor_parallel_tensor_output(
                 dim = output.dim() - 1
             assert output.placements[0].is_shard(dim)
 
-    if desired_placement is not None:
-        output = output.redistribute(
-            device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
-        )
+    with torch.profiler.record_function("TP::prepare_tensor_parallel_tensor_output"):
+        if desired_placement is not None:
+            output = output.redistribute(
+                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
+            )
 
-    output = output.to_local()
+        output = output.to_local()
+
     return output

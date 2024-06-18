@@ -95,6 +95,9 @@ def prepare_tensor_parallel_tensor_output(
         if isinstance(assert_placement, Replicate):
             assert output.placements[0].is_replicate()
         elif isinstance(assert_placement, Shard):
+            dim = assert_placement.dim
+            if dim == -1:
+                dim = output.dim()
             assert output.placements[0].is_shard(assert_placement.dim)
 
     if desired_placement is not None:

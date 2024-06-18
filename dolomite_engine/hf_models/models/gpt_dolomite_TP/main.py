@@ -11,8 +11,12 @@ from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
-from ...modeling_utils import ParameterizedLinear
-from ...modeling_utils_TP import LMHead_TP, copy_to_tensor_parallel_region, gather_from_tensor_parallel_region
+from ...modeling_utils_TP import (
+    LMHead_TP,
+    TensorParallelSharedLinear,
+    copy_to_tensor_parallel_region,
+    gather_from_tensor_parallel_region,
+)
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteForCausalLM, GPTDolomitePreTrainedModel
 from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP
 
@@ -30,7 +34,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
             if self.tensor_parallel_embeddings:
                 self.lm_head = LMHead_TP(config.vocab_size, config.n_embd, std=config.initializer_range)
             else:
-                self.lm_head = ParameterizedLinear(
+                self.lm_head = TensorParallelSharedLinear(
                     config.n_embd, config.vocab_size, bias=False, std=config.initializer_range
                 )
 

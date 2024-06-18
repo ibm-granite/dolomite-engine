@@ -5,16 +5,14 @@ from typing import Tuple
 import torch
 import torch.distributed
 import torch.nn as nn
-from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate
 
 from ....utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
-from ...modeling_utils import Attention, ParameterizedLinear
+from ...modeling_utils import Attention
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
-from ..linear import ColumnParallelLinear, RowParallelLinear
+from ..linear import ColumnParallelLinear, RowParallelLinear, TensorParallelSharedLinear
 from ..TP import prepare_tensor_parallel_dtensor_input, prepare_tensor_parallel_tensor_output
 
 
@@ -190,7 +188,7 @@ class _MQA_QueryKeyValueProjection(nn.Module):
         std = initializer_range / math.sqrt(2 * n_layer)
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.kv_attn = _TensorParallelSharedLinear(
+        self.kv_attn = TensorParallelSharedLinear(
             self.global_hidden_size, 2 * self.head_dim, bias=self.add_bias, std=std
         )
 
@@ -224,36 +222,3 @@ class _MQA_QueryKeyValueProjection(nn.Module):
 
         self.q_attn.load_state_dict(q_attn_state_dict)
         self.kv_attn.load_state_dict(kv_attn_state_dict)
-
-
-class _TensorParallelSharedLinear(ParameterizedLinear):
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        bias: bool = True,
-        device: torch.device = None,
-        dtype: torch.dtype = None,
-        std: float = None,
-    ) -> None:
-        super().__init__(in_features, out_features, bias, device, dtype, std)
-
-        self.weight = nn.Parameter(
-            DTensor.from_local(
-                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
-            )
-        )
-        if bias:
-            self.bias = nn.Parameter(
-                DTensor.from_local(
-                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
-                )
-            )
-
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
-
-    @torch.no_grad()
-    def reset_parameters(self) -> None:
-        with get_cuda_rng_tracker().fork():
-            return super().reset_parameters()

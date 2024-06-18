@@ -1,7 +1,7 @@
 from .attention import get_attention_module
 from .dropout import Dropout_TP
 from .embedding import Embedding_TP
-from .linear import ColumnParallelLinear, RowParallelLinear
+from .linear import ColumnParallelLinear, RowParallelLinear, TensorParallelSharedLinear
 from .lm_head import LMHead_TP
 from .normalization import get_normalization_function_TP
 from .position_embedding import Alibi_TP

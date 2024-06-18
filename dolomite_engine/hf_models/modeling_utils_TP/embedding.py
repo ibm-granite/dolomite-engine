@@ -1,5 +1,6 @@
 import math
 from functools import partial
+from typing import Any, Mapping
 
 import torch
 import torch.nn as nn
@@ -10,6 +11,7 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
 from .TP import (
+    modify_state_dict_to_densor_dict,
     prepare_tensor_parallel_dtensor_input,
     prepare_tensor_parallel_tensor_output,
     reduce_from_tensor_parallel_region,
@@ -81,6 +83,10 @@ class Embedding_TP(ParameterizedEmbedding):
             )
 
         self.load_state_dict({"weight": weight})
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)
 
 
 def get_tensor_parallel_vocab_info(vocab_size: int, make_vocab_size_divisible_by: int = 64) -> tuple[int, int, int]:

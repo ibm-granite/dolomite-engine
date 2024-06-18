@@ -123,7 +123,10 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
 
         if self.tensor_parallel_embeddings:
             shift_logits = DTensor.from_local(
-                shift_logits, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(-1)]
+                shift_logits,
+                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
+                run_check=False,
+                placements=[Shard(-1)],
             )
 
             with loss_parallel():

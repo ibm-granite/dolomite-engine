@@ -14,7 +14,7 @@ def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
     with torch.profiler.record_function("TP::copy_to_tensor_parallel_region"):
-        input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[Replicate()])
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[Replicate()])
         input = input.to_local()
         return input
 
@@ -32,7 +32,7 @@ def gather_from_tensor_parallel_region(input: torch.Tensor) -> DTensor:
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
     with torch.profiler.record_function("TP::gather_from_tensor_parallel_region"):
-        input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[Shard(-1)])
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[Shard(-1)])
         input = input.full_tensor()
         return input
 
@@ -81,7 +81,7 @@ def prepare_tensor_parallel_dtensor_input(
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
     with torch.profiler.record_function("TP::prepare_tensor_parallel_dtensor_input"):
-        input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[placement])
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[placement])
 
         if desired_placement is not None:
             input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])

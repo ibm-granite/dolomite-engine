@@ -64,7 +64,10 @@ class ModelWrapperForPretraining(ModelWrapper):
 
                 logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
                 logits = DTensor.from_local(
-                    logits, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(-1)]
+                    logits,
+                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
+                    run_check=False,
+                    placements=[Shard(-1)],
                 )
 
                 if self.upcast_logits_for_loss:

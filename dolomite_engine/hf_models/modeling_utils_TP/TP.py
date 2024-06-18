@@ -82,7 +82,11 @@ def prepare_tensor_parallel_dtensor_input(
 
 
 def prepare_tensor_parallel_tensor_output(
-    module: nn.Module, outputs: list[DTensor], assert_placement: Placement = None, desired_placement: Placement = None
+    module: nn.Module,
+    inputs: list[DTensor],
+    outputs: list[DTensor],
+    assert_placement: Placement = None,
+    desired_placement: Placement = None,
 ) -> torch.Tensor:
     assert len(outputs) == 1
     output = outputs[0]

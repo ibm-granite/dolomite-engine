@@ -38,6 +38,12 @@ class Embedding_TP(ParameterizedEmbedding):
         else:
             super().__init__(num_embeddings=num_embeddings, embedding_dim=embedding_dim, std=std)
 
+            self.weight = nn.Parameter(
+                DTensor.from_local(
+                    self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+                )
+            )
+
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
         self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
 

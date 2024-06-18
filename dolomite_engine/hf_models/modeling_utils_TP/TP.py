@@ -10,6 +10,7 @@ from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
 
 
+@torch.profiler.record_function("copy_to_tensor_parallel_region")
 def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
     input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[Replicate()])
@@ -17,12 +18,14 @@ def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
     return input
 
 
+@torch.profiler.record_function("reduce_from_tensor_parallel_region")
 def reduce_from_tensor_parallel_region(input: DTensor) -> DTensor:
     assert isinstance(input.placements[0], Shard)
     input = input.redistribute(device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()])
     return input
 
 
+@torch.profiler.record_function("gather_from_tensor_parallel_region")
 def gather_from_tensor_parallel_region(input: torch.Tensor) -> DTensor:
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
     input = DTensor.from_local(input, device_mesh=tp_mesh, placements=[Shard(-1)])

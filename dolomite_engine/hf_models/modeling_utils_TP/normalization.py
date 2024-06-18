@@ -43,6 +43,6 @@ def get_normalization_function_TP(
         state_dict = modify_state_dict_to_densor_dict(self, state_dict)
         return original_load_state_dict(state_dict, strict, assign)
 
-    normalization_function.load_state_dict = load_state_dict
+    normalization_function.load_state_dict = partial(load_state_dict, normalization_function)
 
     return normalization_function

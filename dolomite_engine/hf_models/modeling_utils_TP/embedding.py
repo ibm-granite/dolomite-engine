@@ -32,10 +32,7 @@ class Embedding_TP(ParameterizedEmbedding):
 
             self.weight = nn.Parameter(
                 DTensor.from_local(
-                    self.weight,
-                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                    run_check=False,
-                    placements=[Shard(0)],
+                    self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
                 )
             )
         else:
@@ -43,10 +40,7 @@ class Embedding_TP(ParameterizedEmbedding):
 
             self.weight = nn.Parameter(
                 DTensor.from_local(
-                    self.weight,
-                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                    run_check=False,
-                    placements=[Replicate()],
+                    self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
                 )
             )
 

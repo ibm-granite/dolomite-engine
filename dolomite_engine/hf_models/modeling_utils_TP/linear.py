@@ -45,19 +45,13 @@ class ColumnParallelLinear(ParameterizedLinear):
 
         self.weight = nn.Parameter(
             DTensor.from_local(
-                self.weight,
-                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                run_check=False,
-                placements=[Shard(0)],
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
             )
         )
         if bias:
             self.bias = nn.Parameter(
                 DTensor.from_local(
-                    self.bias,
-                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                    run_check=False,
-                    placements=[Shard(0)],
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]
                 )
             )
 
@@ -113,19 +107,13 @@ class RowParallelLinear(ParameterizedLinear):
 
         self.weight = nn.Parameter(
             DTensor.from_local(
-                self.weight,
-                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                run_check=False,
-                placements=[Shard(1)],
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(1)]
             )
         )
         if bias:
             self.bias = nn.Parameter(
                 DTensor.from_local(
-                    self.bias,
-                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                    run_check=False,
-                    placements=[Replicate()],
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
                 )
             )
 
@@ -164,19 +152,13 @@ class TensorParallelSharedLinear(ParameterizedLinear):
 
         self.weight = nn.Parameter(
             DTensor.from_local(
-                self.weight,
-                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                run_check=False,
-                placements=[Replicate()],
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
             )
         )
         if bias:
             self.bias = nn.Parameter(
                 DTensor.from_local(
-                    self.bias,
-                    device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                    run_check=False,
-                    placements=[Replicate()],
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
                 )
             )
 

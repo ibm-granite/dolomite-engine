@@ -21,10 +21,7 @@ def get_normalization_function_TP(
 
     for name, param in normalization_function.named_parameters():
         param = DTensor.from_local(
-            param,
-            device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-            run_check=False,
-            placements=[Replicate()],
+            param, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
         )
         normalization_function.register_parameter(name, nn.Parameter(param))
 

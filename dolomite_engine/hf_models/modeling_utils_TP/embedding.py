@@ -1,21 +1,30 @@
+import contextlib
 import math
 
 import torch
 
-from ...utils import ProcessGroupManager, SafeTensorsWeightsManager
+from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
 from .TP import reduce_from_tensor_parallel_region
 
 
 class Embedding_TP(ParameterizedEmbedding):
-    def __init__(self, num_embeddings: int, embedding_dim: int, std: float = None) -> None:
+    def __init__(
+        self, num_embeddings: int, embedding_dim: int, std: float = None, tensor_parallel_embeddings: bool = False
+    ) -> None:
         self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-        self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(
-            num_embeddings
-        )
+        self.tensor_parallel_embeddings = tensor_parallel_embeddings
 
-        super().__init__(num_embeddings_per_tp_rank, embedding_dim, std=std)
+        if self.tensor_parallel_embeddings:
+            self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(
+                num_embeddings
+            )
+
+            super().__init__(num_embeddings_per_tp_rank, embedding_dim, std=std)
+        else:
+            with get_cuda_rng_tracker().fork():
+                super().__init__(num_embeddings, embedding_dim, std=std)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.tp_world_size > 1:
@@ -51,6 +60,12 @@ class Embedding_TP(ParameterizedEmbedding):
             )
 
         self.load_state_dict({"weight": weight})
+
+    def reset_parameters(self) -> None:
+        context = contextlib.nullcontext if self.tensor_parallel_embeddings else get_cuda_rng_tracker().fork
+
+        with context():
+            return super().reset_parameters()
 
 
 def get_tensor_parallel_vocab_info(vocab_size: int, make_vocab_size_divisible_by: int = 64) -> tuple[int, int, int]:

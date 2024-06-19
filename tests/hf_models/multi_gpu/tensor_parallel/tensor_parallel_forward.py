@@ -45,7 +45,6 @@ config = GPTDolomiteConfig(
     add_bias=False,
     n_embd=128,
     n_head=16,
-    normalization_function="rmsnorm",
 )
 
 if torch.distributed.get_rank() == 0:

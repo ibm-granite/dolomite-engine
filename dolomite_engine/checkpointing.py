@@ -273,7 +273,9 @@ def load_checkpoint_for_inference(
                 for rank in range(checkpoint_tp_world_size):
                     with ProcessGroupManager.set_dummy_tensor_parallel_rank(rank):
                         tp_state_dicts.append(
-                            torch.load(_get_model_path(_get_base_path(load_path, iteration)), map_location="cpu")
+                            torch.load(
+                                _get_model_path(_get_base_path(load_path, iteration)) + ".pt", map_location="cpu"
+                            )
                         )
 
             state = unshard(

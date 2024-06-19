@@ -21,6 +21,7 @@ parser.add_argument("--attention-head-type", type=str)
 parser.add_argument("--position-embedding-type", type=str)
 parser.add_argument("--attention-implementation", type=str)
 parser.add_argument("--tmp-path", type=str)
+parser.add_argument("--tensor-parallel-embeddings", action="store_true")
 args = parser.parse_args()
 
 
@@ -65,7 +66,9 @@ torch.distributed.barrier()
 with torch.device("meta"):
     # try sharding vocab matrices if really struggling for memory
     model_tp = GPTDolomiteForCausalLM_TP(
-        config, tensor_parallel_embeddings=False, attn_implementation=args.attention_implementation
+        config,
+        tensor_parallel_embeddings=args.tensor_parallel_embeddings,
+        attn_implementation=args.attention_implementation,
     )
 
 # copy to device without copying storage

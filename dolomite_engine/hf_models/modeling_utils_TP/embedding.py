@@ -2,6 +2,10 @@ import contextlib
 import math
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Replicate, Shard
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ..modeling_utils import ParameterizedEmbedding
@@ -22,9 +26,19 @@ class Embedding_TP(ParameterizedEmbedding):
             )
 
             super().__init__(num_embeddings_per_tp_rank, embedding_dim, std=std)
+
+            placement = Shard(0)
         else:
             with get_cuda_rng_tracker().fork():
                 super().__init__(num_embeddings, embedding_dim, std=std)
+
+            placement = Replicate()
+
+        self.weight = nn.Parameter(
+            DTensor.from_local(
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[placement]
+            )
+        )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.tensor_parallel_embeddings:
@@ -36,7 +50,7 @@ class Embedding_TP(ParameterizedEmbedding):
         else:
             masked_input = input
 
-        output_parallel = super().forward(masked_input)
+        output_parallel = F.embedding(input, self.weight.to_local())
 
         if self.tensor_parallel_embeddings:
             # Mask the output embedding.

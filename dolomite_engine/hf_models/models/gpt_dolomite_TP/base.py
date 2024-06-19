@@ -6,8 +6,8 @@ from tqdm import tqdm
 
 from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...enums import AttentionHeadType, PositionEmbeddingType
-from ...modeling_utils import RoPE, YaRNScaledRoPE, get_normalization_function
-from ...modeling_utils_TP import Alibi_TP, Dropout_TP, Embedding_TP
+from ...modeling_utils import RoPE, YaRNScaledRoPE
+from ...modeling_utils_TP import Alibi_TP, Dropout_TP, Embedding_TP, get_normalization_function_TP
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteModel, GPTDolomitePreTrainedModel
 from .layer import GPTDolomiteBlock_TP
 
@@ -51,7 +51,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
                 for i in range(config.num_hidden_layers)
             ]
         )
-        self.ln_f = get_normalization_function(
+        self.ln_f = get_normalization_function_TP(
             config.normalization_function,
             self.embed_dim,
             eps=config.layer_norm_epsilon,

@@ -9,7 +9,7 @@ from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
 from ..enums import AttentionImplementation, DistributedBackend, GradientCheckpointingMethod, LossMask, Mode
 from ..hf_models import get_tensor_parallel_class, is_custom_model, is_tensor_parallel_compatible_model
 from ..hf_models.modeling_utils import is_glu
-from ..utils import ProcessGroupManager, log_rank_0, string_to_torch_dtype
+from ..utils import CUDA_RNGStatesTracker, ProcessGroupManager, log_rank_0, set_cuda_rng_tracker, string_to_torch_dtype
 
 
 class ModelWrapper(torch.nn.Module):
@@ -58,6 +58,10 @@ class ModelWrapper(torch.nn.Module):
             assert is_tensor_parallel_compatible_model(
                 self.model_class, self.config.model_type
             ), "tensor parallel is not supported with this model"
+
+            rng_tracker = CUDA_RNGStatesTracker()
+            rng_tracker.add(seed=args.random_args.seed)
+            set_cuda_rng_tracker(rng_tracker)
 
         if self.use_padding_free_transformer:
             assert is_custom_model(

@@ -6,7 +6,7 @@ from ...modeling_utils import is_glu
 from ..gpt_dolomite import GPTDolomiteConfig
 
 
-def unshard(
+def unshard_state_dicts(
     config: GPTDolomiteConfig,
     tensor_parallel_state_dicts: list[dict],
     tensor_parallel_embeddings: bool,
@@ -103,6 +103,11 @@ def unshard(
         )
 
     return output_state_dict
+
+
+def interleave_unsharded_state_dict(state_dict: dict) -> dict:
+    for key in state_dict:
+        print(key)
 
 
 def _get_embeddings_or_lm_head(

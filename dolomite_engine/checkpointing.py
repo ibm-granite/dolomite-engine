@@ -25,7 +25,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from .arguments import ExportArgs, InferenceArgs, TrainingArgs
 from .data import ResumableDataLoader
 from .enums import DistributedBackend, Mode, TuningMethod
-from .hf_models.models.gpt_dolomite_TP import unshard
+from .hf_models.models.gpt_dolomite_TP import interleave_unsharded_state_dict
 from .model_wrapper import ModelWrapper, get_model
 from .utils import ExperimentsTracker, ProcessGroupManager, load_yaml, log_rank_0, run_rank_n, string_to_torch_dtype
 
@@ -261,32 +261,15 @@ def load_checkpoint_for_inference(
 
             model.load_state_dict(state)
     elif distributed_backend == DistributedBackend.torch:
-        if checkpoint_tp_world_size > 1:
-            tp_state_dicts = []
-            with ProcessGroupManager.set_dummy_tensor_parallel_world_size(checkpoint_tp_world_size):
-                for rank in range(checkpoint_tp_world_size):
-                    with ProcessGroupManager.set_dummy_tensor_parallel_rank(rank):
-                        tp_state_dicts.append(
-                            torch.load(_get_model_path(_get_base_path(load_path, iteration)), map_location="cpu")
-                        )
+        state = {}
+        _load_state_dict(
+            state,
+            storage_reader=FileSystemReader(_get_model_path(_get_base_path(load_path, iteration))),
+            planner=_EmptyStateDictLoadPlanner(),
+            no_dist=True,
+        )
 
-            state = unshard(
-                config=model.config,
-                tensor_parallel_state_dicts=tp_state_dicts,
-                tensor_parallel_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
-                prefix="model.",
-                # with bf16 nn.Embedding backward pass is non-deteministic
-                check_correctness=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
-            )
-            del tp_state_dicts
-        else:
-            state = {}
-            _load_state_dict(
-                state,
-                storage_reader=FileSystemReader(_get_model_path(_get_base_path(load_path, iteration))),
-                planner=_EmptyStateDictLoadPlanner(),
-                no_dist=True,
-            )
+        state = interleave_unsharded_state_dict(state)
 
         if use_meta:
             model = model.to_empty(device="cpu")

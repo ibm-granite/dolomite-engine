@@ -56,7 +56,8 @@ class ColumnParallelLinear(ParameterizedLinear):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         input = copy_to_tensor_parallel_region(input)
-        input = F.linear(input, self.weight.to_local(), self.bias.to_local())
+        bias = None if self.bias is None else self.bias.to_local()
+        input = F.linear(input, self.weight.to_local(), bias)
         return input
 
     def load_from_safetensors_weights_manager(

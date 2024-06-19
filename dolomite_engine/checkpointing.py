@@ -238,7 +238,7 @@ def load_checkpoint_for_inference(
 
     with (
         torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
-        ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
+        ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
         ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
     ):
         model = get_model(args_from_checkpoint, mode)
@@ -322,11 +322,11 @@ def _get_base_path(path: str, iteration: int) -> str:
 
 
 def _get_model_path(path: str) -> str:
-    return os.path.join(path, "model")
+    return os.path.join(path, f"model-{ProcessGroupManager.get_tensor_parallel_rank()}")
 
 
 def _get_optimizer_path(path: str) -> str:
-    return os.path.join(path, "optimizer")
+    return os.path.join(path, f"optimizer-{ProcessGroupManager.get_tensor_parallel_rank()}")
 
 
 def _get_lr_scheduler_path(path: str) -> str:

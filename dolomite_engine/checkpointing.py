@@ -9,7 +9,6 @@ import torch
 import torch.distributed
 import torch.distributed.checkpoint as dcp
 import yaml
-from torch.distributed._tensor.api import DTensor
 from torch.distributed.checkpoint import FileSystemReader
 from torch.distributed.checkpoint.format_utils import _EmptyStateDictLoadPlanner
 from torch.distributed.checkpoint.state_dict import (

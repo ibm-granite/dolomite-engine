@@ -48,16 +48,20 @@ class Embedding_TP(ParameterizedEmbedding):
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
     ) -> None:
-        weight = safetensors_weight_manager.get_slice(prefix + "weight")[
-            self.vocab_start_index : self.vocab_end_index, :
-        ]
-        if self.num_embeddings > weight.shape[0]:
-            weight = torch.cat(
-                [
-                    weight,
-                    torch.zeros((self.num_embeddings - weight.shape[0], weight.shape[1])),
-                ]
-            )
+        if self.tp_world_size > 1:
+            weight = safetensors_weight_manager.get_slice(prefix + "weight")[
+                self.vocab_start_index : self.vocab_end_index, :
+            ]
+            if self.num_embeddings > weight.shape[0]:
+                weight = torch.cat(
+                    [
+                        weight,
+                        torch.zeros((self.num_embeddings - weight.shape[0], weight.shape[1])),
+                    ]
+                )
+
+        else:
+            weight = safetensors_weight_manager.get_tensor(prefix + "weight")
 
         self.load_state_dict({"weight": weight})
 

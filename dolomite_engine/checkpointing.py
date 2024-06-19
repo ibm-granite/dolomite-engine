@@ -71,7 +71,7 @@ def save_checkpoint(
         model.save_checkpoint(args.save_args.save_path, tag=_get_checkpoint_tag(iteration))
     elif distributed_backend == DistributedBackend.torch:
         if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-            state_dict = {name: param.full_tensor() for name, param in model.parameters()}
+            state_dict = {name: param.full_tensor() for name, param in model.named_parameters()}
 
             if ProcessGroupManager.get_data_parallel_rank() == 0:
                 torch.save(state_dict, _get_model_path(save_path) + ".pt")

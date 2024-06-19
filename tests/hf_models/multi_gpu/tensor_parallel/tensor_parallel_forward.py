@@ -89,6 +89,9 @@ with torch.inference_mode():
     x = torch.randint(0, 50255, (4, 512), device=torch.cuda.current_device(), requires_grad=False)
     y_tp = model_tp(x)
 
+    if args.tensor_parallel_embeddings:
+        y_tp = y_tp[..., : config.vocab_size]
+
     if torch.distributed.get_rank() == 0:
         y = model(x)
         error = (y[0] - y_tp[0]).abs().max()

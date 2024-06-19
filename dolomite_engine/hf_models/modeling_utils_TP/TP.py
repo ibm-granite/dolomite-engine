@@ -2,96 +2,39 @@ from typing import Tuple
 
 import torch
 import torch.distributed
+import torch.nn as nn
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Placement, Replicate, Shard
 
 from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
 
 
 def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    return _CopyToTensorParallelRegion.apply(input)
+    tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
-
-def reduce_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    return _ReduceFromTensorParallelRegion.apply(input)
-
-
-def gather_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    return _GatherFromTensorParallelRegion(input)
-
-
-class _CopyToTensorParallelRegion(torch.autograd.Function):
-    """Pass the input to the model parallel region."""
-
-    @staticmethod
-    def forward(ctx, input: torch.Tensor) -> torch.Tensor:
+    with torch.profiler.record_function("TP::copy_to_tensor_parallel_region"):
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[Replicate()])
+        input = input.to_local()
         return input
 
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
-        return _tensor_parallel_all_reduce(grad_output)
 
-
-class _ReduceFromTensorParallelRegion(torch.autograd.Function):
-    """All-reduce the input from the model parallel region."""
-
-    @staticmethod
-    def forward(ctx, input: torch.Tensor) -> torch.Tensor:
-        return _tensor_parallel_all_reduce(input)
-
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
-        return grad_output
-
-
-class _GatherFromTensorParallelRegion(torch.autograd.Function):
-    """Gather the input from model parallel region and concatinate."""
-
-    @staticmethod
-    def forward(ctx, input: torch.Tensor) -> torch.Tensor:
-        return _gather_along_last_dim(input)
-
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
-        return _split_along_last_dim(grad_output)
-
-
-def _tensor_parallel_all_reduce(input: torch.Tensor) -> torch.Tensor:
-    if ProcessGroupManager.get_tensor_parallel_world_size() == 1:
+def reduce_from_tensor_parallel_region(input: DTensor) -> DTensor:
+    with torch.profiler.record_function("TP::reduce_from_tensor_parallel_region"):
+        assert isinstance(input.placements[0], Shard)
+        input = input.redistribute(
+            device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+        )
         return input
 
-    torch.distributed.all_reduce(input, group=ProcessGroupManager.get_tensor_parallel_group())
 
-    return input
+def gather_from_tensor_parallel_region(input: torch.Tensor) -> DTensor:
+    tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
-
-def _gather_along_last_dim(input: torch.Tensor) -> torch.Tensor:
-    world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-
-    if world_size == 1:
+    with torch.profiler.record_function("TP::gather_from_tensor_parallel_region"):
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[Shard(-1)])
+        input = input.full_tensor()
         return input
-
-    dim_size = list(input.size())
-    dim_size[0] = dim_size[0] * world_size
-
-    output = torch.empty(dim_size, dtype=input.dtype, device=torch.cuda.current_device())
-    torch.distributed.all_gather_into_tensor(output, input, group=ProcessGroupManager.get_tensor_parallel_group())
-
-    output = output.chunk(world_size)
-    output = torch.cat(output, dim=-1)
-
-    return output
-
-
-def _split_along_last_dim(input: torch.Tensor) -> torch.Tensor:
-    world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-
-    if world_size == 1:
-        return input
-
-    input_list = input.chunk(world_size, dim=-1)
-    output = input_list[ProcessGroupManager.get_tensor_parallel_rank()]
-
-    return output
 
 
 def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int, int] = None) -> torch.Tensor:
@@ -127,3 +70,56 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
             return slice[:, start_index:end_index]
     else:
         raise RuntimeError("this code should not be reachable")
+
+
+def prepare_tensor_parallel_dtensor_input(
+    module: nn.Module, inputs: tuple[torch.Tensor], placement: Placement, desired_placement: Placement = None
+) -> DTensor:
+    assert len(inputs) == 1
+    input = inputs[0]
+
+    tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
+
+    with torch.profiler.record_function("TP::prepare_tensor_parallel_dtensor_input"):
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[placement])
+
+        if desired_placement is not None:
+            input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
+
+    return (input,)
+
+
+def prepare_tensor_parallel_tensor_output(
+    module: nn.Module,
+    inputs: list[DTensor],
+    output: DTensor,
+    assert_placement: Placement = None,
+    desired_placement: Placement = None,
+) -> torch.Tensor:
+    if assert_placement is not None:
+        if isinstance(assert_placement, Replicate):
+            assert output.placements[0].is_replicate()
+        elif isinstance(assert_placement, Shard):
+            dim = assert_placement.dim
+            if dim == -1:
+                dim = output.dim() - 1
+            assert output.placements[0].is_shard(dim)
+
+    with torch.profiler.record_function("TP::prepare_tensor_parallel_tensor_output"):
+        if desired_placement is not None:
+            output = output.redistribute(
+                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
+            )
+
+        output = output.to_local()
+
+    return output
+
+
+def modify_state_dict_to_densor_dict(module: nn.Module, state_dict: dict) -> dict:
+    result = {}
+    for key, tensor in state_dict.items():
+        device_mesh = getattr(module, key).device_mesh
+        placements = getattr(module, key).placements
+        result[key] = DTensor.from_local(tensor, device_mesh=device_mesh, placements=placements, run_check=False)
+    return result

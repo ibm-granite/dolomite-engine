@@ -304,7 +304,7 @@ class DistributedArgs(BaseArgs):
     # gradient checkpointint args
     gradient_checkpointing_args: dict = {}
     # zero topology
-    zero_topology: Optional[ZeroTopologyArgs] = ZeroTopologyArgs()
+    zero_topology: Optional[ZeroTopologyArgs] = None
     # whether to use quantized weights (ZeRO++)
     zero_quantized_weights: bool = False
     # whether to use quantized gradients (ZeRO++)
@@ -336,9 +336,6 @@ class DistributedArgs(BaseArgs):
 
         if self.stage == 0:
             assert self.zero_topology is None, "zero_topology is meaningless with stage 0"
-
-        if self.tensor_parallel_size > 1:
-            assert self.zero_topology is None, "tensor parallel is not supported with zero_topology"
 
 
 class AimArgs(BaseArgs):

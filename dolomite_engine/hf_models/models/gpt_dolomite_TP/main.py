@@ -4,14 +4,16 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Shard
+from torch.distributed.tensor.parallel import loss_parallel
 from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from ....utils import SafeTensorsWeightsManager
-from ...modeling_utils import ParameterizedLinear
+from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...modeling_utils_TP import (
     LMHead_TP,
-    TensorParallelCrossEntropy,
+    TensorParallelSharedLinear,
     copy_to_tensor_parallel_region,
     gather_from_tensor_parallel_region,
 )
@@ -32,7 +34,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
             if self.tensor_parallel_embeddings:
                 self.lm_head = LMHead_TP(config.vocab_size, config.n_embd, std=config.initializer_range)
             else:
-                self.lm_head = ParameterizedLinear(
+                self.lm_head = TensorParallelSharedLinear(
                     config.n_embd, config.vocab_size, bias=False, std=config.initializer_range
                 )
 
@@ -102,9 +104,11 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
         if self.tensor_parallel_embeddings:
             hidden_states = copy_to_tensor_parallel_region(hidden_states)
 
-        lm_logits = super().get_lm_logits(hidden_states)
-
-        return lm_logits
+        return (
+            F.linear(hidden_states, self.transformer.wte.weight.to_local())
+            if self._tied_word_embeddings
+            else self.lm_head(hidden_states)
+        )
 
     def get_autoregressive_language_modeling_loss(self, lm_logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         if labels is None:
@@ -114,14 +118,20 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
         shift_logits = lm_logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous().to(shift_logits.device)
 
-        if self.tensor_parallel_embeddings:
-            loss = TensorParallelCrossEntropy.apply(
-                shift_logits, shift_labels, self.vocab_size, self.upcast_logits_for_loss
-            )
-        else:
-            if self.upcast_logits_for_loss:
-                shift_logits = shift_logits.float()
+        if self.upcast_logits_for_loss:
+            shift_logits = shift_logits.float()
 
+        if self.tensor_parallel_embeddings:
+            shift_logits = DTensor.from_local(
+                shift_logits,
+                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
+                run_check=False,
+                placements=[Shard(-1)],
+            )
+
+            with loss_parallel():
+                loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+        else:
             loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
         return loss

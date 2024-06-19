@@ -264,8 +264,16 @@ def main() -> None:
     init_distributed(
         tensor_parallel_size=args.distributed_args.tensor_parallel_size,
         data_parallel_size=args.distributed_args.data_parallel_size,
-        data_parallel_replication_world_size=args.distributed_args.zero_topology.data_parallel_replication_world_size,
-        data_parallel_sharding_world_size=args.distributed_args.zero_topology.data_parallel_sharding_world_size,
+        data_parallel_replication_world_size=(
+            None
+            if args.distributed_args.zero_topology is None
+            else args.distributed_args.zero_topology.data_parallel_replication_world_size
+        ),
+        data_parallel_sharding_world_size=(
+            None
+            if args.distributed_args.zero_topology is None
+            else args.distributed_args.zero_topology.data_parallel_sharding_world_size
+        ),
         timeout_minutes=args.distributed_args.timeout_minutes,
     )
     set_seed(args.random_args.seed)

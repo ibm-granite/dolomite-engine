@@ -5,7 +5,7 @@ import torch
 import torch.distributed
 
 from dolomite_engine.hf_models import AttentionHeadType, GPTDolomiteConfig, GPTDolomiteForCausalLM_TP
-from dolomite_engine.hf_models.models.gpt_dolomite_TP import unshard
+from dolomite_engine.hf_models.models.gpt_dolomite_TP import unshard_state_dicts
 from dolomite_engine.utils import CUDA_RNGStatesTracker, ProcessGroupManager, set_cuda_rng_tracker
 
 from ...test_common import TestCommons
@@ -67,7 +67,7 @@ if tp_rank == 0:
     tensor_parallel_state_dicts = [
         torch.load(os.path.join(args.tmp_path, "tp", f"model-{i}.pt")) for i in range(tp_world_size)
     ]
-    output_state_dict = unshard(config, tensor_parallel_state_dicts, args.tensor_parallel_embeddings)
+    output_state_dict = unshard_state_dicts(config, tensor_parallel_state_dicts, args.tensor_parallel_embeddings)
 
     original_state_dict = model.state_dict()
 

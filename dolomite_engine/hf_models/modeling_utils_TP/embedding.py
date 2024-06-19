@@ -14,7 +14,7 @@ class Embedding_TP(ParameterizedEmbedding):
         self, num_embeddings: int, embedding_dim: int, std: float = None, tensor_parallel_embeddings: bool = False
     ) -> None:
         self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-        self.tensor_parallel_embeddings = tensor_parallel_embeddings
+        self.tensor_parallel_embeddings = tensor_parallel_embeddings and self.tp_world_size > 1
 
         if self.tensor_parallel_embeddings:
             self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(
@@ -27,7 +27,7 @@ class Embedding_TP(ParameterizedEmbedding):
                 super().__init__(num_embeddings, embedding_dim, std=std)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.tp_world_size > 1:
+        if self.tensor_parallel_embeddings:
             # Build the mask.
             input_mask = (input < self.vocab_start_index) | (input >= self.vocab_end_index)
             # Mask the input.
@@ -38,7 +38,7 @@ class Embedding_TP(ParameterizedEmbedding):
 
         output_parallel = super().forward(masked_input)
 
-        if self.tp_world_size > 1:
+        if self.tensor_parallel_embeddings:
             # Mask the output embedding.
             output_parallel[input_mask, :] = 0
             output_parallel = reduce_from_tensor_parallel_region(output_parallel)
@@ -48,7 +48,7 @@ class Embedding_TP(ParameterizedEmbedding):
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
     ) -> None:
-        if self.tp_world_size > 1:
+        if self.tensor_parallel_embeddings:
             weight = safetensors_weight_manager.get_slice(prefix + "weight")[
                 self.vocab_start_index : self.vocab_end_index, :
             ]

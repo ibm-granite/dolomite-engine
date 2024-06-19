@@ -74,7 +74,7 @@ def save_checkpoint(
             state_dict = {name: param.full_tensor() for name, param in model.named_parameters()}
 
             if ProcessGroupManager.get_data_parallel_rank() == 0:
-                torch.save(state_dict, _get_model_path(save_path) + ".pt")
+                torch.save(state_dict, _get_model_path(save_path))
         else:
             dcp.save(get_model_state_dict(model), checkpoint_id=_get_model_path(save_path))
 
@@ -273,9 +273,7 @@ def load_checkpoint_for_inference(
                 for rank in range(checkpoint_tp_world_size):
                     with ProcessGroupManager.set_dummy_tensor_parallel_rank(rank):
                         tp_state_dicts.append(
-                            torch.load(
-                                _get_model_path(_get_base_path(load_path, iteration)) + ".pt", map_location="cpu"
-                            )
+                            torch.load(_get_model_path(_get_base_path(load_path, iteration)), map_location="cpu")
                         )
 
             state = unshard(
@@ -331,7 +329,7 @@ def _get_base_path(path: str, iteration: int) -> str:
 def _get_model_path(path: str) -> str:
     suffix = "model"
     if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix += f"-{ProcessGroupManager.get_tensor_parallel_rank()}"
+        suffix += f"-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
 
     return os.path.join(path, suffix)
 
@@ -339,7 +337,7 @@ def _get_model_path(path: str) -> str:
 def _get_optimizer_path(path: str) -> str:
     suffix = "optimizer"
     if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix += f"-{ProcessGroupManager.get_tensor_parallel_rank()}"
+        suffix += f"-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
 
     return os.path.join(path, suffix)
 

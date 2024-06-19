@@ -72,50 +72,6 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
         raise RuntimeError("this code should not be reachable")
 
 
-def prepare_tensor_parallel_dtensor_input(
-    module: nn.Module, inputs: tuple[torch.Tensor], placement: Placement, desired_placement: Placement = None
-) -> DTensor:
-    assert len(inputs) == 1
-    input = inputs[0]
-
-    tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
-
-    with torch.profiler.record_function("TP::prepare_tensor_parallel_dtensor_input"):
-        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[placement])
-
-        if desired_placement is not None:
-            input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
-
-    return (input,)
-
-
-def prepare_tensor_parallel_tensor_output(
-    module: nn.Module,
-    inputs: list[DTensor],
-    output: DTensor,
-    assert_placement: Placement = None,
-    desired_placement: Placement = None,
-) -> torch.Tensor:
-    if assert_placement is not None:
-        if isinstance(assert_placement, Replicate):
-            assert output.placements[0].is_replicate()
-        elif isinstance(assert_placement, Shard):
-            dim = assert_placement.dim
-            if dim == -1:
-                dim = output.dim() - 1
-            assert output.placements[0].is_shard(dim)
-
-    with torch.profiler.record_function("TP::prepare_tensor_parallel_tensor_output"):
-        if desired_placement is not None:
-            output = output.redistribute(
-                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
-            )
-
-        output = output.to_local()
-
-    return output
-
-
 def modify_state_dict_to_densor_dict(module: nn.Module, state_dict: dict) -> dict:
     result = {}
     for key, tensor in state_dict.items():

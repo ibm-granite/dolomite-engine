@@ -4,6 +4,7 @@ from typing import Any, Mapping
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
@@ -59,7 +60,7 @@ class Embedding_TP(ParameterizedEmbedding):
         else:
             masked_input = input
 
-        output_parallel = super().forward(masked_input)
+        output_parallel = F.embedding(input, self.weight.to_local())
 
         if self.tensor_parallel_embeddings and self.tp_world_size > 1:
             # Mask the output embedding.

@@ -269,7 +269,12 @@ def load_checkpoint_for_inference(
             no_dist=True,
         )
 
-        state = interleave_unsharded_state_dict(state)
+        # this fixes the state dict
+        state = interleave_unsharded_state_dict(
+            config=model.config,
+            state_dict=state,
+            tensor_parallel_size=args_from_checkpoint.distributed_args.tensor_parallel_size,
+        )
 
         if use_meta:
             model = model.to_empty(device="cpu")

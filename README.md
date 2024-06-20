@@ -180,7 +180,7 @@ from torch.optim.sgd import SGD as TorchSGD
 ```
 
 # Contribution
-We welcome your contributions! Just open a PR for us to review.
+Contributions are welcome! Just open a PR!
 <br/>
 
 <a href="https://github.com/ibm-granite/dolomite-engine/graphs/contributors">

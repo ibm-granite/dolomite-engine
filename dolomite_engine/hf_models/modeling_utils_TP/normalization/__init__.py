@@ -33,4 +33,4 @@ def get_normalization_function_TP(
 
     normalization_function.load_state_dict = partial(load_state_dict, normalization_function)
 
-    raise ValueError(f"unexpected `normalization_implementation` {normalization_implementation}")
+    return normalization_function

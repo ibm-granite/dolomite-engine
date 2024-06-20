@@ -1,6 +1,8 @@
-from dolomite_engine.hf_models import register_model_classes
-from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from dolomite_engine.hf_models import register_model_classes
+
 
 # register new model classes since the source models that you wish to convert to
 # safetensors may be of one of these model architectures.

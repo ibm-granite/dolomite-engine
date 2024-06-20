@@ -260,9 +260,9 @@ def _fix_attention_weights(config: GPTDolomiteConfig, state_dict: dict, prefix: 
             state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat([q_attn_w, kv_attn_w])
 
             if config.add_bias:
-                q_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.q_attn.weight"]
-                kv_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.kv_attn.weight"]
-                state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat([q_attn_w, kv_attn_w])
+                q_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.q_attn.bias"]
+                kv_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.kv_attn.bias"]
+                state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.bias"] = torch.cat([q_attn_w, kv_attn_w])
 
     return state_dict
 

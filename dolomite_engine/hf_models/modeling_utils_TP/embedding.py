@@ -1,5 +1,6 @@
 import contextlib
 import math
+from typing import Any, Mapping
 
 import torch
 import torch.nn as nn
@@ -10,7 +11,7 @@ from torch.distributed._tensor.placement_types import Replicate, Shard
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
-from .TP import reduce_from_tensor_parallel_region
+from .TP import modify_state_dict_to_densor_dict, reduce_from_tensor_parallel_region
 
 
 class Embedding_TP(ParameterizedEmbedding):
@@ -84,6 +85,10 @@ class Embedding_TP(ParameterizedEmbedding):
 
         with context():
             return super().reset_parameters()
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)
 
 
 def get_tensor_parallel_vocab_info(vocab_size: int, make_vocab_size_divisible_by: int = 64) -> tuple[int, int, int]:

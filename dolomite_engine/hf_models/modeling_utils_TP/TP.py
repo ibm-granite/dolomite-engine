@@ -2,6 +2,8 @@ from typing import Tuple
 
 import torch
 import torch.distributed
+import torch.nn as nn
+from torch.distributed._tensor.api import DTensor
 
 from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
@@ -130,3 +132,12 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
             return slice[:, start_index:end_index]
     else:
         raise RuntimeError("this code should not be reachable")
+
+
+def modify_state_dict_to_densor_dict(module: nn.Module, state_dict: dict) -> dict:
+    result = {}
+    for key, tensor in state_dict.items():
+        device_mesh = getattr(module, key).device_mesh
+        placements = getattr(module, key).placements
+        result[key] = DTensor.from_local(tensor, device_mesh=device_mesh, placements=placements, run_check=False)
+    return result

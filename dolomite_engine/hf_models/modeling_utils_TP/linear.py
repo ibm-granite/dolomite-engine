@@ -190,3 +190,7 @@ class TensorParallelSharedLinear(ParameterizedLinear):
     def reset_parameters(self) -> None:
         with get_cuda_rng_tracker().fork():
             return super().reset_parameters()
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)

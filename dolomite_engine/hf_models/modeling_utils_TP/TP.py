@@ -4,23 +4,24 @@ import torch
 import torch.distributed
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
+from torch.profiler import record_function
 
 from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
 
 
 def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    with torch.profiler.record_function("TP::copy_to_tensor_parallel_region"):
+    with record_function("TP::copy_to_tensor_parallel_region"):
         return _CopyToTensorParallelRegion.apply(input)
 
 
 def reduce_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    with torch.profiler.record_function("TP::reduce_from_tensor_parallel_region"):
+    with record_function("TP::reduce_from_tensor_parallel_region"):
         return _ReduceFromTensorParallelRegion.apply(input)
 
 
 def gather_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    with torch.profiler.record_function("TP::gather_from_tensor_parallel_region"):
+    with record_function("TP::gather_from_tensor_parallel_region"):
         return _GatherFromTensorParallelRegion.apply(input)
 
 

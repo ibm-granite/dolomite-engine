@@ -74,7 +74,6 @@ class Embedding_TP(ParameterizedEmbedding):
                         torch.zeros((self.num_embeddings - weight.shape[0], weight.shape[1])),
                     ]
                 )
-
         else:
             weight = safetensors_weight_manager.get_tensor(prefix + "weight")
 

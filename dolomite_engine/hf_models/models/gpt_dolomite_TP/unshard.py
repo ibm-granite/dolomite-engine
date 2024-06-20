@@ -105,6 +105,13 @@ def unshard(
     return output_state_dict
 
 
+def fix_unsharded_state_dict(config: GPTDolomiteConfig, state_dict: dict, tensor_parallel_size: int) -> dict:
+    state_dict["transformer.wte.weight"] = state_dict["transformer.wte.weight"][: config.vocab_size, :]
+    state_dict = _fix_attention_weights(config, state_dict, tensor_parallel_size)
+    state_dict = _fix_mlp_weights(config, state_dict, tensor_parallel_size)
+    return state_dict
+
+
 def _get_embeddings_or_lm_head(
     tensor_parallel_state_dicts: list[dict],
     tensor_parallel_embeddings: bool,
@@ -239,3 +246,39 @@ def _get_once_from_state_dicts_with_check(
         for state_dict in tensor_parallel_state_dicts[1:]:
             assert output.equal(state_dict[key])
     return output
+
+
+def _fix_attention_weights(config: GPTDolomiteConfig, state_dict: dict, tensor_parallel_size: int) -> dict:
+    if AttentionHeadType(config.attention_head_type) == AttentionHeadType.mqa:
+        for layer_idx in range(config.n_layer):
+            q_attn_w = state_dict[f"model.transformer.h.{layer_idx}.attn.c_attn.q_attn.weight"]
+            kv_attn_w = state_dict[f"model.transformer.h.{layer_idx}.attn.c_attn.kv_attn.weight"]
+            state_dict[f"model.transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat([q_attn_w, kv_attn_w])
+
+            if config.add_bias:
+                q_attn_w = state_dict[f"model.transformer.h.{layer_idx}.attn.c_attn.q_attn.weight"]
+                kv_attn_w = state_dict[f"model.transformer.h.{layer_idx}.attn.c_attn.kv_attn.weight"]
+                state_dict[f"model.transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat([q_attn_w, kv_attn_w])
+
+    return state_dict
+
+
+def _fix_mlp_weights(config: GPTDolomiteConfig, state_dict: dict, tensor_parallel_size: int) -> dict:
+    if is_glu(config.activation_function):
+        for layer_idx in range(config.n_layer):
+            key = f"model.transformer.h.{layer_idx}.mlp.c_fc.weight"
+            weight = state_dict[key].chunk(tensor_parallel_size)
+            weight = [w.chunk(2) for w in weight]
+            w0 = torch.cat([w[0] for w in weight])
+            w1 = torch.cat([w[1] for w in weight])
+            state_dict[key] = torch.cat([w0, w1])
+
+            if config.add_bias:
+                key = f"model.transformer.h.{layer_idx}.mlp.c_fc.bias"
+                weight = state_dict[key].chunk(tensor_parallel_size)
+                weight = [w.chunk(2) for w in weight]
+                w0 = torch.cat([w[0] for w in weight])
+                w1 = torch.cat([w[1] for w in weight])
+                state_dict[key] = torch.cat([w0, w1])
+
+    return state_dict

@@ -178,3 +178,11 @@ from torch.optim.rmsprop import RMSprop as TorchRMSprop
 from torch.optim.rprop import Rprop as TorchRprop
 from torch.optim.sgd import SGD as TorchSGD
 ```
+
+# Contribution
+We welcome your contributions! Just open a PR for us to review.
+<br/>
+
+<a href="https://github.com/ibm-granite/dolomite-engine/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ibm-granite/dolomite-engine" />
+</a>

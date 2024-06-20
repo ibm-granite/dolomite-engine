@@ -255,13 +255,13 @@ def _get_once_from_state_dicts_with_check(
 def _fix_attention_weights(config: GPTDolomiteConfig, state_dict: dict, prefix: str) -> dict:
     if AttentionHeadType(config.attention_head_type) == AttentionHeadType.mqa:
         for layer_idx in range(config.n_layer):
-            q_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.q_attn.weight"]
-            kv_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.kv_attn.weight"]
+            q_attn_w = state_dict.pop(f"{prefix}transformer.h.{layer_idx}.attn.c_attn.q_attn.weight")
+            kv_attn_w = state_dict.pop(f"{prefix}transformer.h.{layer_idx}.attn.c_attn.kv_attn.weight")
             state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat([q_attn_w, kv_attn_w])
 
             if config.add_bias:
-                q_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.q_attn.bias"]
-                kv_attn_w = state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.kv_attn.bias"]
+                q_attn_w = state_dict.pop(f"{prefix}transformer.h.{layer_idx}.attn.c_attn.q_attn.bias")
+                kv_attn_w = state_dict.pop(f"{prefix}transformer.h.{layer_idx}.attn.c_attn.kv_attn.bias")
                 state_dict[f"{prefix}transformer.h.{layer_idx}.attn.c_attn.bias"] = torch.cat([q_attn_w, kv_attn_w])
 
     return state_dict

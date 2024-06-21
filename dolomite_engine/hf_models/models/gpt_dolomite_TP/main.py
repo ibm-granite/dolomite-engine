@@ -146,14 +146,16 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
         pretrained_model_name_or_path: str,
         torch_dtype: torch.dtype = torch.float32,
         tensor_parallel_embeddings: bool = False,
+        **kwargs,
     ) -> GPTDolomiteForCausalLM_TP:
+        config = GPTDolomiteConfig.from_pretrained(pretrained_model_name_or_path)
+
         # use dummy tensors to avoid initializing model here
         with torch.device("meta"):
-            config = GPTDolomiteConfig.from_pretrained(pretrained_model_name_or_path)
             # try sharding vocab matrices if really struggling for memory
-            model = GPTDolomiteForCausalLM_TP(config, tensor_parallel_embeddings=tensor_parallel_embeddings)
-
-            # set dtype
+            model = GPTDolomiteForCausalLM_TP._from_config(
+                config, tensor_parallel_embeddings=tensor_parallel_embeddings, **kwargs
+            )
             model = model.to(dtype=torch_dtype)
 
         # copy to device without copying storage

@@ -1,3 +1,4 @@
+import os
 from typing import Tuple
 
 import torch
@@ -7,29 +8,30 @@ from ....utils import is_flash_attention_available
 
 
 if is_flash_attention_available():
-    from flash_attn.flash_attn_interface import flash_attn_func
+    from flash_attn.flash_attn_interface import flash_attn_func, flash_attn_varlen_func
 
 
-class _FlashAttentionTorch(torch.autograd.Function):
+class _FlashAttentionVarlenTorch(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
+        cu_seqlens_q: torch.Tensor,
+        cu_seqlens_k: torch.Tensor,
+        max_seqlen_q: torch.Tensor,
+        max_seqlen_k: torch.Tensor,
         dropout_p: float,
         softmax_scale: float,
         causal: bool,
     ) -> torch.Tensor:
-        max_seqlen_q = query.shape[1]
-        max_seqlen_k = key.shape[1]
-
         attention_output, log_sum_exp, philox_seed, philox_offset, _ = torch.ops.aten._flash_attention_forward(
             query=query,
             key=key,
             value=value,
-            cum_seq_q=None,
-            cum_seq_k=None,
+            cum_seq_q=cu_seqlens_q,
+            cum_seq_k=cu_seqlens_k,
             max_q=max_seqlen_q,
             max_k=max_seqlen_k,
             dropout_p=dropout_p,
@@ -42,6 +44,8 @@ class _FlashAttentionTorch(torch.autograd.Function):
             query,
             key,
             value,
+            cu_seqlens_q,
+            cu_seqlens_k,
             attention_output,
             log_sum_exp,
             philox_seed,
@@ -57,11 +61,13 @@ class _FlashAttentionTorch(torch.autograd.Function):
         return attention_output
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None, None]:
+    def backward(ctx, grad_output: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         (
             query,
             key,
             value,
+            cu_seqlens_q,
+            cu_seqlens_k,
             attention_output,
             log_sum_exp,
             philox_seed,
@@ -81,8 +87,8 @@ class _FlashAttentionTorch(torch.autograd.Function):
             value=value,
             out=attention_output,
             logsumexp=log_sum_exp,
-            cum_seq_q=None,
-            cum_seq_k=None,
+            cum_seq_q=cu_seqlens_q,
+            cum_seq_k=cu_seqlens_k,
             max_q=max_seqlen_q,
             max_k=max_seqlen_k,
             dropout_p=dropout_p,
@@ -99,21 +105,67 @@ def flash_attention(
     query: torch.Tensor,
     key: torch.Tensor,
     value: torch.Tensor,
+    cu_seqlens_q: torch.Tensor,
+    cu_seqlens_k: torch.Tensor,
+    max_seqlen_q: torch.Tensor,
+    max_seqlen_k: torch.Tensor,
     dropout_p: float,
     softmax_scale: float,
     causal: bool,
     use_pytorch_native_flash_attention: bool = False,
 ) -> torch.Tensor:
-    if use_pytorch_native_flash_attention:
-        max_seqlen = query.shape[1]
+    if cu_seqlens_q is None:
+        # when attention mask is not specified, tensor is 4D
+        assert query.dim() == 4
+        assert key.dim() == 4
+        assert value.dim() == 4
 
-        attention_output = _FlashAttentionTorch.apply(
-            query, key, value, None, None, max_seqlen, max_seqlen, dropout_p, softmax_scale, causal
-        )
+        assert cu_seqlens_k is None
+        assert max_seqlen_q is None
+        assert max_seqlen_k is None
+
+    if use_pytorch_native_flash_attention:
+        if cu_seqlens_q is None:
+            max_seqlen = query.shape[1]
+
+            query = query.view(-1, *query.shape[1:])
+            key = key.view(-1, *key.shape[1:])
+            value = value.view(-1, *value.shape[1:])
+
+            attention_output = _FlashAttentionVarlenTorch.apply(
+                query, key, value, None, None, max_seqlen, max_seqlen, dropout_p, softmax_scale, causal
+            )
+        else:
+            attention_output = _FlashAttentionVarlenTorch.apply(
+                query,
+                key,
+                value,
+                cu_seqlens_q,
+                cu_seqlens_k,
+                max_seqlen_q,
+                max_seqlen_k,
+                dropout_p,
+                softmax_scale,
+                causal,
+            )
     else:
-        attention_output = flash_attn_func(
-            query, key, value, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal
-        )
+        if cu_seqlens_q is None:
+            attention_output = flash_attn_func(
+                query, key, value, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal
+            )
+        else:
+            attention_output = flash_attn_varlen_func(
+                query,
+                key,
+                value,
+                cu_seqlens_q=cu_seqlens_q,
+                cu_seqlens_k=cu_seqlens_k,
+                max_seqlen_q=max_seqlen_q,
+                max_seqlen_k=max_seqlen_k,
+                dropout_p=dropout_p,
+                softmax_scale=softmax_scale,
+                causal=causal,
+            )
 
     return attention_output
 

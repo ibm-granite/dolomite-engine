@@ -1,5 +1,6 @@
 import torch
 
+from .....utils import is_flash_attention_available
 from ....enums import PositionEmbeddingType
 from ....modeling_utils import apply_rotary_pos_emb, flash_attention
 from .base import CrossLayerAttention, KeyValueProjection

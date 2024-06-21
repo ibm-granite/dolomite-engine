@@ -1,4 +1,3 @@
-import os
 from typing import Tuple
 
 import torch
@@ -8,7 +7,7 @@ from ....utils import is_flash_attention_available
 
 
 if is_flash_attention_available():
-    from flash_attn.flash_attn_interface import flash_attn_func, flash_attn_varlen_func
+    from flash_attn.flash_attn_interface import flash_attn_varlen_func
 
 
 class _FlashAttentionVarlenTorch(torch.autograd.Function):
@@ -114,58 +113,32 @@ def flash_attention_varlen(
     causal: bool,
     use_pytorch_native_flash_attention: bool = False,
 ) -> torch.Tensor:
-    if cu_seqlens_q is None:
-        # when attention mask is not specified, tensor is 4D
-        assert query.dim() == 4
-        assert key.dim() == 4
-        assert value.dim() == 4
-
-        assert cu_seqlens_k is None
-        assert max_seqlen_q is None
-        assert max_seqlen_k is None
-
     if use_pytorch_native_flash_attention:
-        if cu_seqlens_q is None:
-            max_seqlen = query.shape[1]
-
-            query = query.view(-1, *query.shape[1:])
-            key = key.view(-1, *key.shape[1:])
-            value = value.view(-1, *value.shape[1:])
-
-            attention_output = _FlashAttentionVarlenTorch.apply(
-                query, key, value, None, None, max_seqlen, max_seqlen, dropout_p, softmax_scale, causal
-            )
-        else:
-            attention_output = _FlashAttentionVarlenTorch.apply(
-                query,
-                key,
-                value,
-                cu_seqlens_q,
-                cu_seqlens_k,
-                max_seqlen_q,
-                max_seqlen_k,
-                dropout_p,
-                softmax_scale,
-                causal,
-            )
+        attention_output = _FlashAttentionVarlenTorch.apply(
+            query,
+            key,
+            value,
+            cu_seqlens_q,
+            cu_seqlens_k,
+            max_seqlen_q,
+            max_seqlen_k,
+            dropout_p,
+            softmax_scale,
+            causal,
+        )
     else:
-        if cu_seqlens_q is None:
-            attention_output = flash_attn_func(
-                query, key, value, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal
-            )
-        else:
-            attention_output = flash_attn_varlen_func(
-                query,
-                key,
-                value,
-                cu_seqlens_q=cu_seqlens_q,
-                cu_seqlens_k=cu_seqlens_k,
-                max_seqlen_q=max_seqlen_q,
-                max_seqlen_k=max_seqlen_k,
-                dropout_p=dropout_p,
-                softmax_scale=softmax_scale,
-                causal=causal,
-            )
+        attention_output = flash_attn_varlen_func(
+            query,
+            key,
+            value,
+            cu_seqlens_q=cu_seqlens_q,
+            cu_seqlens_k=cu_seqlens_k,
+            max_seqlen_q=max_seqlen_q,
+            max_seqlen_k=max_seqlen_k,
+            dropout_p=dropout_p,
+            softmax_scale=softmax_scale,
+            causal=causal,
+        )
 
     return attention_output
 

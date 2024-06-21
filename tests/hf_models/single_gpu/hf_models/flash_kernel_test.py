@@ -44,7 +44,6 @@ class FlashKernelTest(TestCommons):
         value_tri_dao = torch.randn(4, 1024, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
         value_tri_dao.data = value_pytorch.data
 
-        os.environ.update({"PYTORCH_NATIVE_FLASH_KERNEL": "0"})
         attention_tri_dao = flash_attention(
             query_tri_dao,
             key_tri_dao,
@@ -134,7 +133,6 @@ class FlashKernelTest(TestCommons):
         value_tri_dao = torch.randn(4096, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
         value_tri_dao.data = value_pytorch.data
 
-        os.environ.update({"PYTORCH_NATIVE_FLASH_KERNEL": "0"})
         attention_tri_dao = flash_attention(
             query_tri_dao,
             key_tri_dao,

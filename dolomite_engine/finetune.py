@@ -9,18 +9,18 @@ from transformers import set_seed
 
 from .arguments import TrainingArgs, get_args
 from .checkpointing import load_checkpoint_for_training, save_checkpoint
-from .data import DataLoader, get_dataloader, infinite_iterator
+from .communication import Communication
+from .data import ResumableDataLoader, get_dataloader, get_next_batch, infinite_iterator
 from .distributed import wrap_model_for_distributed_training
 from .enums import DatasetSplit, DistributedBackend, FP8Backend, Mode
 from .model_wrapper import ModelWrapperForFinetuning, get_model, log_model
 from .utils import (
     ExperimentsTracker,
+    ProcessGroupManager,
     RunningMean,
     init_distributed,
     is_transformer_engine_available,
     log_rank_0,
-    register_profiler,
-    register_timer,
     setup_tf32,
 )
 
@@ -109,14 +109,12 @@ def track_val_metrics(global_step: int, val_loss: float, experiments_tracker: Ex
     experiments_tracker.track({"loss": val_loss}, step=global_step, context="val")
 
 
-@register_profiler("train_step")
-@register_timer("train_step")
 def train_step(
     model: ModelWrapperForFinetuning,
     optimizer: Optimizer,
     lr_scheduler: LambdaLR,
     distributed_backend: DistributedBackend,
-    train_dataloader: DataLoader,
+    train_dataloader: ResumableDataLoader,
     gradient_accumulation_steps: int,
     gradient_clipping: float,
     train_step_context: contextlib.AbstractContextManager,
@@ -128,7 +126,7 @@ def train_step(
         optimizer (Optimizer): optimizer
         lr_scheduler (LamdaLR): learning rate scheduler
         distributed_backend (DistributedBackend): distributed backend
-        train_dataloader (DataLoader): training dataloader
+        train_dataloader (ResumableDataLoader): training dataloader
         gradient_accumulation_steps (int): gradient accumulation steps
         gradient_clipping (float): gradient clipping value
 
@@ -136,7 +134,14 @@ def train_step(
         Tuple[float, float]: loss at the current step, grad norm at the current step
     """
 
-    no_sync = model.no_sync if distributed_backend == DistributedBackend.torch else contextlib.nullcontext
+    no_sync = contextlib.nullcontext
+    if distributed_backend == DistributedBackend.torch:
+        # FSDP-2
+        if hasattr(model, "set_requires_gradient_sync"):
+            model.set_requires_gradient_sync(False)
+        else:
+            no_sync = model.no_sync
+
     loss = 0
     grad_norm = None
     if distributed_backend == DistributedBackend.torch:
@@ -144,7 +149,7 @@ def train_step(
 
     with no_sync():
         for _ in range(gradient_accumulation_steps - 1):
-            batch = next(train_dataloader)
+            batch = get_next_batch(train_dataloader)
             with train_step_context:
                 loss_micro_step = model(batch)
             loss += loss_micro_step
@@ -158,7 +163,10 @@ def train_step(
             else:
                 raise ValueError(f"unexpected distributed backend ({distributed_backend})")
 
-    batch = next(train_dataloader)
+    if distributed_backend == DistributedBackend.torch and hasattr(model, "set_requires_gradient_sync"):
+        model.set_requires_gradient_sync(True)
+
+    batch = get_next_batch(train_dataloader)
     with train_step_context:
         loss_micro_step = model(batch)
     loss += loss_micro_step
@@ -175,7 +183,8 @@ def train_step(
         loss_micro_step.backward()
 
         if gradient_clipping is not None:
-            grad_norm = model.clip_grad_norm_(gradient_clipping)
+            assert ProcessGroupManager.get_tensor_parallel_world_size() == 1
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
 
         optimizer.step()
         lr_scheduler.step()
@@ -184,6 +193,7 @@ def train_step(
 
     loss = loss / gradient_accumulation_steps
     loss = loss.item()
+    grad_norm = 0 if grad_norm is None else grad_norm.item()
 
     return loss, grad_norm
 
@@ -193,8 +203,8 @@ def train(
     model: ModelWrapperForFinetuning,
     optimizer: Optimizer,
     lr_scheduler: LambdaLR,
-    train_dataloader: DataLoader,
-    val_dataloader: DataLoader,
+    train_dataloader: ResumableDataLoader,
+    val_dataloader: ResumableDataLoader,
     experiments_tracker: ExperimentsTracker,
     starting_iteration: int = 0,
 ) -> None:
@@ -205,8 +215,8 @@ def train(
         model (ModelWrapperForFinetuning): model
         optimizer (Optimizer): optimizer
         lr_scheduler (LRScheduler): learning rate scheduler
-        train_dataloader (DataLoader): training dataloader
-        val_dataloader (DataLoader): validation dataloader
+        train_dataloader (ResumableDataLoader): training dataloader
+        val_dataloader (ResumableDataLoader): validation dataloader
         experiments_tracker (ExperimentsTracker): metrics tracker
         starting_iteration (int): starting iteration
     """
@@ -278,10 +288,9 @@ def train(
             save_checkpoint(args, model, optimizer, lr_scheduler, train_dataloader, experiments_tracker, global_step)
 
 
-@register_profiler("evaluate_dataset")
 @torch.no_grad()
 def evaluate(
-    val_dataloader: DataLoader,
+    val_dataloader: ResumableDataLoader,
     model: ModelWrapperForFinetuning,
     global_step: int,
     experiments_tracker: ExperimentsTracker,
@@ -289,7 +298,7 @@ def evaluate(
     """main validation loop for the program
 
     Args:
-        val_dataloader (DataLoader): validation dataloader
+        val_dataloader (ResumableDataLoader): validation dataloader
         model (ModelWrapperForFinetuning): model
         global_step (int): global step during training
         experiments_tracker (ExperimentsTracker): metrics tracker
@@ -298,7 +307,22 @@ def evaluate(
         float: loss at the current step
     """
 
-    if val_dataloader is None:
+    if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
+        # other tensor parallel ranks need to be told if val dataloader is None or not
+        is_val_dataloader_none = (
+            val_dataloader is None or len(val_dataloader) == 0
+            if ProcessGroupManager.get_tensor_parallel_rank() == 0
+            else None
+        )
+        is_val_dataloader_none = Communication.broadcast_object(
+            is_val_dataloader_none,
+            src=ProcessGroupManager.get_tensor_parallel_first_rank(),
+            group=ProcessGroupManager.get_tensor_parallel_group(),
+        )
+    else:
+        is_val_dataloader_none = val_dataloader is None or len(val_dataloader) == 0
+
+    if is_val_dataloader_none:
         return
 
     model.eval()
@@ -329,7 +353,13 @@ def main() -> None:
     args: TrainingArgs = get_args(mode)
 
     # initialize distributed with nccl for multi-node communications
-    init_distributed()
+    init_distributed(
+        tensor_parallel_size=args.distributed_args.tensor_parallel_size,
+        data_parallel_size=args.distributed_args.data_parallel_size,
+        data_parallel_replication_world_size=args.distributed_args.zero_topology.data_parallel_replication_world_size,
+        data_parallel_sharding_world_size=args.distributed_args.zero_topology.data_parallel_sharding_world_size,
+        timeout_minutes=args.distributed_args.timeout_minutes,
+    )
     set_seed(args.random_args.seed)
 
     model = get_model(args, mode)
@@ -340,7 +370,6 @@ def main() -> None:
         mode=mode,
         tokenizer=model.tokenizer,
         is_encoder_decoder=model.is_encoder_decoder,
-        padding_side=model.padding_side,
     )
 
     val_dataloader = None
@@ -351,7 +380,6 @@ def main() -> None:
             mode=mode,
             tokenizer=model.tokenizer,
             is_encoder_decoder=model.is_encoder_decoder,
-            padding_side=model.padding_side,
         )
 
     model, optimizer, lr_scheduler = wrap_model_for_distributed_training(args, model)

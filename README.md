@@ -1,9 +1,12 @@
 <h1 align="center" style="font-size: 50px;">Dolomite Engine</h1>
 
 <p align="center">
-  <img src="assets/dolomite.png" width="300px" height="300px">
+  <img src="assets/dolomite.jpeg" width="300px" height="300px">
 </p>
 
+
+# Getting Started
+Run `make install` or `pip install -r requirements.txt` to install the requirements for this repository. You might need to install `flash-attn`.
 
 # Distributed finetuning
 This repository is meant for finetuning large language models (of any scale) using multiple backends. The following backends are currently supported:
@@ -19,25 +22,26 @@ The repository currently only supports generative models but can be easily exten
 Please note that this repository doesn't support Tensor Parallel or Pipeline Parallel (yet :wink:).
 
 # HuggingFace compatible custom models
-This repository works with all HuggingFace models (text-to-text only for the moment) out-of-the-box.
+This repository works with all HuggingFace models (text-to-text only for the moment) out-of-the-box. The checkpoints have to be in safetensors format, if not you can check `tools/pt_to_safetensors.py`. If your model_type is `gpt_megatron` just change it to `gpt_dolomite`.
 
 > [!TIP]
 > You might be able to enjoy additional memory and computation savings when finetuning your models using the [padding free transformers optimization](https://huggingface.co/blog/mayank-mishra/padding-free-transformer). This optimization is currently only supported for decoder models and requires converting your model (say LLama-3 for example) to a [custom class](dolomite_engine/hf_models/models/gpt_dolomite/) implemented in this repo. This is completely optional and not required for finetuning. The conversion can be achieved as follows:
 ```python
-from dolomite_engine.hf_models import import_from_huggingface_llama
+from dolomite_engine.hf_models import import_from_huggingface
 
-import_from_huggingface_llama(
-    pretrained_model_name_or_path="meta-llama/Meta-Llama-3-8B",
+import_from_huggingface(
+    pretrained_model_name_or_path="ibm-granite/granite-3b-code-base",
     save_path="dolomite_compatible_model"
 )
 ```
 Once done training, you can convert the model back to the HF class as:
 ```python
-from dolomite_engine.hf_models import export_to_huggingface_llama
+from dolomite_engine.hf_models import export_to_huggingface
 
-export_to_huggingface_llama(
+export_to_huggingface(
     pretrained_model_name_or_path="trained_checkpoint",
-    save_path="hf_compatible_model"
+    save_path="hf_compatible_model",
+    model_type="llama",
 )
 ```
 
@@ -96,9 +100,12 @@ The data directory should obey the following structure:
  ┃ ┗ 📜filename3.jsonl
  ┗ 📂val
  ┃ ┣ 📜filename1.jsonl
+ ┃ ┣ 📜filename2.jsonl
+ ┃ ┣ 📜filename3.jsonl
  ┣ 📂test
  ┃ ┣ 📜filename1.jsonl
  ┃ ┣ 📜filename2.jsonl
+ ┃ ┣ 📜filename3.jsonl
 ```
 Filenames can be anything as long as there are no whitespaces in them. Each line in each file should be a json (jsonlines file format) with the entries looking like:
 ```json
@@ -126,14 +133,14 @@ Please note that the user is expected to provide this at both training and infer
 Try not to have trailing spaces in `input_format`, if you need a space between input and output, the space should be part of the `output_format` as in the above example.
 
 > [!TIP]
-> Alternatively, you can also add your own dataclass in the repository if you don't want to use the jsonlines dataset.
+> Alternatively, you can also add your own dataset class in the repository if you don't want to use the jsonlines format or need custom logic to load your own dataset.
 
 Currently, the repo has following implemented dataclasses:
 ```text
 AlpacaDataset
 DebugDataset
 DollyDataset
-JSONLinesDataset
+HuggingFaceDataset
 SlimOrcaDataset
 SST2Dataset
 ```
@@ -171,3 +178,12 @@ from torch.optim.rmsprop import RMSprop as TorchRMSprop
 from torch.optim.rprop import Rprop as TorchRprop
 from torch.optim.sgd import SGD as TorchSGD
 ```
+
+# Contribution
+Contributions are welcome! Just open a PR!
+<br>
+Current contributors:
+
+<a href="https://github.com/ibm-granite/dolomite-engine/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ibm-granite/dolomite-engine" />
+</a>

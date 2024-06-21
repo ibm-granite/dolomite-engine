@@ -6,24 +6,15 @@ from transformers import AutoConfig, AutoTokenizer
 from transformers.integrations import HfDeepSpeedConfig
 
 from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
-from ..enums import (
-    AttentionImplementation,
-    DistributedBackend,
-    GradientCheckpointingMethod,
-    LossMask,
-    Mode,
-    PaddingSide,
-)
-from ..hf_models import is_custom_model
+from ..enums import AttentionImplementation, DistributedBackend, GradientCheckpointingMethod, LossMask, Mode
+from ..hf_models import get_tensor_parallel_class, is_custom_model, is_tensor_parallel_compatible_model
 from ..hf_models.modeling_utils import is_glu
-from ..utils import get_global_rank, log_rank_0, register_profiler, register_timer, string_to_torch_dtype
+from ..utils import ProcessGroupManager, log_rank_0, string_to_torch_dtype
 
 
 class ModelWrapper(torch.nn.Module):
     """Model class which wraps any HuggingFace model"""
 
-    @register_profiler("initialize_model")
-    @register_timer("initialize_model")
     def __init__(self, args: Union[TrainingArgs, InferenceArgs, ExportArgs], mode: Mode):
         """initializes a Model wrapper for a HuggingFace model
 
@@ -40,13 +31,16 @@ class ModelWrapper(torch.nn.Module):
         self.gradient_checkpointing_method = args.distributed_args.gradient_checkpointing_method
         self.gradient_checkpointing_args = args.distributed_args.gradient_checkpointing_args
         self.efficient_initialization = args.model_args.efficient_initialization
-        self.initialize_on_cpu = args.model_args.initialize_on_cpu
         self.tuning_method = args.tuning_args.tuning_method
         self.dtype = args.mixed_precision_args.dtype
         self.reset_attention_mask = args.model_args.reset_attention_mask
         self.reset_position_ids = args.model_args.reset_position_ids
         self.attention_implementation = args.model_args.attention_implementation
         self.use_padding_free_transformer = args.model_args.use_padding_free_transformer
+        self.tensor_parallel_embeddings = args.distributed_args.tensor_parallel_embeddings
+
+        self.tp_rank = ProcessGroupManager.get_tensor_parallel_rank()
+        self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
 
         self.distributed_backend = None
         self.stage = None
@@ -54,11 +48,16 @@ class ModelWrapper(torch.nn.Module):
             self.distributed_backend = args.distributed_args.distributed_backend
             self.stage = args.distributed_args.stage
 
-        self._setup_input_device()
-
         self._setup_config(args)
         self.tie_word_embeddings = self.config.tie_word_embeddings
         self.is_encoder_decoder = self.config.is_encoder_decoder
+
+        if self.tp_world_size > 1:
+            self.model_class = get_tensor_parallel_class(self.config.model_type)
+
+            assert is_tensor_parallel_compatible_model(
+                self.model_class, self.config.model_type
+            ), "tensor parallel is not supported with this model"
 
         if self.use_padding_free_transformer:
             assert is_custom_model(
@@ -68,6 +67,8 @@ class ModelWrapper(torch.nn.Module):
             assert (
                 self.attention_implementation == AttentionImplementation.flash_attention_2
             ), "padding free transformer only works with flash attention"
+
+            assert self.tp_world_size == 1, "padding free transformer is not supported with tensor parallel"
 
         self._setup_tokenizer(args)
         self._setup_model(args)
@@ -95,8 +96,6 @@ class ModelWrapper(torch.nn.Module):
             if len(self.tokenizer) != original_vocab_size:
                 self.model.resize_token_embeddings(len(self.tokenizer))
 
-    @register_profiler("generate")
-    @register_timer("generate")
     def generate(self, batch: dict, generate_kwargs: dict) -> List[str]:
         """generate function for a batch
 
@@ -112,7 +111,7 @@ class ModelWrapper(torch.nn.Module):
             raise NotImplementedError("padding free transformer doesn't support generation")
 
         for i in batch:
-            batch[i] = batch[i].to(self.input_device)
+            batch[i] = batch[i].to(torch.cuda.current_device())
 
         generated = self.model.generate(**batch, **generate_kwargs, eos_token_id=self.eos_token_id)
 
@@ -126,6 +125,9 @@ class ModelWrapper(torch.nn.Module):
         return generated_text, num_generated_tokens
 
     def get_model_tflops(self, batch_size: int, sequence_length: int) -> None:
+        if not is_custom_model(self.model_class, self.config.model_type):
+            return 0
+
         b = batch_size
         s = sequence_length
         h = self.config.n_embd
@@ -143,9 +145,12 @@ class ModelWrapper(torch.nn.Module):
 
         forward_flops = attention_flops + mlp_flops
 
-        backward_flops = 2 * forward_flops
         if self.gradient_checkpointing_method == GradientCheckpointingMethod.block:
-            backward_flops = forward_flops / self.gradient_checkpointing_args.get("checkpoint_every", 1)
+            num_layers_checkpointed = l // self.gradient_checkpointing_args.get("checkpoint_every", 1)
+            fraction_of_layers_checkpointed = num_layers_checkpointed / l
+            backward_flops = (2 + fraction_of_layers_checkpointed) * forward_flops
+        else:
+            backward_flops = 2 * forward_flops
 
         model_flops = l * (forward_flops + backward_flops)
         model_flops += 6 * b * s * h * v
@@ -175,15 +180,6 @@ class ModelWrapper(torch.nn.Module):
         # overrides the forward function of torch.nn.Embedding
         self.model.get_input_embeddings().forward = _noisy_forward
 
-    def _setup_input_device(self) -> None:
-        if self.mode == Mode.training:
-            self.input_device = torch.cuda.current_device()
-        else:
-            self.input_device = 0
-            if not torch.cuda.is_available():
-                log_rank_0(logging.WARN, "no CUDA device found, running on CPU")
-                self.input_device = "cpu"
-
     def save_pretrained(self, save_path: str) -> None:
         self.tokenizer.save_pretrained(save_path, legacy_format=False)
         self.model.save_pretrained(save_path)
@@ -202,12 +198,6 @@ class ModelWrapper(torch.nn.Module):
         assert tokenizer_name is not None, "pass a tokenizer"
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-
-        self.padding_side = PaddingSide(
-            self.tokenizer.padding_side
-            if args.tokenizer_args.padding_side is None
-            else args.tokenizer_args.padding_side
-        )
         self.eos_token_id = self.tokenizer.eos_token_id
 
     def _setup_model(self, args: Union[TrainingArgs, InferenceArgs, ExportArgs]) -> None:
@@ -219,17 +209,22 @@ class ModelWrapper(torch.nn.Module):
                 "trust_remote_code": args.model_args.trust_remote_code,
             }
 
-        model_kwargs["use_cache"] = self.mode == Mode.inference
         if self.attention_implementation is not None:
             model_kwargs["attn_implementation"] = self.attention_implementation.value
         if self.use_padding_free_transformer:
             model_kwargs["use_padding_free_transformer"] = True
+        if self.tensor_parallel_embeddings:
+            model_kwargs["tensor_parallel_embeddings"] = True
 
         def _get_model(**extras):
             if self.model_name is None:
-                model = args.model_args.model_class.from_config(**model_kwargs, **extras)
+                if self.tp_world_size > 1:
+                    # avoid inferring the model class so use _from_config instead of from_config
+                    model = self.model_class._from_config(**model_kwargs, **extras)
+                else:
+                    model = self.model_class.from_config(**model_kwargs, **extras)
             else:
-                model = args.model_args.model_class.from_pretrained(**model_kwargs, **extras)
+                model = self.model_class.from_pretrained(**model_kwargs, **extras)
 
             return model
 
@@ -240,30 +235,20 @@ class ModelWrapper(torch.nn.Module):
 
                     self.deepspeed_config = HfDeepSpeedConfig(get_deepspeed_config(args))
 
-                    # model is initialized on meta device here due to the HfDeepSpeedConfig object created above
-                    self.model = _get_model()
-                else:
-                    self.model = _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
+                self.model = _get_model()
             elif self.distributed_backend == DistributedBackend.torch:
                 if self.efficient_initialization:
-                    if self.tie_word_embeddings:
-                        assert is_custom_model(
-                            self.model_class, self.config.model_type
-                        ), "either there should be no weight tying or the model should be a custom class"
-
                     if self.model_name is None:
                         with torch.device("meta"):
                             self.model = _get_model()
                     else:
-                        if get_global_rank() == 0:
-                            self.model = (
-                                _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
-                            )
-                        else:
-                            with torch.device("meta"):
-                                self.model = _get_model()
+                        assert (
+                            self.tp_world_size == 1
+                        ), "tensor parallel models don't support efficient init with model name"
+
+                        self.model = _get_model(low_cpu_mem_usage=True)
                 else:
-                    self.model = _get_model() if self.initialize_on_cpu else _get_model(device_map=self.input_device)
+                    self.model = _get_model()
         else:
             if self.dtype == "fp8":
                 log_rank_0(logging.WARN, "dtype fp8 was passed but loading model in fp16")
@@ -271,11 +256,7 @@ class ModelWrapper(torch.nn.Module):
             else:
                 torch_dtype = string_to_torch_dtype(self.dtype)
 
-            self.model = (
-                _get_model(torch_dtype=torch_dtype)
-                if self.initialize_on_cpu
-                else _get_model(device_map=self.input_device, torch_dtype=torch_dtype)
-            )
+            self.model = _get_model(device_map=torch.cuda.current_device(), torch_dtype=torch_dtype)
 
         num_parameters = 0
         for param in self.model.parameters():

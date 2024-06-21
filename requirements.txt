@@ -1,0 +1,6 @@
+torch
+transformers>=4.40.0
+datasets
+pydantic
+safetensors
+peft

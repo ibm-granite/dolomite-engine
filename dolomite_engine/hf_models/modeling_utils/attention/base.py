@@ -8,6 +8,7 @@ from transformers import DynamicCache
 
 from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
+from ...utils import divide_if_divisible
 from ..linear import ParameterizedLinear
 from ..position_embedding import apply_rotary_pos_emb
 from .utils import repeat_key_value
@@ -22,16 +23,18 @@ class Attention(nn.Module):
         self.num_heads = config.n_head
         self.num_key_value_heads = config.num_key_value_heads
         self.add_bias = config.add_bias
-        self.initializer_range = config.initializer_range
-        self.m_width = config.m_width
-        self.n_layer = config.n_layer
-        self.init_method = config.init_method
 
-        assert (
-            self.hidden_size % self.num_heads == 0
-        ), f"`hidden_size` ({self.hidden_size}) must be divisible by `num_heads` ({self.num_heads})"
+        initializer_range = config.initializer_range
+        m_width = config.m_width
+        n_layer = config.n_layer
+        init_method = InitMethod(config.init_method)
 
-        self.head_dim = self.hidden_size // self.num_heads
+        self.head_dim = divide_if_divisible(
+            self.hidden_size,
+            self.num_heads,
+            f"`hidden_size` ({self.hidden_size}) must be divisible by `num_heads` ({self.num_heads})",
+        )
+
         self.attention_head_type = AttentionHeadType(config.attention_head_type)
 
         self.position_embedding_type = PositionEmbeddingType(config.position_embedding_type)
@@ -56,9 +59,10 @@ class Attention(nn.Module):
                 self.num_key_value_heads is not None
             ), "`num_key_value_heads` needs to be specified with GroupedQueryAttention"
 
-            assert self.num_heads % self.num_key_value_heads == 0, (
-                f"`num_heads` ({self.num_heads}) should be a multiple of `num_key_value_heads` "
-                f"({self.num_key_value_heads})"
+            divide_if_divisible(
+                self.num_heads,
+                self.num_key_value_heads,
+                f"`num_heads` ({self.num_heads}) should be a multiple of `num_key_value_heads` ({self.num_key_value_heads})",
             )
         elif self.attention_head_type == AttentionHeadType.mqa:
             if self.num_key_value_heads is None:
@@ -70,9 +74,9 @@ class Attention(nn.Module):
 
         # note that the actual layout is different for the output and depends on whether we are using MHA, MQA or GQA
         # (self.hidden_size + 2 * self.num_key_value_heads * self.head_dim) is just the actual number output features
-        std = self.initializer_range
-        if self.init_method == InitMethod.mup:
-            std /= math.sqrt(self.m_width)
+        std = initializer_range
+        if init_method == InitMethod.mup:
+            std /= math.sqrt(m_width)
         self.c_attn = ParameterizedLinear(
             self.hidden_size,
             self.hidden_size + 2 * self.num_key_value_heads * self.head_dim,
@@ -80,15 +84,10 @@ class Attention(nn.Module):
             std=std,
         )
 
-        std = self.initializer_range / math.sqrt(2 * self.n_layer)
-        if self.init_method == InitMethod.mup:
-            std /= math.sqrt(self.m_width)
-        self.c_proj = ParameterizedLinear(
-            self.hidden_size,
-            self.hidden_size,
-            bias=self.add_bias,
-            std=std,
-        )
+        std = initializer_range / math.sqrt(2 * n_layer)
+        if init_method == InitMethod.mup:
+            std /= math.sqrt(m_width)
+        self.c_proj = ParameterizedLinear(self.hidden_size, self.hidden_size, bias=self.add_bias, std=std)
 
         self.attn_pdrop = config.attn_pdrop
         self.resid_pdrop = config.resid_pdrop

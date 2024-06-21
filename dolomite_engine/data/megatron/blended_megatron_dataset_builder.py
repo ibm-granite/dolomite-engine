@@ -6,10 +6,10 @@ from typing import Any, List, Optional, Tuple, Type, Union
 
 import numpy
 import torch
-import torch.distributed as dist
+import torch.distributed
 from transformers import AutoTokenizer
 
-from ...utils import get_global_rank
+from ...utils import ProcessGroupManager
 from .blended_dataset import BlendedDataset
 from .blended_megatron_dataset_config import BlendedMegatronDatasetConfig
 from .indexed_dataset import MMapIndexedDataset
@@ -195,12 +195,13 @@ class BlendedMegatronDatasetBuilder(object):
                 split_idx_bounds = _get_split_indices(split, indexed_dataset.sequence_lengths.shape[0])
             else:
                 split_idx_bounds = _get_split_indices(split, indexed_dataset.document_indices.shape[0] - 1)
+
             split_indices = [
                 numpy.arange(
                     start=split_idx_bounds[i],
                     stop=split_idx_bounds[i + 1],
                     step=1,
-                    dtype=numpy.int32,
+                    dtype=_get_appropriate_dtype_for_range(split_idx_bounds),
                 )
                 for i, _ in enumerate(Split)
             ]
@@ -301,7 +302,13 @@ class BlendedMegatronDatasetBuilder(object):
             )
             start = int(start * num_elements)
             end = int(end * num_elements)
-            split_indices = numpy.arange(start=start, stop=end, step=1, dtype=numpy.int32)
+
+            split_indices = numpy.arange(
+                start=start,
+                stop=end,
+                step=1,
+                dtype=_get_appropriate_dtype_for_range([start, end]),
+            )
 
         megatron_dataset = None
         if start != end:
@@ -336,18 +343,16 @@ class BlendedMegatronDatasetBuilder(object):
         Returns:
             Optional[DistributedDataset]: The DistributedDataset instantion or None
         """
-        if dist.is_initialized():
-            rank = get_global_rank()
-            caching_allowed = rank == 0 or (
-                rank % torch.cuda.device_count() == 0 and self.config.node_uses_local_storage
-            )
+        if torch.distributed.is_initialized():
+            rank = ProcessGroupManager.get_global_rank()
+            caching_allowed = rank == 0 or (torch.cuda.current_device() == 0 and self.config.node_uses_local_storage)
 
             dataset = None
 
             # First, build on rank 0
-            if caching_allowed and self.config.is_built_on_rank():
+            if caching_allowed and self.config.is_built_on_rank:
                 try:
-                    dataset = cls(**kwargs, caching_allowed=caching_allowed)
+                    dataset = cls(**kwargs, caching_allowed=True)
                 except OSError as err:
                     log = (
                         f"Failed to write dataset materials to the data cache directory. "
@@ -357,10 +362,10 @@ class BlendedMegatronDatasetBuilder(object):
                     )
                     raise Exception(log) from err
 
-            dist.barrier()
+            torch.distributed.barrier()
 
             # After, build on other ranks
-            if not caching_allowed and self.config.is_built_on_rank():
+            if not caching_allowed and self.config.is_built_on_rank:
                 dataset = cls(**kwargs, caching_allowed=False)
 
             return dataset
@@ -369,7 +374,7 @@ class BlendedMegatronDatasetBuilder(object):
 
     def _get_indexed_dataset(self, path_prefix: str) -> Optional[MMapIndexedDataset]:
         indexed_dataset = None
-        if not dist.is_initialized() or self.config.is_built_on_rank():
+        if not torch.distributed.is_initialized() or self.config.is_built_on_rank:
             indexed_dataset = MMapIndexedDataset(path_prefix, self.cls.is_multimodal())
 
         return indexed_dataset
@@ -435,3 +440,16 @@ def _parse_split(start_end: str) -> Tuple[float]:
     end = float(end)
 
     return start, end
+
+
+def _get_appropriate_dtype_for_range(split_idx_bounds: list[int]) -> numpy.dtype:
+    max_value = max(split_idx_bounds)
+
+    if max_value <= numpy.iinfo(numpy.int32).max:
+        dtype = numpy.int32
+    elif max_value <= numpy.iinfo(numpy.int64).max:
+        dtype = numpy.int64
+    else:
+        raise ValueError("value for split idx is too large")
+
+    return dtype

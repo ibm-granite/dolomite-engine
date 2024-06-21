@@ -1,15 +1,18 @@
 import logging
 from typing import List, Tuple
 
-from torch.utils.data import DataLoader
+import torch
+import torch.distributed
 from transformers import AutoTokenizer
 
 from ...arguments import TrainingArgs
 from ...defaults import INPUT_FORMAT, OUTPUT_FORMAT
-from ...utils import get_global_rank, get_world_size, log_rank_0, print_rank_0
+from ...utils import ProcessGroupManager, log_rank_0
+from ..dataloader import DispatchingDataLoader, ResumableDataLoader, get_source_and_broadcast_group
 from .blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from .blended_megatron_dataset_config import GPTDatasetConfig
 from .gpt_dataset import GPTDataset
+from .sampler import MegatronBatchSampler
 from .utils import Split, compile_helpers
 
 
@@ -23,24 +26,56 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     assert args.datasets[0].input_format == INPUT_FORMAT
     assert args.datasets[0].output_format == OUTPUT_FORMAT
 
+    micro_batch_size = args.training_parameters.micro_batch_size
+    sequence_length = class_args.get("sequence_length")
+
     compile_helpers()
 
     log_rank_0(logging.INFO, "> building train, validation, and test datasets for GPT ...")
-    print_rank_0()
+
+    dispatching_dataloader = args.distributed_args.dispatching_dataloader
+
+    if dispatching_dataloader:
+        assert (
+            ProcessGroupManager.get_tensor_parallel_world_size() == 1
+        ), "tensor parallel doesn't support dispatching dataloader"
+
+        num_ranks_per_node = torch.cuda.device_count()
+        node_rank = ProcessGroupManager.get_global_rank() // num_ranks_per_node
+        num_nodes = ProcessGroupManager.get_world_size() // num_ranks_per_node
+
+        def _get_source_broadcast_mapping() -> dict:
+            result = {}
+            for i in range(num_nodes):
+                source = i * num_ranks_per_node
+                ranks = list(range(source, source + num_ranks_per_node))
+                result[source] = torch.distributed.new_group(ranks)
+            return result
+
+        source_broadcast_mapping = _get_source_broadcast_mapping()
+
+        # only build dataloader on first rank of each node
+        is_built_on_rank = ProcessGroupManager.get_global_rank() == node_rank * num_ranks_per_node
+    else:
+        # only build dataloader on first rank of each TP group
+        is_built_on_rank = (
+            ProcessGroupManager.get_global_rank() == ProcessGroupManager.get_tensor_parallel_first_rank()
+        )
 
     gpt_dataset_builder = BlendedMegatronDatasetBuilder(
         GPTDataset,
         sizes=_get_train_val_test_samples(
             args.training_parameters.num_training_steps,
-            args.training_parameters.micro_batch_size,
+            micro_batch_size,
             args.training_parameters.gradient_accumulation_steps,
             args.training_parameters.eval_interval,
             class_args.get("eval_steps"),
         ),
         config=GPTDatasetConfig(
-            is_built_on_rank=_is_dataset_built_on_rank,
+            # the dataset is None if is_built_on_rank is False
+            is_built_on_rank=is_built_on_rank,
             random_seed=class_args.get("seed", args.random_args.seed),
-            sequence_length=class_args.get("sequence_length"),
+            sequence_length=sequence_length,
             blend=class_args.get("data_path"),
             blend_per_split=[
                 class_args.get("train_data_path"),
@@ -113,24 +148,61 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     else:
         raise NotImplementedError("No dataloading argument passed")
 
-    print_rank_0()
     log_rank_0(logging.INFO, "> finished creating GPT datasets ...")
-    print_rank_0()
 
     def _get_dataloader(dataset: GPTDataset, consumed_samples: int):
-        if dataset is None:
-            return None
+        # we use batch sampler here to match the data order of NVIDIA's megatron repo
+        if dispatching_dataloader:
+            is_dataset_none_on_source_rank = [dataset is None if is_built_on_rank else False]
+            _, _source_rank, _, _broadcast_group = get_source_and_broadcast_group(source_broadcast_mapping)
+            torch.distributed.broadcast_object_list(
+                is_dataset_none_on_source_rank, src=_source_rank, group=_broadcast_group
+            )
+            is_dataset_none_on_source_rank = is_dataset_none_on_source_rank[0]
 
-        dataloader = DataLoader(
-            dataset,
-            batch_sampler=MegatronPretrainingSampler(
+            if is_dataset_none_on_source_rank:
+                return None
+
+            if is_built_on_rank:
+                assert dataset is not None, "dataset shouldn't be None when is_built_on_rank is True"
+
+                batch_sampler = MegatronBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=micro_batch_size * num_ranks_per_node,
+                    num_replicas=num_nodes,
+                    rank=node_rank,
+                )
+            else:
+                assert dataset is None, "dataset should be None when is_built_on_rank is False"
+
+                batch_sampler = None
+
+            dataloader = DispatchingDataLoader(
+                dataset,
+                batch_sampler=batch_sampler,
+                num_workers=class_args.get("num_workers", 2),
+                pin_memory=True,
+                source_broadcast_mapping=source_broadcast_mapping,
+                broadcast_world_size=num_ranks_per_node,
+                static_shape_per_rank=(micro_batch_size, sequence_length + 1),
+                keys=["text"],
+            )
+        else:
+            if dataset is None:
+                return None
+
+            batch_sampler = MegatronBatchSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
-                micro_batch_size=args.training_parameters.micro_batch_size,
-            ),
-            num_workers=class_args.get("num_workers", 2),
-            pin_memory=True,
-        )
+                micro_batch_size=micro_batch_size,
+                num_replicas=ProcessGroupManager.get_data_parallel_world_size(),
+                rank=ProcessGroupManager.get_data_parallel_rank(),
+            )
+
+            dataloader = ResumableDataLoader(
+                dataset, batch_sampler=batch_sampler, num_workers=class_args.get("num_workers", 2), pin_memory=True
+            )
 
         return iter(dataloader)
 
@@ -141,10 +213,6 @@ def get_megatron_gpt_dataloaders(args: TrainingArgs, tokenizer: AutoTokenizer, c
     return train_ds, val_ds, test_ds
 
 
-def _is_dataset_built_on_rank() -> bool:
-    return True
-
-
 def _get_train_val_test_samples(
     num_training_steps: int,
     micro_batch_size: int,
@@ -152,56 +220,16 @@ def _get_train_val_test_samples(
     eval_interval: int,
     eval_steps: int,
 ) -> Tuple[int]:
-    train_samples = num_training_steps * micro_batch_size * gradient_accumulation_steps * get_world_size()
+    dp_world_size = ProcessGroupManager.get_data_parallel_world_size()
+
+    train_samples = num_training_steps * micro_batch_size * gradient_accumulation_steps * dp_world_size
     val_samples = (
         (num_training_steps // eval_interval + 1)
         * eval_steps
         * micro_batch_size
         * gradient_accumulation_steps
-        * get_world_size()
+        * dp_world_size
     )
-    test_samples = eval_steps * micro_batch_size * gradient_accumulation_steps * get_world_size()
+    test_samples = eval_steps * micro_batch_size * gradient_accumulation_steps * dp_world_size
 
     return train_samples, val_samples, test_samples
-
-
-class MegatronPretrainingSampler:
-    def __init__(
-        self, total_samples: int, consumed_samples: int, micro_batch_size: int, drop_last: bool = True
-    ) -> None:
-        self.total_samples = total_samples
-        self.consumed_samples = consumed_samples
-        self.micro_batch_size = micro_batch_size
-        self.micro_batch_times_data_parallel_size = self.micro_batch_size * get_world_size()
-        self.drop_last = drop_last
-        self.data_parallel_rank = get_global_rank()
-
-        # Sanity checks.
-        assert self.total_samples > 0, "no sample to consume: {}".format(self.total_samples)
-        assert self.consumed_samples < self.total_samples, "no samples left to consume: {}, {}".format(
-            self.consumed_samples, self.total_samples
-        )
-        assert self.micro_batch_size > 0
-
-    def __len__(self) -> int:
-        return self.total_samples
-
-    def _get_start_end_idx(self) -> Tuple[int, int]:
-        start_idx = self.data_parallel_rank * self.micro_batch_size
-        end_idx = start_idx + self.micro_batch_size
-        return start_idx, end_idx
-
-    def __iter__(self):
-        batch = []
-        # Last batch will be dropped if drop_last is not set False
-        for idx in range(self.consumed_samples, self.total_samples):
-            batch.append(idx)
-            if len(batch) == self.micro_batch_times_data_parallel_size:
-                start_idx, end_idx = self._get_start_end_idx()
-                yield batch[start_idx:end_idx]
-                batch = []
-
-        # Check the last partial batch and see drop_last is set
-        if len(batch) > 0 and not self.drop_last:
-            start_idx, end_idx = self._get_start_end_idx()
-            yield batch[start_idx:end_idx]

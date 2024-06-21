@@ -1,17 +1,13 @@
-from typing import List
+from typing import Iterable, List
 
 import torch
 
-from ..enums import LossMask, Mode, PaddingSide
-from ..utils import register_profiler, register_timer
+from ..enums import LossMask, Mode
 
 
-@register_profiler("collate_fn")
-@register_timer("collate_fn")
 def collate_fn(
     batch: List[dict],
     mode: Mode,
-    padding_side: PaddingSide,
     loss_mask: LossMask,
     eos_token_id: int,
     is_encoder_decoder: bool,
@@ -36,12 +32,8 @@ def collate_fn(
     if is_encoder_decoder:
         input_max_length = max(list(map(len, inputs)))
 
-        if padding_side == PaddingSide.left:
-            input_ids = [[eos_token_id] * (input_max_length - len(array)) + array for array in inputs]
-            attention_mask = [[0] * (input_max_length - len(array)) + [1] * len(array) for array in inputs]
-        else:
-            input_ids = [array + [eos_token_id] * (input_max_length - len(array)) for array in inputs]
-            attention_mask = [[1] * len(array) + [0] * (input_max_length - len(array)) for array in inputs]
+        input_ids = [[eos_token_id] * (input_max_length - len(array)) + array for array in inputs]
+        attention_mask = [[0] * (input_max_length - len(array)) + [1] * len(array) for array in inputs]
 
         if outputs is not None:
             assert (
@@ -68,33 +60,16 @@ def collate_fn(
         else:
             max_length = max(list(map(len, inputs)))
 
-            if padding_side == PaddingSide.left:
-                input_ids = [[eos_token_id] * (max_length - len(array)) + array for array in inputs]
-                attention_mask = [[0] * (max_length - len(array)) + [1] * len(array) for array in inputs]
+            input_ids = [[eos_token_id] * (max_length - len(array)) + array for array in inputs]
+            attention_mask = [[0] * (max_length - len(array)) + [1] * len(array) for array in inputs]
 
-                if outputs is not None:
-                    if loss_mask == LossMask.output_only:
-                        labels = [[labels_mask_value] * (max_length - len(array)) + array for array in outputs]
-                    elif loss_mask == LossMask.no_mask:
-                        labels = inputs
-                    else:
-                        raise ValueError(f"unexpected loss_mask ({loss_mask})")
-            else:
-                input_ids = [array + [eos_token_id] * (max_length - len(array)) for array in inputs]
-                attention_mask = [[1] * len(array) + [0] * (max_length - len(array)) for array in inputs]
-
-                if outputs is not None:
-                    if loss_mask == LossMask.output_only:
-                        labels = [
-                            [labels_mask_value] * (len(array_in) - len(array_out))
-                            + array_out
-                            + [labels_mask_value] * (max_length - len(array_in))
-                            for array_in, array_out in zip(inputs, outputs)
-                        ]
-                    elif loss_mask == LossMask.no_mask:
-                        labels = inputs
-                    else:
-                        raise ValueError(f"unexpected loss_mask ({loss_mask})")
+            if outputs is not None:
+                if loss_mask == LossMask.output_only:
+                    labels = [[labels_mask_value] * (max_length - len(array)) + array for array in outputs]
+                elif loss_mask == LossMask.no_mask:
+                    labels = inputs
+                else:
+                    raise ValueError(f"unexpected loss_mask ({loss_mask})")
 
     if not use_padding_free_transformer:
         input_ids = torch.tensor(input_ids)
@@ -107,3 +82,41 @@ def collate_fn(
         result["labels"] = labels
 
     return result
+
+
+def infinite_iterator(x: Iterable) -> Iterable:
+    """converts and iterable into a non-ending infinite iterable, will return None if input is None
+
+    Args:
+        x (Iterable): the iterable to convert
+
+    Returns:
+        Iterable: the converted iterable
+
+    Yields:
+        Iterator[Iterable]: an element from the original iterator
+    """
+
+    if x is None:
+        return None
+
+    while True:
+        for i in x:
+            yield i
+
+
+def get_next_batch(x: Iterable) -> dict:
+    """get next batch
+
+    Args:
+        x (Iterable): dataloader
+
+    Returns:
+        dict: batch
+    """
+
+    # train_dataloader is always None on TP ranks other than 0
+    if x is None:
+        return None
+
+    return next(x)

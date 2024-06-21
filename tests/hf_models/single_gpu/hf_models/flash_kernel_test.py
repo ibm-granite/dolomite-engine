@@ -109,7 +109,7 @@ class FlashKernelTest(TestCommons):
         key_pytorch = torch.randn(4096, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
         value_pytorch = torch.randn(4096, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
 
-        cu_seqlens = torch.tensor([1000, 999, 997, 996, 104], device=device)
+        cu_seqlens = torch.tensor([1000, 999, 997, 996, 104], dtype=torch.int32, device=device)
         max_seqlen = torch.tensor(1000, device=device)
 
         attention_pytorch = flash_attention(

@@ -70,13 +70,7 @@ def save_checkpoint(
         assert save_optimizer
         model.save_checkpoint(args.save_args.save_path, tag=_get_checkpoint_tag(iteration))
     elif distributed_backend == DistributedBackend.torch:
-        if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-            state_dict = {name: param.full_tensor() for name, param in model.named_parameters()}
-
-            if ProcessGroupManager.get_data_parallel_rank() == 0:
-                torch.save(state_dict, _get_model_path(save_path))
-        else:
-            dcp.save(get_model_state_dict(model), checkpoint_id=_get_model_path(save_path))
+        dcp.save(get_model_state_dict(model), checkpoint_id=_get_model_path(save_path))
 
         if save_optimizer:
             # TODO add options=StateDictOptions(flatten_optimizer_state_dict=True))
@@ -327,19 +321,11 @@ def _get_base_path(path: str, iteration: int) -> str:
 
 
 def _get_model_path(path: str) -> str:
-    suffix = "model"
-    if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix += f"-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
-
-    return os.path.join(path, suffix)
+    return os.path.join(path, "model")
 
 
 def _get_optimizer_path(path: str) -> str:
-    suffix = "optimizer"
-    if ProcessGroupManager.get_tensor_parallel_world_size() > 1:
-        suffix += f"-{ProcessGroupManager.get_tensor_parallel_rank()}.pt"
-
-    return os.path.join(path, suffix)
+    return os.path.join(path, "optimizer")
 
 
 def _get_lr_scheduler_path(path: str) -> str:

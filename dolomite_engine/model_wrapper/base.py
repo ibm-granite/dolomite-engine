@@ -208,10 +208,7 @@ class ModelWrapper(torch.nn.Module):
         if self.model_name is None:
             model_kwargs = {"config": self.config}
         else:
-            model_kwargs = {
-                "pretrained_model_name_or_path": self.model_name,
-                "trust_remote_code": args.model_args.trust_remote_code,
-            }
+            model_kwargs = {"pretrained_model_name_or_path": self.model_name}
 
         if self.attention_implementation is not None:
             model_kwargs["attn_implementation"] = self.attention_implementation.value
@@ -219,6 +216,8 @@ class ModelWrapper(torch.nn.Module):
             model_kwargs["use_padding_free_transformer"] = True
         if self.tensor_parallel_embeddings:
             model_kwargs["tensor_parallel_embeddings"] = True
+        if args.model_args.trust_remote_code:
+            model_kwargs["trust_remote_code"] = True
 
         def _get_model(**extras):
             if self.model_name is None:

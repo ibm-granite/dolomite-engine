@@ -1,9 +1,8 @@
 from typing import Tuple
 
 import torch
-import torch.nn.functional as F
 
-from ....utils import is_flash_attention_available
+from .....utils import is_flash_attention_available
 
 
 if is_flash_attention_available():
@@ -105,8 +104,6 @@ def flash_attention(
     use_pytorch_native_flash_attention: bool = False,
 ) -> torch.Tensor:
     if use_pytorch_native_flash_attention:
-        max_seqlen = query.shape[1]
-
         attention_output = _FlashAttentionTorch.apply(query, key, value, dropout_p, softmax_scale, causal)
     else:
         attention_output = flash_attn_func(
@@ -114,15 +111,3 @@ def flash_attention(
         )
 
     return attention_output
-
-
-def get_unpad_data(attention_mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-    indices = torch.nonzero(attention_mask.flatten(), as_tuple=False).flatten()
-    max_seqlen_in_batch = seqlens_in_batch.max().item()
-    cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.int32), (1, 0))
-    return (
-        indices,
-        cu_seqlens,
-        max_seqlen_in_batch,
-    )

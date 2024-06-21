@@ -101,7 +101,7 @@ class _FlashAttentionVarlenTorch(torch.autograd.Function):
         return query_grad, key_grad, value_grad, None, None, None, None, None, None, None
 
 
-def flash_attention(
+def flash_attention_varlen(
     query: torch.Tensor,
     key: torch.Tensor,
     value: torch.Tensor,

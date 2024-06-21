@@ -11,9 +11,6 @@ if is_flash_attention_available():
     from flash_attn.flash_attn_interface import flash_attn_func, flash_attn_varlen_func
 
 
-_USE_PYTORCH_NATIVE_FLASH_KERNEL: bool = int(os.getenv("PYTORCH_NATIVE_FLASH_KERNEL", 0))
-
-
 class _FlashAttentionVarlenTorch(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -115,6 +112,7 @@ def flash_attention(
     dropout_p: float,
     softmax_scale: float,
     causal: bool,
+    use_pytorch_native_flash_attention: bool = False,
 ) -> torch.Tensor:
     if cu_seqlens_q is None:
         # when attention mask is not specified, tensor is 4D
@@ -126,7 +124,7 @@ def flash_attention(
         assert max_seqlen_q is None
         assert max_seqlen_k is None
 
-    if _USE_PYTORCH_NATIVE_FLASH_KERNEL == 1:
+    if use_pytorch_native_flash_attention:
         if cu_seqlens_q is None:
             max_seqlen = query.shape[1]
 

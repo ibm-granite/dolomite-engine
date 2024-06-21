@@ -23,7 +23,6 @@ class FlashKernelTest(TestCommons):
         key_pytorch = torch.randn(4, 1024, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
         value_pytorch = torch.randn(4, 1024, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
 
-        os.environ.update({"PYTORCH_NATIVE_FLASH_KERNEL": "1"})
         attention_pytorch = flash_attention(
             query_pytorch,
             key_pytorch,
@@ -35,6 +34,7 @@ class FlashKernelTest(TestCommons):
             dropout_p=0,
             softmax_scale=None,
             causal=True,
+            use_pytorch_native_flash_attention=True,
         )
 
         query_tri_dao = torch.randn(4, 1024, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
@@ -56,6 +56,7 @@ class FlashKernelTest(TestCommons):
             dropout_p=0,
             softmax_scale=None,
             causal=True,
+            use_pytorch_native_flash_attention=False,
         )
 
         self.assert_equal_tensors(attention_pytorch, attention_tri_dao, exact_match=True)
@@ -112,7 +113,6 @@ class FlashKernelTest(TestCommons):
         cu_seqlens = torch.tensor([1000, 999, 997, 996, 104], device=device)
         max_seqlen = torch.tensor(1000, device=device)
 
-        os.environ.update({"PYTORCH_NATIVE_FLASH_KERNEL": "1"})
         attention_pytorch = flash_attention(
             query_pytorch,
             key_pytorch,
@@ -124,6 +124,7 @@ class FlashKernelTest(TestCommons):
             dropout_p=0,
             softmax_scale=None,
             causal=True,
+            use_pytorch_native_flash_attention=True,
         )
 
         query_tri_dao = torch.randn(4096, 32, 128, device=device, requires_grad=True, dtype=torch_dtype)
@@ -145,6 +146,7 @@ class FlashKernelTest(TestCommons):
             dropout_p=0,
             softmax_scale=None,
             causal=True,
+            use_pytorch_native_flash_attention=False,
         )
 
         self.assert_equal_tensors(attention_pytorch, attention_tri_dao, exact_match=True)

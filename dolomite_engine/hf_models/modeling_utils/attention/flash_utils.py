@@ -107,9 +107,7 @@ def flash_attention(
     if use_pytorch_native_flash_attention:
         max_seqlen = query.shape[1]
 
-        attention_output = _FlashAttentionTorch.apply(
-            query, key, value, None, None, max_seqlen, max_seqlen, dropout_p, softmax_scale, causal
-        )
+        attention_output = _FlashAttentionTorch.apply(query, key, value, dropout_p, softmax_scale, causal)
     else:
         attention_output = flash_attn_func(
             query, key, value, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal

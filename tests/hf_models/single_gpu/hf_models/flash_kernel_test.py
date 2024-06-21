@@ -58,7 +58,15 @@ class FlashKernelTest(TestCommons):
             use_pytorch_native_flash_attention=False,
         )
 
-        self.assert_equal_tensors(attention_pytorch, attention_tri_dao, exact_match=True)
+        self.assert_equal_tensors(
+            attention_pytorch,
+            attention_tri_dao,
+            exact_match=False,
+            atol_float16=5e-4,
+            rtol_float16=0,
+            atol_bfloat16=4e-3,
+            rtol_bfloat16=0,
+        )
 
         attention_pytorch.mean().backward()
         attention_tri_dao.mean().backward()

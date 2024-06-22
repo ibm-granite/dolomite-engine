@@ -15,7 +15,7 @@ class UnshardingTest(TestCommons):
         TestCommons.make_args_matrix(TestCommons.get_attention_head_types(), ["gelu", "geglu"], [False, True])
     )
     def test_unsharding(
-        self, attention_head_type: AttentionHeadType, activation_function: str, tensor_parallel_embeddings: bool
+        self, attention_head_type: AttentionHeadType, activation_function: str, tensor_parallel_word_embeddings: bool
     ) -> None:
         self.skip_test_if_device_unavailable(torch.device("cuda"))
 
@@ -36,7 +36,7 @@ class UnshardingTest(TestCommons):
                 str(tmp_path),
             ]
 
-            if tensor_parallel_embeddings:
-                command.append("--tensor-parallel-embeddings")
+            if tensor_parallel_word_embeddings:
+                command.append("--tensor-parallel-word-embeddings")
 
             subprocess.run(command, check=True)

@@ -14,7 +14,7 @@ from ...test_common import TestCommons
 parser = argparse.ArgumentParser()
 parser.add_argument("--attention-head-type", type=str)
 parser.add_argument("--activation-function", type=str)
-parser.add_argument("--tensor-parallel-embeddings", action="store_true")
+parser.add_argument("--tensor-parallel-word-embeddings", action="store_true")
 parser.add_argument("--tmp-path", type=str)
 args = parser.parse_args()
 
@@ -52,7 +52,7 @@ if tp_rank == 0:
 torch.distributed.barrier()
 
 model_tp = GPTDolomiteForCausalLM_TP.from_pretrained(
-    args.tmp_path, tensor_parallel_embeddings=args.tensor_parallel_embeddings
+    args.tmp_path, tensor_parallel_word_embeddings=args.tensor_parallel_word_embeddings
 )
 
 tp_state_dict = model_tp.state_dict()

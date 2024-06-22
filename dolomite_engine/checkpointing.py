@@ -273,10 +273,10 @@ def load_checkpoint_for_inference(
             state = unshard(
                 config=model.config,
                 tensor_parallel_state_dicts=tp_state_dicts,
-                tensor_parallel_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
+                tensor_parallel_word_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_word_embeddings,
                 prefix="model.",
                 # with bf16 nn.Embedding backward pass is non-deteministic
-                check_correctness=args_from_checkpoint.distributed_args.tensor_parallel_embeddings,
+                check_correctness=args_from_checkpoint.distributed_args.tensor_parallel_word_embeddings,
             )
             del tp_state_dicts
         else:

@@ -4,23 +4,32 @@
   <img src="assets/dolomite.jpeg" width="300px" height="300px">
 </p>
 
+<!-- Organization -->
 [IBM]: https://img.shields.io/static/v1?label=&message=IBM&color=blue
 [Third-Party]: https://img.shields.io/static/v1?label=&message=Third-Party&color=orange
+
+<!-- Topic -->
+[Efficient Finetuning]: https://img.shields.io/static/v1?label=&message=Efficient%20Finetuning&color=blueviolet
+[Efficient Inference]: https://img.shields.io/static/v1?label=&message=Efficient%20Inference&color=blueviolet
+[Instruction Finetuning]: https://img.shields.io/static/v1?label=&message=Instruction%20Finetuning&color=blueviolet
+[Memory Reduction]: https://img.shields.io/static/v1?label=&message=Memory%20Reduction&color=blueviolet
+[Mixture of Experts]: https://img.shields.io/static/v1?label=&message=Mixture%20of%20Experts&color=blueviolet
+[Model Architecture]: https://img.shields.io/static/v1?label=&message=Model%20Architecture&color=blueviolet
 
 # Introduction
 This repository contains code used for pretraining and finetuning IBM's Granite models. It also includes the following key innovations on model architectures, finetuning methods, systems optimizations:
 1. [Saving Memory Using Padding-Free Transformer Layers during Finetuning](https://huggingface.co/blog/mayank-mishra/padding-free-transformer)  
 _Mayank Mishra_  
-![image][IBM]
+![image][IBM] ![image][Memory Reduction] ![image][Efficient Finetuning]
 1. [Reducing Transformer Key-Value Cache Size with Cross-Layer Attention](https://arxiv.org/abs/2405.12981)  
 _William Brandon, Mayank Mishra, Aniruddha Nrusimha, Rameswar Panda, Jonathan Ragan Kelly_  
-![image][IBM]
+![image][IBM] ![image][Memory Reduction] ![image][Efficient Inference] ![image][Model Architecture]
 1. [Dense Training, Sparse Inference: Rethinking Training of Mixture-of-Experts Language Models](https://arxiv.org/abs/2404.05567)  
 _Bowen Pan, Yikang Shen, Haokun Liu, Mayank Mishra, Gaoyuan Zhang, Aude Oliva, Colin Raffel, Rameswar Panda_  
-![image][IBM]
+![image][IBM] ![image][Mixture of Experts] ![image][Efficient Inference] ![image][Model Architecture]
 1. [NEFTune: Noisy Embeddings Improve Instruction Finetuning](https://arxiv.org/abs/2310.05914)  
 _Neel Jain, Ping-yeh Chiang, Yuxin Wen, John Kirchenbauer, Hong-Min Chu, Gowthami Somepalli, Brian R. Bartoldson, Bhavya Kailkhura, Avi Schwarzschild, Aniruddha Saha, Micah Goldblum, Jonas Geiping, Tom Goldstein_  
-![image][Third-Party]
+![image][Third-Party] ![image][Instruction Finetuning]
 
 # Getting Started
 Run `make install` or `pip install -r requirements.txt` to install the requirements for this repository. You might need to install `flash-attn`.

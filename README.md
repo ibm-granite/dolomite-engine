@@ -215,12 +215,12 @@ Current contributors:
 </a>
 
 # Citation
-```tex
+```bibtex
 @software{Mishra_Dolomite_Engine_A_2024,
-  author = {Mishra, Mayank},
-  month = jun,
-  title = {{Dolomite Engine: A Hyper-Optimized Library for Pretraining and Finetuning}},
-  url = {https://github.com/ibm-granite/dolomite-engine},
-  year = {2024}
+    author = {Mishra, Mayank},
+    month = jun,
+    title = {{Dolomite Engine: A Hyper-Optimized Library for Pretraining and Finetuning}},
+    url = {https://github.com/ibm-granite/dolomite-engine},
+    year = {2024}
 }
 ```

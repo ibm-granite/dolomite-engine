@@ -4,6 +4,18 @@
   <img src="assets/dolomite.jpeg" width="300px" height="300px">
 </p>
 
+# Introduction
+This repository contains code used for pretraining and finetuning IBM's Granite models. It also includes the following key innovations on model architectures, finetuning methods, systems optimizations:
+1. [Saving Memory Using Padding-Free Transformer Layers during Finetuning](https://huggingface.co/blog/mayank-mishra/padding-free-transformer)
+<br>
+*Mayank Mishra*
+1. [Reducing Transformer Key-Value Cache Size with Cross-Layer Attention](https://arxiv.org/abs/2405.12981)
+<br>
+*William Brandon, Mayank Mishra, Aniruddha Nrusimha, Rameswar Panda, Jonathan Ragan Kelly*
+
+1. [Dense Training, Sparse Inference: Rethinking Training of Mixture-of-Experts Language Models](https://arxiv.org/abs/2404.05567)
+<br>
+*Bowen Pan, Yikang Shen, Haokun Liu, Mayank Mishra, Gaoyuan Zhang, Aude Oliva, Colin Raffel, Rameswar Panda*
 
 # Getting Started
 Run `make install` or `pip install -r requirements.txt` to install the requirements for this repository. You might need to install `flash-attn`.
@@ -12,7 +24,7 @@ Run `make install` or `pip install -r requirements.txt` to install the requireme
 This repository is meant for finetuning large language models (of any scale) using multiple backends. The following backends are currently supported:
 
 1. [FSDP](https://pytorch.org/docs/stable/fsdp.html)
-2. [DeepSpeed](https://github.com/microsoft/DeepSpeed)
+1. [DeepSpeed](https://github.com/microsoft/DeepSpeed)
 
 The repository currently only supports generative models but can be easily extended to non-generative models if needed. 2 main class of models from [HuggingFace](https://huggingface.co/docs/transformers/index) are supported:
 

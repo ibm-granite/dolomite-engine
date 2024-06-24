@@ -215,6 +215,7 @@ Current contributors:
 </a>
 
 # Citation
+If you find this repository useful, please consider citing it in your research:
 ```bibtex
 @software{Mishra_Dolomite_Engine_A_2024,
     author = {Mishra, Mayank},

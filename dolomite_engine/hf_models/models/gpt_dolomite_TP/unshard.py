@@ -6,7 +6,7 @@ from ...modeling_utils import is_glu
 from ..gpt_dolomite import GPTDolomiteConfig
 
 
-def unshard(
+def unshard_tensor_parallel_state_dicts(
     config: GPTDolomiteConfig,
     tensor_parallel_state_dicts: list[dict],
     tensor_parallel_word_embeddings: bool,

@@ -25,7 +25,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from .arguments import ExportArgs, InferenceArgs, TrainingArgs
 from .data import ResumableDataLoader
 from .enums import DistributedBackend, Mode, TuningMethod
-from .hf_models.models.gpt_dolomite_TP import unshard
+from .hf_models.models.gpt_dolomite_TP import unshard_tensor_parallel_state_dicts
 from .model_wrapper import ModelWrapper, get_model
 from .utils import ExperimentsTracker, ProcessGroupManager, load_yaml, log_rank_0, run_rank_n, string_to_torch_dtype
 
@@ -270,7 +270,7 @@ def load_checkpoint_for_inference(
                             torch.load(_get_model_path(_get_base_path(load_path, iteration)), map_location="cpu")
                         )
 
-            state = unshard(
+            state = unshard_tensor_parallel_state_dicts(
                 config=model.config,
                 tensor_parallel_state_dicts=tp_state_dicts,
                 tensor_parallel_word_embeddings=args_from_checkpoint.distributed_args.tensor_parallel_word_embeddings,

@@ -4,6 +4,7 @@ from .attention import (
     Attention,
     FlashAttention2,
     PaddingFreeAttention,
+    flash_attention,
     get_attention_module,
     get_unpad_data,
     interleave_query_key_value_tensor_for_attention,

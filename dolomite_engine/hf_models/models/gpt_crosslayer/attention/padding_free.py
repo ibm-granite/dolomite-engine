@@ -2,7 +2,7 @@ import torch
 
 from .....utils import is_flash_attention_available
 from ....enums import PositionEmbeddingType
-from ....modeling_utils import apply_rotary_pos_emb
+from ....modeling_utils import apply_rotary_pos_emb, flash_attention
 from .base import CrossLayerAttention, KeyValueProjection
 
 
@@ -32,7 +32,7 @@ class CrossLayerPaddingFreeAttention(CrossLayerAttention):
         softmax_scale = self._get_softmax_scale()
         dropout_p = self.attn_pdrop if self.training else 0
 
-        attn_output = flash_attn_varlen_func(
+        attn_output = flash_attention(
             query,
             key,
             value,

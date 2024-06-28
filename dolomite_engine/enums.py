@@ -40,8 +40,7 @@ class Mode(str, Enum):
 
     training = "training"
     inference = "inference"
-    export = "export"
-    unshard = "unshard"
+    unsharding = "unsharding"
 
 
 class DatasetKeys(str, Enum):

@@ -490,73 +490,34 @@ class InferenceArgs(BaseArgs):
 
 
 class UnshardingArgs(BaseArgs):
-    # randomization related arguments
-    random_args: RandomArgs = RandomArgs()
-    # tokenizer related arguments
-    tokenizer_args: TokenizerArgs = TokenizerArgs()
-    # model related arguments
-    model_args: Optional[ModelArgs] = None
-    # list of datasets to use
-    datasets: List[DatasetArgs] = []
-    # load related arguments
-    load_args: Optional[LoadArgs] = None
-    # generation parameters
-    generation_parameters: GenerationParameters = None
-    # mixed precision related arguments
-    mixed_precision_args: MixedPrecisionArgs = MixedPrecisionArgs()
-    # logging related arguments
-    logging_args: LoggingArgs = LoggingArgs()
-    # output dir
-    output_dir: str = None
-
-    def model_post_init(self, __context: Any) -> None:
-        _check_not_None(
-            [
-                (self.datasets, "datasets"),
-                (self.generation_parameters, "generation_parameters"),
-                (self.output_dir, "output_dir"),
-            ]
-        )
-
-        if self.load_args is None:
-            assert self.model_args is not None, "model_args need to be specified if load_args are not specified"
-        else:
-            assert self.model_args is None, "model_args can't be specified with load_args"
-
-        # datasets
-        _check_datasets(self.datasets)
-
-
-class ExportArgs(BaseArgs):
     # load related arguments
     load_args: LoadArgs = None
-    # export path
-    export_path: str = None
+    # unsharded path
+    unsharded_path: str = None
     # mixed precision related arguments
     mixed_precision_args: MixedPrecisionArgs = MixedPrecisionArgs()
     # logging related arguments
     logging_args: LoggingArgs = LoggingArgs()
 
     def model_post_init(self, __context: Any) -> None:
-        _check_not_None([(self.load_args, "load_args"), (self.export_path, "export_path")])
+        _check_not_None([(self.load_args, "load_args"), (self.unsharded_path, "unsharded_path")])
 
 
 _MODE_ARGS_MAP = {
     Mode.training: TrainingArgs,
     Mode.inference: InferenceArgs,
-    Mode.export: ExportArgs,
-    Mode.unshard: UnshardingArgs,
+    Mode.unsharding: UnshardingArgs,
 }
 
 
-def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, ExportArgs, UnshardingArgs]:
+def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, UnshardingArgs]:
     """get args for training / inference
 
     Args:
         mode (Mode): training / inference mode for running the program
 
     Returns:
-        Union[TrainingArgs, InferenceArgs, ExportArgs, UnshardingArgs]: args for training / inference
+        Union[TrainingArgs, InferenceArgs, UnshardingArgs]: args for training / inference
     """
 
     parser = ArgumentParser()
@@ -564,7 +525,7 @@ def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, ExportArgs, Unsha
     args = parser.parse_args()
 
     config: dict = load_yaml(args.config)
-    args: Union[TrainingArgs, InferenceArgs, ExportArgs] = _MODE_ARGS_MAP[mode](**config)
+    args: Union[TrainingArgs, InferenceArgs, UnshardingArgs] = _MODE_ARGS_MAP[mode](**config)
 
     set_logger(args.logging_args.logging_level, colored_log=args.logging_args.use_colored_logs)
     log_args(args)
@@ -573,15 +534,15 @@ def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, ExportArgs, Unsha
 
 
 @run_rank_n
-def log_args(args: Union[TrainingArgs, InferenceArgs, ExportArgs]) -> None:
+def log_args(args: Union[TrainingArgs, InferenceArgs, UnshardingArgs]) -> None:
     """log args
 
     Args:
-        args (Union[TrainingArgs, InferenceArgs, ExportArgs]): args for training / inference
+        args (Union[TrainingArgs, InferenceArgs, UnshardingArgs]): args for training / inference
     """
 
     def _iterate_args_recursively(
-        args: Union[TrainingArgs, InferenceArgs, ExportArgs, dict, BaseArgs], prefix: str = ""
+        args: Union[TrainingArgs, InferenceArgs, UnshardingArgs, dict, BaseArgs], prefix: str = ""
     ) -> None:
         result = []
 

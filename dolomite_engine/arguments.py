@@ -489,6 +489,44 @@ class InferenceArgs(BaseArgs):
         _check_datasets(self.datasets)
 
 
+class UnshardingArgs(BaseArgs):
+    # randomization related arguments
+    random_args: RandomArgs = RandomArgs()
+    # tokenizer related arguments
+    tokenizer_args: TokenizerArgs = TokenizerArgs()
+    # model related arguments
+    model_args: Optional[ModelArgs] = None
+    # list of datasets to use
+    datasets: List[DatasetArgs] = []
+    # load related arguments
+    load_args: Optional[LoadArgs] = None
+    # generation parameters
+    generation_parameters: GenerationParameters = None
+    # mixed precision related arguments
+    mixed_precision_args: MixedPrecisionArgs = MixedPrecisionArgs()
+    # logging related arguments
+    logging_args: LoggingArgs = LoggingArgs()
+    # output dir
+    output_dir: str = None
+
+    def model_post_init(self, __context: Any) -> None:
+        _check_not_None(
+            [
+                (self.datasets, "datasets"),
+                (self.generation_parameters, "generation_parameters"),
+                (self.output_dir, "output_dir"),
+            ]
+        )
+
+        if self.load_args is None:
+            assert self.model_args is not None, "model_args need to be specified if load_args are not specified"
+        else:
+            assert self.model_args is None, "model_args can't be specified with load_args"
+
+        # datasets
+        _check_datasets(self.datasets)
+
+
 class ExportArgs(BaseArgs):
     # load related arguments
     load_args: LoadArgs = None
@@ -507,17 +545,18 @@ _MODE_ARGS_MAP = {
     Mode.training: TrainingArgs,
     Mode.inference: InferenceArgs,
     Mode.export: ExportArgs,
+    Mode.unshard: UnshardingArgs,
 }
 
 
-def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, ExportArgs]:
+def get_args(mode: Mode) -> Union[TrainingArgs, InferenceArgs, ExportArgs, UnshardingArgs]:
     """get args for training / inference
 
     Args:
         mode (Mode): training / inference mode for running the program
 
     Returns:
-        Union[TrainingArgs, InferenceArgs, ExportArgs]: args for training / inference
+        Union[TrainingArgs, InferenceArgs, ExportArgs, UnshardingArgs]: args for training / inference
     """
 
     parser = ArgumentParser()

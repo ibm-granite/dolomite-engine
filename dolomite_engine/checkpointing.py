@@ -286,12 +286,12 @@ def load_checkpoint_for_inference(
             )
             del tp_state_dicts
         else:
+            with ProcessGroupManager.set_dummy_tensor_parallel_world_size(1):
+                model_path = _get_model_path(_get_base_path(load_path, iteration))
+
             state = {}
             _load_state_dict(
-                state,
-                storage_reader=FileSystemReader(_get_model_path(_get_base_path(load_path, iteration))),
-                planner=_EmptyStateDictLoadPlanner(),
-                no_dist=True,
+                state, storage_reader=FileSystemReader(model_path), planner=_EmptyStateDictLoadPlanner(), no_dist=True
             )
 
         if use_meta:

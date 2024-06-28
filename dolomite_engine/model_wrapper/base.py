@@ -256,7 +256,7 @@ class ModelWrapper(torch.nn.Module):
             else:
                 torch_dtype = string_to_torch_dtype(self.dtype)
 
-            self.model = _get_model(device_map=torch.cuda.current_device(), torch_dtype=torch_dtype)
+            self.model = _get_model(torch_dtype=torch_dtype)
 
         num_parameters = 0
         for param in self.model.parameters():

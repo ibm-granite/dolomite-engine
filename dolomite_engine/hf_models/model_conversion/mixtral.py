@@ -171,6 +171,10 @@ def _export_config_to_huggingface(config: MoEDolomiteConfig) -> MixtralConfig:
     assert config.normalization_function == "rmsnorm"
     assert config.position_embedding_type == "rope"
     assert config.normalize_expert_weights
+    assert config.m_emb is None
+    assert config.m_residual is None
+    assert config.m_width is None
+    assert config.attention_multiplier is None
 
     original_config = MixtralConfig(
         vocab_size=config.vocab_size,

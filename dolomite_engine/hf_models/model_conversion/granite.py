@@ -65,6 +65,10 @@ def _import_config_from_huggingface(original_config: GraniteConfig) -> GPTDolomi
         bos_token_id=original_config.bos_token_id,
         eos_token_id=original_config.eos_token_id,
         pad_token_id=original_config.pad_token_id,
+        m_emb=original_config.m_emb,
+        m_residual=original_config.m_residual,
+        m_width=original_config.m_width,
+        attention_multiplier=original_config.attention_multiplier,
     )
 
     return config

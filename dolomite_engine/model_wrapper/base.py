@@ -9,7 +9,14 @@ from ..arguments import InferenceArgs, TrainingArgs, UnshardingArgs
 from ..enums import AttentionImplementation, DistributedBackend, GradientCheckpointingMethod, LossMask, Mode
 from ..hf_models import get_tensor_parallel_class, is_custom_model, is_tensor_parallel_compatible_model
 from ..hf_models.modeling_utils import is_glu
-from ..utils import CUDA_RNGStatesTracker, ProcessGroupManager, log_rank_0, set_cuda_rng_tracker, string_to_torch_dtype
+from ..utils import (
+    CUDA_RNGStatesTracker,
+    ProcessGroupManager,
+    SafeTensorsWeightsManager,
+    log_rank_0,
+    set_cuda_rng_tracker,
+    string_to_torch_dtype,
+)
 
 
 class ModelWrapper(torch.nn.Module):
@@ -184,9 +191,18 @@ class ModelWrapper(torch.nn.Module):
         # overrides the forward function of torch.nn.Embedding
         self.model.get_input_embeddings().forward = _noisy_forward
 
-    def save_pretrained(self, save_path: str) -> None:
+    def save_pretrained(self, save_path: str, state_dict: dict = None) -> None:
         self.tokenizer.save_pretrained(save_path, legacy_format=False)
-        self.model.save_pretrained(save_path)
+
+        if state_dict is None:
+            self.model.save_pretrained(save_path)
+        else:
+            for key in list(state_dict.keys()):
+                assert key.startswith("model.")
+                state_dict[key.lstrip("model.")] = state_dict.pop(key)
+
+            self.config.save_pretrained(save_path)
+            SafeTensorsWeightsManager.save_state_dict(state_dict, save_path)
 
     def _setup_config(self, args: Union[TrainingArgs, InferenceArgs, UnshardingArgs]) -> None:
         if self.model_name is None:

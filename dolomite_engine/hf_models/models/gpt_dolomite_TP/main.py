@@ -8,7 +8,6 @@ from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ....utils import SafeTensorsWeightsManager
-from ...modeling_utils import ParameterizedLinear
 from ...modeling_utils_TP import (
     LMHead_TP,
     TensorParallelCrossEntropy,

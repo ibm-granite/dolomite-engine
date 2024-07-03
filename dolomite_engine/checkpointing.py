@@ -293,29 +293,10 @@ def load_checkpoint_for_inference(
                 if hasattr(module, "unshard"):
                     module.unshard()
 
-            state = {}
-            for name, param in model.named_parameters():
-                state[name] = param.to_local().to("cpu")
-
-            if (
-                ProcessGroupManager.get_data_parallel_rank() == 0
-                and ProcessGroupManager.get_tensor_parallel_rank() != 0
-            ):
-                torch.save(state, f"model_state-{ProcessGroupManager.get_tensor_parallel_rank()}.pt")
-
-            torch.distributed.barrier()
-
-            if ProcessGroupManager.get_global_rank() == 0:
-                tp_states = [state]
-                for rank in range(1, checkpoint_tp_world_size):
-                    tp_states.append(torch.load(f"model_state-{rank}.pt"))
-
-                state = unshard_tensor_parallel_state_dicts(
-                    model.config,
-                    tp_states,
-                    args_from_checkpoint.distributed_args.tensor_parallel_word_embeddings,
-                    "model.",
-                )
+            state = {name: param.full_tensor().to("cpu") for name, param in model.named_parameters()}
+            state = fix_unsharded_state_dict(
+                model.config, state, tensor_parallel_size=checkpoint_tp_world_size, prefix="model."
+            )
         else:
             with (
                 torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),

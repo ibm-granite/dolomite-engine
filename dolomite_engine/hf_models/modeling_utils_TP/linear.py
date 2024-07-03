@@ -12,7 +12,7 @@ from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
     copy_to_tensor_parallel_region,
-    modify_state_dict_to_densor_dict,
+    modify_state_dict_to_dtensor_dict,
     reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
 )
@@ -83,7 +83,7 @@ class ColumnParallelLinear(ParameterizedLinear):
         )
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
-        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)
 
 
@@ -153,7 +153,7 @@ class RowParallelLinear(ParameterizedLinear):
         )
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
-        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)
 
 
@@ -192,5 +192,5 @@ class TensorParallelSharedLinear(ParameterizedLinear):
             return super().reset_parameters()
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
-        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)

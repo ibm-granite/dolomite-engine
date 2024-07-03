@@ -21,29 +21,31 @@ eval_interval = 1000
 
 
 class DummyArgs:
-    dataset_args = DatasetArgs(
-        # don't change these values
-        class_name="MegatronDataset",
-        data_name="Megatron",
-        data_sampling_ratio=1,
-        # you are allowed to change these values
-        class_args={
-            # number of steps to eval every time we do evaluation
-            # 2 means (2 * micro_batch_size * sequence_length) tokens to calculate perplexity
-            "eval_steps": 2,
-            # path of cache used by megatron dataset
-            "data_cache_path": "./cache",
-            # sampling proportion followed by their file paths
-            "data_path": [0.2, "data/lang=Matlab", 0.5, "data/lang=Verilog", 0.3, "data/lang=Zig"],
-            # 100% train, 0% val and 0% test
-            "split": "100,0,0",
-            # megatron dataloader returns 2049 tokens (sequence_length + 1) since the loss computation is done outside
-            # the model class. to train with HF's loss computation, we need to pass (sequence_length - 1) so it
-            # returns 2048 tokens but note that HF will itself train with 2047 tokens which is not a big problem
-            # Don't change this directly if using HF trainer or something adjust sequence_length above
-            "sequence_length": sequence_length - 1,
-        },
-    )
+    datasets = [
+        DatasetArgs(
+            # don't change these values
+            class_name="MegatronDataset",
+            data_name="Megatron",
+            data_sampling_ratio=1,
+            # you are allowed to change these values
+            class_args={
+                # number of steps to eval every time we do evaluation
+                # 2 means (2 * micro_batch_size * sequence_length) tokens to calculate perplexity
+                "eval_steps": 2,
+                # path of cache used by megatron dataset
+                "data_cache_path": "./cache",
+                # sampling proportion followed by their file paths
+                "data_path": [0.2, "data/lang=Matlab", 0.5, "data/lang=Verilog", 0.3, "data/lang=Zig"],
+                # 100% train, 0% val and 0% test
+                "split": "100,0,0",
+                # megatron dataloader returns 2049 tokens (sequence_length + 1) since the loss computation is done outside
+                # the model class. to train with HF's loss computation, we need to pass (sequence_length - 1) so it
+                # returns 2048 tokens but note that HF will itself train with 2047 tokens which is not a big problem
+                # Don't change this directly if using HF trainer or something adjust sequence_length above
+                "sequence_length": sequence_length - 1,
+            },
+        )
+    ]
 
     training_parameters = TrainingParameters(
         num_training_steps=num_training_steps,

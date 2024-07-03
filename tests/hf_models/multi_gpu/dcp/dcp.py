@@ -1,12 +1,11 @@
 import argparse
 import os
-import subprocess
 
 import torch
 import torch.distributed
 
-from dolomite_engine.arguments import TrainingArgs
-from dolomite_engine.checkpointing import save_checkpoint
+from dolomite_engine.arguments import TrainingArgs, UnshardingArgs
+from dolomite_engine.checkpointing import load_checkpoint_for_inference, save_checkpoint
 from dolomite_engine.distributed import wrap_model_for_distributed_training
 from dolomite_engine.enums import Mode
 from dolomite_engine.model_wrapper import get_model
@@ -14,15 +13,16 @@ from dolomite_engine.utils import ProcessGroupManager, load_yaml
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--config", type=str)
+parser.add_argument("--train-config", type=str)
+parser.add_argument("--unshard-config", type=str)
 parser.add_argument("--tmp-path", type=str)
 args = parser.parse_args()
 
 
-config = TrainingArgs(**load_yaml(args.config))
+train_config = TrainingArgs(**load_yaml(args.train_config))
+unshard_config = UnshardingArgs(**load_yaml(args.unshard_config))
 
-
-tp_world_size = config.distributed_args.tensor_parallel_size
+tp_world_size = train_config.distributed_args.tensor_parallel_size
 dp_world_size = int(os.getenv("WORLD_SIZE")) // tp_world_size
 
 ProcessGroupManager(tensor_parallel_size=tp_world_size, data_parallel_size=dp_world_size)
@@ -35,32 +35,32 @@ if global_rank == 0:
         ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
         ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
     ):
-        model = get_model(config, Mode.training)
+        model = get_model(train_config, Mode.training)
         model.save_pretrained(os.path.join(args.tmp_path, "single_rank"))
-
-    print(model)
 
 torch.distributed.barrier()
 
 # modify args to load the saved single_rank checkpoint
-config.model_args.pretrained_config = None
-config.model_args.model_name = os.path.join(args.tmp_path, "single_rank")
-config.save_args.save_path = os.path.join(args.tmp_path, "save")
+train_config.model_args.pretrained_config = None
+train_config.model_args.model_name = os.path.join(args.tmp_path, "single_rank")
+train_config.save_args.save_path = os.path.join(args.tmp_path, "save")
 
-model_tp = get_model(config, Mode.training)
-model_tp, optimizer, lr_scheduler = wrap_model_for_distributed_training(config, model_tp)
+iteration = 0
+unshard_config.load_args.load_path = train_config.save_args.save_path
+unshard_config.load_args.iteration = iteration
+unshard_config.unsharded_path = os.path.join(args.tmp_path, "unsharded_path")
 
-if global_rank == 0:
-    print(model_tp)
+model_tp = get_model(train_config, Mode.training)
+model_tp, optimizer, lr_scheduler = wrap_model_for_distributed_training(train_config, model_tp)
 
 save_checkpoint(
-    config,
+    train_config,
     model=model_tp,
     optimizer=optimizer,
     lr_scheduler=lr_scheduler,
     train_dataloader=None,
     experiments_tracker=None,
-    iteration=0,
+    iteration=iteration,
     metadata=None,
 )
 
@@ -68,20 +68,8 @@ torch.distributed.barrier()
 
 
 if global_rank == 0:
-    consolidated_path = os.path.join(args.tmp_path, "model.pt")
-
-    command = [
-        "python",
-        "-m",
-        "torch.distributed.checkpoint.format_utils",
-        "dcp_to_torch",
-        os.path.join(config.save_args.save_path, "global_step0", "model"),
-        consolidated_path,
-    ]
-    subprocess.run(command, check=True)
-
-    consolidated_state_dict = torch.load(consolidated_path, "cpu")
     original_state_dict = model.state_dict()
+    _, _, consolidated_state_dict = load_checkpoint_for_inference(unshard_config, mode=Mode.unsharding, use_meta=False)
 
     assert consolidated_state_dict.keys() == original_state_dict.keys()
     for key in original_state_dict:

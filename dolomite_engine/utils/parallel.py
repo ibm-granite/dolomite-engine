@@ -216,6 +216,30 @@ class ProcessGroupManager:
 
         _TENSOR_PARALLEL_WORLD_SIZE = original_world_size
 
+    @contextmanager
+    @staticmethod
+    def set_dummy_data_parallel_rank(rank: int):
+        global _DATA_PARALLEL_RANK
+
+        original_rank = _DATA_PARALLEL_RANK
+        _DATA_PARALLEL_RANK = rank
+
+        yield
+
+        _DATA_PARALLEL_RANK = original_rank
+
+    @contextmanager
+    @staticmethod
+    def set_dummy_data_parallel_world_size(world_size: int):
+        global _DATA_PARALLEL_WORLD_SIZE
+
+        original_world_size = _DATA_PARALLEL_WORLD_SIZE
+        _DATA_PARALLEL_WORLD_SIZE = world_size
+
+        yield
+
+        _DATA_PARALLEL_WORLD_SIZE = original_world_size
+
     @staticmethod
     def get_data_parallel_mesh_with_topology() -> DeviceMesh:
         global _DATA_PARALLEL_REPLICATION_WORLD_SIZE, _DATA_PARALLEL_SHARDING_WORLD_SIZE

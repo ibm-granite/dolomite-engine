@@ -12,7 +12,7 @@ from ...test_common import TestCommons
 
 class DCPTest(TestCommons):
     @parameterized.expand(
-        TestCommons.make_args_matrix(TestCommons.get_attention_head_types()[:1], ["gelu", "geglu"], [False, True])
+        TestCommons.make_args_matrix(TestCommons.get_attention_head_types(), ["gelu", "geglu"], [False, True])
     )
     def test_dcp(
         self, attention_head_type: AttentionHeadType, activation_function: str, tensor_parallel_word_embeddings: bool
@@ -32,10 +32,12 @@ class DCPTest(TestCommons):
                 "tests/hf_models/multi_gpu/dcp/train.yml",
                 "--unshard-config",
                 "tests/hf_models/multi_gpu/dcp/unshard.yml",
+                "--attention-head-type",
+                attention_head_type.value,
                 "--activation-function",
                 activation_function,
                 "--tmp-path",
-                str(tmp_path),
+                tmp_path,
             ]
 
             if tensor_parallel_word_embeddings:

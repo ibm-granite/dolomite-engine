@@ -29,11 +29,11 @@ class UnshardingTest(TestCommons):
                 "-m",
                 "tests.hf_models.multi_gpu.unsharding.unsharding",
                 "--attention-head-type",
-                str(attention_head_type.value),
+                attention_head_type.value,
                 "--activation-function",
-                str(activation_function),
+                activation_function,
                 "--tmp-path",
-                str(tmp_path),
+                tmp_path,
             ]
 
             if tensor_parallel_word_embeddings:

@@ -8,6 +8,7 @@ from dolomite_engine.arguments import TrainingArgs, UnshardingArgs
 from dolomite_engine.checkpointing import load_checkpoint_for_inference, save_checkpoint
 from dolomite_engine.distributed import wrap_model_for_distributed_training
 from dolomite_engine.enums import Mode
+from dolomite_engine.hf_models import AttentionHeadType
 from dolomite_engine.model_wrapper import get_model
 from dolomite_engine.utils import ProcessGroupManager, load_yaml
 
@@ -15,17 +16,24 @@ from dolomite_engine.utils import ProcessGroupManager, load_yaml
 parser = argparse.ArgumentParser()
 parser.add_argument("--train-config", type=str)
 parser.add_argument("--unshard-config", type=str)
+parser.add_argument("--attention-head-type", type=str)
 parser.add_argument("--activation-function", type=str)
 parser.add_argument("--tmp-path", type=str)
 parser.add_argument("--tensor-parallel-word-embeddings", action="store_true")
 args = parser.parse_args()
 
+num_key_value_heads = None
+if AttentionHeadType(args.attention_head_type) == AttentionHeadType.gqa:
+    num_key_value_heads = 8
 
 train_config = TrainingArgs(**load_yaml(args.train_config))
 unshard_config = UnshardingArgs(**load_yaml(args.unshard_config))
 
 # set tensor parallel embeddings if specified in the args
 train_config.distributed_args.tensor_parallel_word_embeddings = args.tensor_parallel_word_embeddings
+# attention head type
+train_config.model_args.pretrained_config["attention_head_type"] = args.attention_head_type
+train_config.model_args.pretrained_config["num_key_value_heads"] = args.num_key_value_heads
 # activation function
 train_config.model_args.pretrained_config["activation_function"] = args.activation_function
 

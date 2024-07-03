@@ -131,7 +131,7 @@ def _get_embeddings_or_lm_head(
             tensor_parallel_state_dicts, key=prefix, check_correctness=check_correctness
         )
 
-    # tensor parallel embeddings uses EmbeddingTP class so we need to trim the matrix
+    # tensor parallel embeddings uses Embedding_TP class so we need to trim the matrix
     if tensor_parallel_word_embeddings:
         assert output.shape[0] >= vocab_size
         output = output[:vocab_size, :]

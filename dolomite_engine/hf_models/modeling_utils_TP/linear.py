@@ -184,6 +184,7 @@ class TensorParallelSharedLinear(ParameterizedLinear):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         bias = None if self.bias is None else self.bias.to_local()
         input = F.linear(input, self.weight.to_local(), bias)
+        input = copy_to_tensor_parallel_region(input)
         return input
 
     @torch.no_grad()

@@ -12,7 +12,6 @@ from ...modeling_utils import Attention
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
 from ..linear import ColumnParallelLinear, RowParallelLinear, TensorParallelSharedLinear
-from ..TP import copy_to_tensor_parallel_region
 
 
 class Attention_TP(Attention):
@@ -195,7 +194,6 @@ class _MQA_QueryKeyValueProjection(nn.Module):
         query = self.q_attn(hidden_states)
 
         key_value = self.kv_attn(hidden_states)
-        key_value = copy_to_tensor_parallel_region(key_value)
         key, value = key_value.chunk(2, -1)
 
         return query, key, value

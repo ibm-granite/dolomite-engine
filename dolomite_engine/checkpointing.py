@@ -260,7 +260,7 @@ def load_checkpoint_for_inference(
             model = model.to_empty(device="cpu")
 
         if model.tuning_method == TuningMethod.prompt_tuning:
-            model.load_state_dict(state, strict=False)
+            strict = False
         elif model.tuning_method in [TuningMethod.pretraining, TuningMethod.full_finetuning]:
             dtype = string_to_torch_dtype(model.dtype)
             for key in list(state.keys()):
@@ -268,7 +268,9 @@ def load_checkpoint_for_inference(
                 # fix for gradient checkpointing
                 state[key.replace("._checkpoint_wrapped_module", "")] = state.pop(key)
 
-            model.load_state_dict(state)
+            strict = True
+
+        model.load_state_dict(state, strict=strict)
     elif distributed_backend == DistributedBackend.torch:
         if checkpoint_tp_world_size > 1:
             if not ProcessGroupManager.is_initialized():
@@ -290,7 +292,7 @@ def load_checkpoint_for_inference(
             del model_state_dict
 
             model.unshard()
-            for name, module in model.named_modules():
+            for module in model.modules():
                 if hasattr(module, "unshard"):
                     module.unshard()
 
@@ -317,6 +319,7 @@ def load_checkpoint_for_inference(
             if use_meta:
                 model = model.to_empty(device="cpu")
 
+            strict = True
             model.load_state_dict(state)
     else:
         raise ValueError(f"unexpected distributed_backend ({args['distributed_args']['distributed_backend']})")

@@ -70,6 +70,7 @@ with (
     ProcessGroupManager.set_dummy_data_parallel_rank(ProcessGroupManager.get_global_rank()),
     ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
     ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
+    ProcessGroupManager.set_dummy_tensor_parallel_first_rank(ProcessGroupManager.get_global_rank()),
 ):
     # running this function outside of the above context might throw error or give incorrect behaviour
     # you can change consumed samples, 0 means dataloader is starting from beginning and adjusting to a different

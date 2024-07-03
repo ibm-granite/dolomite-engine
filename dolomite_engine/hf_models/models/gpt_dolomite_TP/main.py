@@ -31,12 +31,12 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
         )
 
         if not self._tied_word_embeddings:
-            if self.tensor_parallel_word_embeddings:
-                self.lm_head = LMHead_TP(config.vocab_size, config.n_embd, std=config.initializer_range)
-            else:
-                self.lm_head = ParameterizedLinear(
-                    config.n_embd, config.vocab_size, bias=False, std=config.initializer_range
-                )
+            self.lm_head = LMHead_TP(
+                config.vocab_size,
+                config.n_embd,
+                std=config.initializer_range,
+                tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+            )
 
         self.m_width = config.m_width
         self.upcast_logits_for_loss = config.upcast_logits_for_loss

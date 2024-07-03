@@ -298,13 +298,6 @@ def load_checkpoint_for_inference(
                 model.config, state, tensor_parallel_size=checkpoint_tp_world_size, prefix="model."
             )
         else:
-            with (
-                torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
-                ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
-                ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
-            ):
-                model = get_model(args_from_checkpoint, mode)
-
             state = {}
             _load_state_dict(
                 state,
@@ -312,6 +305,13 @@ def load_checkpoint_for_inference(
                 planner=_EmptyStateDictLoadPlanner(),
                 no_dist=True,
             )
+
+            with (
+                torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
+                ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
+                ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
+            ):
+                model = get_model(args_from_checkpoint, mode)
 
             if use_meta:
                 model = model.to_empty(device="cpu")

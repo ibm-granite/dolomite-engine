@@ -67,10 +67,13 @@ save_checkpoint(
 torch.distributed.barrier()
 
 
+_, _, consolidated_state_dict = load_checkpoint_for_inference(unshard_config, mode=Mode.unsharding, use_meta=False)
+
 if global_rank == 0:
     original_state_dict = model.state_dict()
-    _, _, consolidated_state_dict = load_checkpoint_for_inference(unshard_config, mode=Mode.unsharding, use_meta=False)
 
     assert consolidated_state_dict.keys() == original_state_dict.keys()
     for key in original_state_dict:
         assert original_state_dict[key].equal(consolidated_state_dict[key])
+
+torch.distributed.barrier()

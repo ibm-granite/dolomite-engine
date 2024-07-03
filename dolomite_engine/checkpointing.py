@@ -26,7 +26,7 @@ from .arguments import InferenceArgs, TrainingArgs, UnshardingArgs
 from .data import ResumableDataLoader
 from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, Mode, TuningMethod
-from .hf_models.models.gpt_dolomite_TP import fix_unsharded_state_dict, unshard_tensor_parallel_state_dicts
+from .hf_models.models.gpt_dolomite_TP import fix_unsharded_state_dict
 from .model_wrapper import ModelWrapper, get_model
 from .utils import (
     ExperimentsTracker,
@@ -271,13 +271,14 @@ def load_checkpoint_for_inference(
             model.load_state_dict(state)
     elif distributed_backend == DistributedBackend.torch:
         if checkpoint_tp_world_size > 1:
-            init_distributed(
-                tensor_parallel_size=checkpoint_tp_world_size,
-                data_parallel_size=args_from_checkpoint.distributed_args.data_parallel_size,
-                data_parallel_replication_world_size=args_from_checkpoint.distributed_args.zero_topology.data_parallel_replication_world_size,
-                data_parallel_sharding_world_size=args_from_checkpoint.distributed_args.zero_topology.data_parallel_sharding_world_size,
-                timeout_minutes=args_from_checkpoint.distributed_args.timeout_minutes,
-            )
+            if not ProcessGroupManager.is_initialized():
+                init_distributed(
+                    tensor_parallel_size=checkpoint_tp_world_size,
+                    data_parallel_size=args_from_checkpoint.distributed_args.data_parallel_size,
+                    data_parallel_replication_world_size=args_from_checkpoint.distributed_args.zero_topology.data_parallel_replication_world_size,
+                    data_parallel_sharding_world_size=args_from_checkpoint.distributed_args.zero_topology.data_parallel_sharding_world_size,
+                    timeout_minutes=args_from_checkpoint.distributed_args.timeout_minutes,
+                )
 
             use_meta = False
             model = get_model(args_from_checkpoint, mode)

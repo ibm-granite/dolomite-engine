@@ -56,8 +56,7 @@ model_tp = GPTDolomiteForCausalLM_TP.from_pretrained(
 )
 
 tp_state_dict = model_tp.state_dict()
-tp_state_dict = {key: value.to("cpu") for key, value in tp_state_dict.items()}
-tp_state_dict = {key: value.full_tensor() for key, value in tp_state_dict.items()}
+tp_state_dict = {key: value.to("cpu").full_tensor() for key, value in tp_state_dict.items()}
 tp_state_dict = fix_unsharded_state_dict(config, tp_state_dict, ProcessGroupManager.get_tensor_parallel_world_size())
 
 torch.distributed.barrier()

@@ -15,6 +15,7 @@ from dolomite_engine.utils import ProcessGroupManager, load_yaml
 parser = argparse.ArgumentParser()
 parser.add_argument("--train-config", type=str)
 parser.add_argument("--unshard-config", type=str)
+parser.add_argument("--activation-function", type=str)
 parser.add_argument("--tmp-path", type=str)
 parser.add_argument("--tensor-parallel-word-embeddings", action="store_true")
 args = parser.parse_args()
@@ -25,6 +26,8 @@ unshard_config = UnshardingArgs(**load_yaml(args.unshard_config))
 
 # set tensor parallel embeddings if specified in the args
 train_config.distributed_args.tensor_parallel_word_embeddings = args.tensor_parallel_word_embeddings
+# activation function
+train_config.model_args.pretrained_config["activation_function"] = args.activation_function
 
 tp_world_size = train_config.distributed_args.tensor_parallel_size
 dp_world_size = int(os.getenv("WORLD_SIZE")) // tp_world_size

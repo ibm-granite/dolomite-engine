@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer
 
-from dolomite_engine.arguments import DatasetArgs, DistributedArgs, TrainingParameters
+from dolomite_engine.arguments import DatasetArgs, DistributedArgs, RandomArgs, TrainingParameters
 from dolomite_engine.data import get_megatron_gpt_dataloaders
 from dolomite_engine.utils import ProcessGroupManager
 
@@ -21,6 +21,9 @@ eval_interval = 1000
 
 
 class DummyArgs:
+    # seed for shuffling data
+    random_args = RandomArgs(seed=42)
+
     datasets = [
         DatasetArgs(
             # don't change these values
@@ -35,7 +38,14 @@ class DummyArgs:
                 # path of cache used by megatron dataset
                 "data_cache_path": "./cache",
                 # sampling proportion followed by their file paths
-                "data_path": [0.2, "data/lang=Matlab", 0.5, "data/lang=Verilog", 0.3, "data/lang=Zig"],
+                "data_path": [
+                    0.2,
+                    "/proj-3500/datasets/slim_pajama_gptneox_megatron/train/chunk1",
+                    0.5,
+                    "/proj-3500/datasets/slim_pajama_gptneox_megatron/train/chunk2",
+                    0.3,
+                    "/proj-3500/datasets/slim_pajama_gptneox_megatron/train/chunk3",
+                ],
                 # 100% train, 0% val and 0% test
                 "split": "100,0,0",
                 # megatron dataloader returns 2049 tokens (sequence_length + 1) since the loss computation is done outside

@@ -273,6 +273,8 @@ def load_checkpoint_for_inference(
         model.load_state_dict(state, strict=strict)
     elif distributed_backend == DistributedBackend.torch:
         if checkpoint_tp_world_size > 1:
+            # FIXME this bad logic for tensor parallel unsharding
+            # requires same number of GPUs for unsharding as used during training for unsharding to work correctly
             if not ProcessGroupManager.is_initialized():
                 init_distributed(
                     tensor_parallel_size=checkpoint_tp_world_size,
@@ -291,12 +293,18 @@ def load_checkpoint_for_inference(
             set_model_state_dict(model, model_state_dict)
             del model_state_dict
 
+            # can potentially be done on CPU but doing on GPU for now
             model.unshard()
             for module in model.modules():
                 if hasattr(module, "unshard"):
                     module.unshard()
 
             state = {name: param.full_tensor().to("cpu") for name, param in model.named_parameters()}
+
+            # since our model uses a fused linear layer instead of separate linear layers for Q, K and V
+            # we need to reorder the tensors for QKV, just unsharding is not enough
+            # the fusion has advantage of not calling 3 all-reduces in the backward which is not the case
+            # if you have 3 column parallel linear ops, similar thing is done in case of GLU
             state = fix_unsharded_state_dict(
                 model.config, state, tensor_parallel_size=checkpoint_tp_world_size, prefix="model."
             )

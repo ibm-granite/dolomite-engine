@@ -5,17 +5,32 @@ import torch.distributed
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Placement, Replicate, Shard
+from torch.profiler import record_function
 
 from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
 
 
 def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
+    with record_function("TP::copy_to_tensor_parallel_region"):
+        return _CopyToTensorParallelRegion.apply(input)
 
-    with torch.profiler.record_function("TP::copy_to_tensor_parallel_region"):
-        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[Replicate()])
-        input = input.to_local()
+
+def reduce_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
+    with record_function("TP::reduce_from_tensor_parallel_region"):
+        return _ReduceFromTensorParallelRegion.apply(input)
+
+
+def gather_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
+    with record_function("TP::gather_from_tensor_parallel_region"):
+        return _GatherFromTensorParallelRegion.apply(input)
+
+
+class _CopyToTensorParallelRegion(torch.autograd.Function):
+    """Pass the input to the model parallel region."""
+
+    @staticmethod
+    def forward(ctx, input: torch.Tensor) -> torch.Tensor:
         return input
 
 
@@ -116,7 +131,7 @@ def prepare_tensor_parallel_tensor_output(
     return output
 
 
-def modify_state_dict_to_densor_dict(module: nn.Module, state_dict: dict) -> dict:
+def modify_state_dict_to_dtensor_dict(module: nn.Module, state_dict: dict) -> dict:
     result = {}
     for key, tensor in state_dict.items():
         device_mesh = getattr(module, key).device_mesh

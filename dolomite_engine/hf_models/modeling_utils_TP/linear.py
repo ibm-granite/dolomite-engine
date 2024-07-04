@@ -4,6 +4,7 @@ from typing import Any, Mapping
 import torch
 import torch.distributed
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
@@ -11,9 +12,11 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rn
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
-    modify_state_dict_to_densor_dict,
+    copy_to_tensor_parallel_region,
+    modify_state_dict_to_dtensor_dict,
     prepare_tensor_parallel_dtensor_input,
     prepare_tensor_parallel_tensor_output,
+    reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
 )
 
@@ -60,6 +63,12 @@ class ColumnParallelLinear(ParameterizedLinear):
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
         self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Shard(-1)))
 
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        input = copy_to_tensor_parallel_region(input)
+        bias = None if self.bias is None else self.bias.to_local()
+        input = F.linear(input, self.weight.to_local(), bias)
+        return input
+
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
     ) -> None:
@@ -80,7 +89,7 @@ class ColumnParallelLinear(ParameterizedLinear):
         )
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
-        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)
 
 
@@ -126,6 +135,15 @@ class RowParallelLinear(ParameterizedLinear):
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Shard(-1)))
         self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, desired_placement=Replicate()))
 
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # we can't call super().forward here since that will add bias to each TP rank
+        # but for tensor parallel, we need to add it on only 1 TP rank
+        input = F.linear(input, self.weight.to_local(), None)
+        input = reduce_from_tensor_parallel_region(input)
+        if self.bias is not None:
+            input = input + self.bias.to_local()
+        return input
+
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
     ) -> None:
@@ -144,7 +162,7 @@ class RowParallelLinear(ParameterizedLinear):
         )
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
-        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)
 
 
@@ -175,11 +193,17 @@ class TensorParallelSharedLinear(ParameterizedLinear):
         self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
         self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
 
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        bias = None if self.bias is None else self.bias.to_local()
+        input = F.linear(input, self.weight.to_local(), bias)
+        input = copy_to_tensor_parallel_region(input)
+        return input
+
     @torch.no_grad()
     def reset_parameters(self) -> None:
         with get_cuda_rng_tracker().fork():
             return super().reset_parameters()
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
-        state_dict = modify_state_dict_to_densor_dict(self, state_dict)
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)

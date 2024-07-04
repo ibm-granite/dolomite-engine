@@ -1,12 +1,11 @@
 import math
-from functools import partial
 from typing import Tuple
 
 import torch
 import torch.distributed
 import torch.nn as nn
 
-from ....utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
+from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
 from ...modeling_utils import Attention

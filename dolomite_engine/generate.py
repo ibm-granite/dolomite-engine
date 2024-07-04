@@ -74,7 +74,6 @@ def main() -> None:
 
     if args.load_args is None:
         model = get_model(args, mode)
-        model = model.to(torch.cuda.current_device())
 
         datasets_list, _ = get_datasets_list(
             args,
@@ -84,7 +83,7 @@ def main() -> None:
             is_encoder_decoder=model.is_encoder_decoder,
         )
     else:
-        model, args_from_checkpoint = load_checkpoint_for_inference(args, mode)
+        model, args_from_checkpoint, _ = load_checkpoint_for_inference(args, mode)
 
         # override with datasets passed in current config
         args_from_checkpoint.datasets = args.datasets
@@ -96,6 +95,8 @@ def main() -> None:
             tokenizer=model.tokenizer,
             is_encoder_decoder=model.is_encoder_decoder,
         )
+
+    model = model.to(torch.cuda.current_device())
 
     generate(args, model, datasets_list, mode)
 

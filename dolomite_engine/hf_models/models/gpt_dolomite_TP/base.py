@@ -15,10 +15,10 @@ class GPTDolomitePreTrainedModel_TP(GPTDolomitePreTrainedModel):
 
 
 class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
-    def __init__(self, config: GPTDolomiteConfig, tensor_parallel_embeddings: bool = False, **kwargs) -> None:
+    def __init__(self, config: GPTDolomiteConfig, tensor_parallel_word_embeddings: bool = False, **kwargs) -> None:
         GPTDolomitePreTrainedModel.__init__(self, config, **kwargs)
 
-        self.tensor_parallel_embeddings = tensor_parallel_embeddings
+        self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings
 
         self.attention_head_type = AttentionHeadType(config.attention_head_type)
         self.embed_dim = config.hidden_size
@@ -29,7 +29,12 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
         self.head_dim = self.embed_dim // self.num_heads
 
         self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
-        self.wte = Embedding_TP(config.vocab_size, self.embed_dim, std=self.initializer_range)
+        self.wte = Embedding_TP(
+            config.vocab_size,
+            self.embed_dim,
+            std=self.initializer_range,
+            tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+        )
 
         self.drop = nn.Identity() if config.embd_pdrop == 0 else Dropout_TP(config.embd_pdrop)
         self.h = nn.ModuleList(
@@ -67,19 +72,11 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
     ) -> None:
         # word embeddings
-        if self.tensor_parallel_embeddings:
-            self.wte.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix + "wte.")
-        else:
-            state_dict = {"weight": safetensors_weight_manager.get_tensor(prefix + "wte.weight")}
-            self.wte.load_state_dict(state_dict)
+        self.wte.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix + "wte.")
 
         # positional embeddings
         if self.position_embedding_type == PositionEmbeddingType.learned_absolute:
-            if self.tensor_parallel_embeddings:
-                self.wpe.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix + "wpe.")
-            else:
-                state_dict = {"weight": safetensors_weight_manager.get_tensor(prefix + "wpe.weight")}
-                self.wpe.load_state_dict(state_dict)
+            self.wpe.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix + "wpe.")
         elif self.position_embedding_type == PositionEmbeddingType.alibi:
             with torch.device(torch.cuda.current_device()):
                 self.alibi.reset_parameters()
@@ -139,7 +136,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
         max_position_embeddings = self.config.max_position_embeddings
 
         if self.position_embedding_type == PositionEmbeddingType.learned_absolute:
-            self.wpe = Embedding_TP(max_position_embeddings, self.embed_dim)
+            self.wpe = Embedding_TP(max_position_embeddings, self.embed_dim, tensor_parallel_word_embeddings=False)
         elif self.position_embedding_type == PositionEmbeddingType.alibi:
             self.alibi = Alibi_TP(self.num_heads)
         elif self.position_embedding_type == PositionEmbeddingType.rope:

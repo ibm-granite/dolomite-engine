@@ -9,13 +9,14 @@ from torch.distributed.tensor.parallel import loss_parallel
 
 from dolomite_engine.enums import Mode
 
-from ..arguments import ExportArgs, InferenceArgs, TrainingArgs
+from ..arguments import InferenceArgs, TrainingArgs, UnshardingArgs
+from ..hf_models.modeling_utils_TP import TensorParallelCrossEntropy
 from ..utils import ProcessGroupManager
 from .base import ModelWrapper
 
 
 class ModelWrapperForPretraining(ModelWrapper):
-    def __init__(self, args: TrainingArgs | InferenceArgs | ExportArgs, mode: Mode):
+    def __init__(self, args: TrainingArgs | InferenceArgs | UnshardingArgs, mode: Mode):
         self.micro_batch_size = args.training_parameters.micro_batch_size
         self.sequence_length = args.datasets[0].class_args.get("sequence_length")
 
@@ -59,7 +60,7 @@ class ModelWrapperForPretraining(ModelWrapper):
             input_ids = tokens[:, :-1]
             labels = tokens[:, 1:]
 
-            if self.tensor_parallel_embeddings:
+            if self.tensor_parallel_word_embeddings:
                 model_outputs = self.model(input_ids=input_ids, output_parallel_lm_logits=True)
 
                 logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
@@ -106,7 +107,7 @@ class ModelWrapperForPretraining(ModelWrapper):
 
         return loss
 
-    def _setup_model(self, args: Union[TrainingArgs, InferenceArgs, ExportArgs]) -> None:
+    def _setup_model(self, args: Union[TrainingArgs, InferenceArgs, UnshardingArgs]) -> None:
         super()._setup_model(args)
 
         assert not self.is_encoder_decoder, "currently encoder_decoder models are not supported for pretraining"

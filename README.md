@@ -4,15 +4,41 @@
   <img src="assets/dolomite.jpeg" width="300px" height="300px">
 </p>
 
+<!-- Organization -->
+[IBM]: https://img.shields.io/static/v1?label=&message=IBM&color=blue
+[Third-Party]: https://img.shields.io/static/v1?label=&message=Third-Party&color=orange
+
+<!-- Topic -->
+[Efficient Finetuning]: https://img.shields.io/static/v1?label=&message=Efficient%20Finetuning&color=blueviolet
+[Efficient Inference]: https://img.shields.io/static/v1?label=&message=Efficient%20Inference&color=blueviolet
+[Instruction Finetuning]: https://img.shields.io/static/v1?label=&message=Instruction%20Finetuning&color=blueviolet
+[Memory Reduction]: https://img.shields.io/static/v1?label=&message=Memory%20Reduction&color=blueviolet
+[Mixture of Experts]: https://img.shields.io/static/v1?label=&message=Mixture%20of%20Experts&color=blueviolet
+[Model Architecture]: https://img.shields.io/static/v1?label=&message=Model%20Architecture&color=blueviolet
+
+# Introduction
+This repository contains code used for pretraining and finetuning IBM's Granite models. It also includes the following key innovations on model architectures, finetuning methods, systems optimizations:
+1. [Saving Memory Using Padding-Free Transformer Layers during Finetuning](https://huggingface.co/blog/mayank-mishra/padding-free-transformer)  
+_Mayank Mishra_  
+![image][IBM] ![image][Memory Reduction] ![image][Efficient Finetuning]
+1. [Reducing Transformer Key-Value Cache Size with Cross-Layer Attention](https://arxiv.org/abs/2405.12981)  
+_William Brandon, Mayank Mishra, Aniruddha Nrusimha, Rameswar Panda, Jonathan Ragan Kelly_  
+![image][IBM] ![image][Memory Reduction] ![image][Efficient Inference] ![image][Model Architecture]
+1. [Dense Training, Sparse Inference: Rethinking Training of Mixture-of-Experts Language Models](https://arxiv.org/abs/2404.05567)  
+_Bowen Pan, Yikang Shen, Haokun Liu, Mayank Mishra, Gaoyuan Zhang, Aude Oliva, Colin Raffel, Rameswar Panda_  
+![image][IBM] ![image][Mixture of Experts] ![image][Efficient Inference] ![image][Model Architecture]
+1. [NEFTune: Noisy Embeddings Improve Instruction Finetuning](https://arxiv.org/abs/2310.05914)  
+_Neel Jain, Ping-yeh Chiang, Yuxin Wen, John Kirchenbauer, Hong-Min Chu, Gowthami Somepalli, Brian R. Bartoldson, Bhavya Kailkhura, Avi Schwarzschild, Aniruddha Saha, Micah Goldblum, Jonas Geiping, Tom Goldstein_  
+![image][Third-Party] ![image][Instruction Finetuning]
 
 # Getting Started
-Run `make install` or `pip install -r requirements.txt` to install the requirements for this repository.
+Run `make install` or `pip install -r requirements.txt` to install the requirements for this repository. You might need to install `flash-attn`.
 
 # Distributed finetuning
 This repository is meant for finetuning large language models (of any scale) using multiple backends. The following backends are currently supported:
 
 1. [FSDP](https://pytorch.org/docs/stable/fsdp.html)
-2. [DeepSpeed](https://github.com/microsoft/DeepSpeed)
+1. [DeepSpeed](https://github.com/microsoft/DeepSpeed)
 
 The repository currently only supports generative models but can be easily extended to non-generative models if needed. 2 main class of models from [HuggingFace](https://huggingface.co/docs/transformers/index) are supported:
 
@@ -22,7 +48,7 @@ The repository currently only supports generative models but can be easily exten
 Please note that this repository doesn't support Tensor Parallel or Pipeline Parallel (yet :wink:).
 
 # HuggingFace compatible custom models
-This repository works with all HuggingFace models (text-to-text only for the moment) out-of-the-box.
+This repository works with all HuggingFace models (text-to-text only for the moment) out-of-the-box. The checkpoints have to be in safetensors format, if not you can check `tools/pt_to_safetensors.py`. If your model_type is `gpt_megatron` just change it to `gpt_dolomite`.
 
 > [!TIP]
 > You might be able to enjoy additional memory and computation savings when finetuning your models using the [padding free transformers optimization](https://huggingface.co/blog/mayank-mishra/padding-free-transformer). This optimization is currently only supported for decoder models and requires converting your model (say LLama-3 for example) to a [custom class](dolomite_engine/hf_models/models/gpt_dolomite/) implemented in this repo. This is completely optional and not required for finetuning. The conversion can be achieved as follows:
@@ -77,7 +103,12 @@ Note that padding free transformers doesn't support generation and thus for runn
 The typical training workflow looks like:
 1. [Pretraining](scripts/pretrain.sh) or [Finetuning](scripts/finetune.sh): This is the actual training process
 ```shell
-sh scripts/train.sh configs/sst2/training.yml
+# for finetuning
+sh scripts/finetune.sh configs/sst2/training.yml
+```
+```shell
+# for pretraining
+sh scripts/pretrain.sh configs/pretraining-examples/pretrain-1.yml
 ```
 
 2. [Inference](scripts/generate.sh): Run inference on the trained models or the un-trained model
@@ -85,12 +116,12 @@ sh scripts/train.sh configs/sst2/training.yml
 sh scripts/generate.sh configs/sst2/inference.yml
 ```
 
-3. [Export to HuggingFace-compatible checkpoint](scripts/export.sh): This is used to export the model to a safetensors checkpoint
+3. [Unshard the checkpoint](scripts/unshard.sh): This is used to unshard the model to a safetensors checkpoint since dolomite-engine saves a sharded model during training
 ```shell
-sh scripts/export.sh configs/sst2/export.yml
+sh scripts/unshard.sh configs/sst2/unshard.yml
 ```
 
-## Dataset
+## Using custom datasets
 The data directory should obey the following structure:
 ```text
 📦data
@@ -145,6 +176,9 @@ SlimOrcaDataset
 SST2Dataset
 ```
 
+## Using Megatron Dataset outside of this repository
+This repository implements the dataloader from Megatron-LM for efficient pretraining. If for some reason you need to use that dataloader outside this repository, take a look at [this example](tools/megatron_dataset/megatron_dataloader.py).
+
 ## Supported optimizers
 We support all of the following optimizers. The default optimizer is `TorchAdamW`. Note that using the [DeepSpeed](https://github.com/microsoft/DeepSpeed) or [Apex](https://github.com/NVIDIA/apex) optimizers will require installing the respective pip package.
 
@@ -177,4 +211,16 @@ from torch.optim.radam import RAdam as TorchRAdam
 from torch.optim.rmsprop import RMSprop as TorchRMSprop
 from torch.optim.rprop import Rprop as TorchRprop
 from torch.optim.sgd import SGD as TorchSGD
+```
+
+# Citation
+If you find this repository useful, please consider citing it in your research:
+```bibtex
+@software{Mishra_Dolomite_Engine_A_2024,
+    author = {Mishra, Mayank},
+    month = jun,
+    title = {{Dolomite Engine: A Hyper-Optimized Library for Pretraining and Finetuning}},
+    url = {https://github.com/ibm-granite/dolomite-engine},
+    year = {2024}
+}
 ```

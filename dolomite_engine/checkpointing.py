@@ -22,12 +22,21 @@ from torch.distributed.checkpoint.state_dict_loader import _load_state_dict
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
-from .arguments import ExportArgs, InferenceArgs, TrainingArgs
+from .arguments import InferenceArgs, TrainingArgs, UnshardingArgs
 from .data import ResumableDataLoader
+from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, Mode, TuningMethod
-from .hf_models.models.gpt_dolomite_TP import interleave_unsharded_state_dict
+from .hf_models.models.gpt_dolomite_TP import fix_unsharded_state_dict
 from .model_wrapper import ModelWrapper, get_model
-from .utils import ExperimentsTracker, ProcessGroupManager, load_yaml, log_rank_0, run_rank_n, string_to_torch_dtype
+from .utils import (
+    ExperimentsTracker,
+    ProcessGroupManager,
+    init_distributed,
+    load_yaml,
+    log_rank_0,
+    run_rank_n,
+    string_to_torch_dtype,
+)
 
 
 _TRAINING_CONFIG_PREFIX = "training_config"
@@ -210,12 +219,12 @@ def load_checkpoint_for_training(
 
 
 def load_checkpoint_for_inference(
-    args: Union[InferenceArgs, ExportArgs], mode: Mode, use_meta: bool = False
-) -> Tuple[ModelWrapper, TrainingArgs]:
+    args: Union[InferenceArgs, UnshardingArgs], mode: Mode, use_meta: bool = False
+) -> Tuple[ModelWrapper, TrainingArgs, dict]:
     """load deepspeed checkpoint for inference
 
     Args:
-        args (Union[InferenceArgs, ExportArgs]): arguments
+        args (Union[InferenceArgs, UnshardingArgs]): arguments
         mode (Mode): training/inference mode
         use_meta (bool): whether to use meta device
     """
@@ -226,7 +235,7 @@ def load_checkpoint_for_inference(
     args_file = os.path.join(_get_base_path(load_path, iteration), f"{_TRAINING_CONFIG_PREFIX}.yml")
     args_from_checkpoint = load_yaml(args_file)
 
-    args_from_checkpoint: TrainingArgs = TrainingArgs(**args_from_checkpoint)
+    args_from_checkpoint = TrainingArgs(**args_from_checkpoint)
 
     if args.mixed_precision_args is not None:
         log_rank_0(logging.INFO, "overriding mixed precision args")
@@ -235,23 +244,23 @@ def load_checkpoint_for_inference(
     distributed_backend = args_from_checkpoint.distributed_args.distributed_backend
     checkpoint_tp_world_size = args_from_checkpoint.distributed_args.tensor_parallel_size
 
-    with (
-        torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
-        ProcessGroupManager.set_dummy_tensor_parallel_rank(1),
-        ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
-    ):
-        model = get_model(args_from_checkpoint, mode)
-
     if distributed_backend == DistributedBackend.deepspeed:
         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
 
         state = get_fp32_state_dict_from_zero_checkpoint(load_path, _get_checkpoint_tag(iteration))
 
+        with (
+            torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
+            ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
+            ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
+        ):
+            model = get_model(args_from_checkpoint, mode)
+
         if use_meta:
             model = model.to_empty(device="cpu")
 
         if model.tuning_method == TuningMethod.prompt_tuning:
-            model.load_state_dict(state, strict=False)
+            strict = False
         elif model.tuning_method in [TuningMethod.pretraining, TuningMethod.full_finetuning]:
             dtype = string_to_torch_dtype(model.dtype)
             for key in list(state.keys()):
@@ -259,31 +268,70 @@ def load_checkpoint_for_inference(
                 # fix for gradient checkpointing
                 state[key.replace("._checkpoint_wrapped_module", "")] = state.pop(key)
 
-            model.load_state_dict(state)
+            strict = True
+
+        model.load_state_dict(state, strict=strict)
     elif distributed_backend == DistributedBackend.torch:
-        state = {}
-        _load_state_dict(
-            state,
-            storage_reader=FileSystemReader(_get_model_path(_get_base_path(load_path, iteration))),
-            planner=_EmptyStateDictLoadPlanner(),
-            no_dist=True,
-        )
+        if checkpoint_tp_world_size > 1:
+            # FIXME this bad logic for tensor parallel unsharding
+            # requires same number of GPUs for unsharding as used during training for unsharding to work correctly
+            if not ProcessGroupManager.is_initialized():
+                init_distributed(
+                    tensor_parallel_size=checkpoint_tp_world_size,
+                    data_parallel_size=args_from_checkpoint.distributed_args.data_parallel_size,
+                    data_parallel_replication_world_size=args_from_checkpoint.distributed_args.zero_topology.data_parallel_replication_world_size,
+                    data_parallel_sharding_world_size=args_from_checkpoint.distributed_args.zero_topology.data_parallel_sharding_world_size,
+                    timeout_minutes=args_from_checkpoint.distributed_args.timeout_minutes,
+                )
 
-        # this fixes the state dict
-        state = interleave_unsharded_state_dict(
-            config=model.config,
-            state_dict=state,
-            tensor_parallel_size=args_from_checkpoint.distributed_args.tensor_parallel_size,
-        )
+            use_meta = False
+            model = get_model(args_from_checkpoint, mode)
+            model, _, _ = wrap_model_for_distributed_training(args_from_checkpoint, model)
 
-        if use_meta:
-            model = model.to_empty(device="cpu")
+            model_state_dict = get_model_state_dict(model)
+            dcp.load(model_state_dict, checkpoint_id=_get_model_path(_get_base_path(load_path, iteration)))
+            set_model_state_dict(model, model_state_dict)
+            del model_state_dict
 
-        model.load_state_dict(state)
+            # can potentially be done on CPU but doing on GPU for now
+            model.unshard()
+            for module in model.modules():
+                if hasattr(module, "unshard"):
+                    module.unshard()
+
+            state = {name: param.full_tensor().to("cpu") for name, param in model.named_parameters()}
+
+            # since our model uses a fused linear layer instead of separate linear layers for Q, K and V
+            # we need to reorder the tensors for QKV, just unsharding is not enough
+            # the fusion has advantage of not calling 3 all-reduces in the backward which is not the case
+            # if you have 3 column parallel linear ops, similar thing is done in case of GLU
+            state = fix_unsharded_state_dict(
+                model.config, state, tensor_parallel_size=checkpoint_tp_world_size, prefix="model."
+            )
+        else:
+            state = {}
+            _load_state_dict(
+                state,
+                storage_reader=FileSystemReader(_get_model_path(_get_base_path(load_path, iteration))),
+                planner=_EmptyStateDictLoadPlanner(),
+                no_dist=True,
+            )
+
+            with (
+                torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),
+                ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
+                ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
+            ):
+                model = get_model(args_from_checkpoint, mode)
+
+            if use_meta:
+                model = model.to_empty(device="cpu")
+
+            model.load_state_dict(state)
     else:
         raise ValueError(f"unexpected distributed_backend ({args['distributed_args']['distributed_backend']})")
 
-    return model, args_from_checkpoint
+    return model, args_from_checkpoint, state
 
 
 @run_rank_n

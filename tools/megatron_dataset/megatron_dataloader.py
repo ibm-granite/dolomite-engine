@@ -2,7 +2,11 @@ from transformers import AutoTokenizer
 
 from dolomite_engine.arguments import DatasetArgs, DistributedArgs, RandomArgs, TrainingParameters
 from dolomite_engine.data import get_megatron_gpt_dataloaders
-from dolomite_engine.utils import ProcessGroupManager
+from dolomite_engine.utils import ProcessGroupManager, set_logger
+
+
+# this is needed to print logs during preparation of dataloader
+set_logger()
 
 
 # use the appropriate tokenizer here

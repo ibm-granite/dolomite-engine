@@ -126,14 +126,8 @@ class RowParallelLinear(ParameterizedLinear):
                 )
             )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # we can't call super().forward here since that will add bias to each TP rank
-        # but for tensor parallel, we need to add it on only 1 TP rank
-        input = F.linear(input, self.weight.to_local(), None)
-        input = reduce_from_tensor_parallel_region(input)
-        if self.bias is not None:
-            input = input + self.bias.to_local()
-        return input
+        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Shard(-1)))
+        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Replicate()))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

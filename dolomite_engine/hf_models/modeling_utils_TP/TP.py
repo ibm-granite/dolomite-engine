@@ -1,3 +1,4 @@
+import contextlib
 from typing import Tuple
 
 import torch
@@ -11,31 +12,8 @@ from ...utils import ProcessGroupManager
 from ..utils import divide_if_divisible
 
 
-def copy_to_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    with record_function("TP::copy_to_tensor_parallel_region"):
-        return _CopyToTensorParallelRegion.apply(input)
-
-
-def reduce_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    with record_function("TP::reduce_from_tensor_parallel_region"):
-        return _ReduceFromTensorParallelRegion.apply(input)
-
-
-def gather_from_tensor_parallel_region(input: torch.Tensor) -> torch.Tensor:
-    with record_function("TP::gather_from_tensor_parallel_region"):
-        return _GatherFromTensorParallelRegion.apply(input)
-
-
-class _CopyToTensorParallelRegion(torch.autograd.Function):
-    """Pass the input to the model parallel region."""
-
-    @staticmethod
-    def forward(ctx, input: torch.Tensor) -> torch.Tensor:
-        return input
-
-
 def reduce_from_tensor_parallel_region(input: DTensor) -> DTensor:
-    with torch.profiler.record_function("TP::reduce_from_tensor_parallel_region"):
+    with record_function("TP::reduce_from_tensor_parallel_region"):
         assert isinstance(input.placements[0], Shard)
         input = input.redistribute(
             device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
@@ -46,7 +24,7 @@ def reduce_from_tensor_parallel_region(input: DTensor) -> DTensor:
 def gather_from_tensor_parallel_region(input: torch.Tensor) -> DTensor:
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
-    with torch.profiler.record_function("TP::gather_from_tensor_parallel_region"):
+    with record_function("TP::gather_from_tensor_parallel_region"):
         input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[Shard(-1)])
         input = input.full_tensor()
         return input
@@ -88,15 +66,20 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
 
 
 def prepare_tensor_parallel_dtensor_input(
-    module: nn.Module, inputs: tuple[torch.Tensor], placement: Placement, desired_placement: Placement = None
+    module: nn.Module,
+    inputs: tuple[torch.Tensor],
+    current_placement: Placement,
+    desired_placement: Placement = None,
+    profiler_name: str = None,
 ) -> DTensor:
     assert len(inputs) == 1
     input = inputs[0]
 
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
-    with torch.profiler.record_function("TP::prepare_tensor_parallel_dtensor_input"):
-        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[placement])
+    context = contextlib.nullcontext() if profiler_name is None else record_function(profiler_name)
+    with context:
+        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[current_placement])
 
         if desired_placement is not None:
             input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
@@ -108,19 +91,21 @@ def prepare_tensor_parallel_tensor_output(
     module: nn.Module,
     inputs: list[DTensor],
     output: DTensor,
-    assert_placement: Placement = None,
+    assert_current_placement: Placement = None,
     desired_placement: Placement = None,
+    profiler_name: str = None,
 ) -> torch.Tensor:
-    if assert_placement is not None:
-        if isinstance(assert_placement, Replicate):
+    if assert_current_placement is not None:
+        if isinstance(assert_current_placement, Replicate):
             assert output.placements[0].is_replicate()
-        elif isinstance(assert_placement, Shard):
-            dim = assert_placement.dim
+        elif isinstance(assert_current_placement, Shard):
+            dim = assert_current_placement.dim
             if dim == -1:
                 dim = output.dim() - 1
             assert output.placements[0].is_shard(dim)
 
-    with torch.profiler.record_function("TP::prepare_tensor_parallel_tensor_output"):
+    context = contextlib.nullcontext() if profiler_name is None else record_function(profiler_name)
+    with context:
         if desired_placement is not None:
             output = output.redistribute(
                 device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]

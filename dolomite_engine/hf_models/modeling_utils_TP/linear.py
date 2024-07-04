@@ -4,7 +4,6 @@ from typing import Any, Mapping
 import torch
 import torch.distributed
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
@@ -12,11 +11,9 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rn
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
-    copy_to_tensor_parallel_region,
     modify_state_dict_to_dtensor_dict,
     prepare_tensor_parallel_dtensor_input,
     prepare_tensor_parallel_tensor_output,
-    reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
 )
 
@@ -60,14 +57,14 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Shard(-1)))
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        input = copy_to_tensor_parallel_region(input)
-        bias = None if self.bias is None else self.bias.to_local()
-        input = F.linear(input, self.weight.to_local(), bias)
-        return input
+        self.register_forward_pre_hook(
+            partial(
+                prepare_tensor_parallel_dtensor_input,
+                current_placement=Replicate(),
+                profiler_name="TP::copy_to_tensor_parallel_region",
+            )
+        )
+        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_current_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -132,17 +129,14 @@ class RowParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Shard(-1)))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, desired_placement=Replicate()))
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # we can't call super().forward here since that will add bias to each TP rank
-        # but for tensor parallel, we need to add it on only 1 TP rank
-        input = F.linear(input, self.weight.to_local(), None)
-        input = reduce_from_tensor_parallel_region(input)
-        if self.bias is not None:
-            input = input + self.bias.to_local()
-        return input
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, current_placement=Shard(-1)))
+        self.register_forward_hook(
+            partial(
+                prepare_tensor_parallel_tensor_output,
+                desired_placement=Replicate(),
+                profiler_name="TP::reduce_from_tensor_parallel_region",
+            )
+        )
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -190,14 +184,14 @@ class TensorParallelSharedLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        bias = None if self.bias is None else self.bias.to_local()
-        input = F.linear(input, self.weight.to_local(), bias)
-        input = copy_to_tensor_parallel_region(input)
-        return input
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, current_placement=Replicate()))
+        self.register_forward_hook(
+            partial(
+                prepare_tensor_parallel_tensor_output,
+                assert_current_placement=Replicate(),
+                profiler_name="TP::copy_to_tensor_parallel_region",
+            )
+        )
 
     @torch.no_grad()
     def reset_parameters(self) -> None:

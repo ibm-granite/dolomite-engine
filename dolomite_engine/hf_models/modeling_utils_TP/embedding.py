@@ -47,8 +47,10 @@ class Embedding_TP(ParameterizedEmbedding):
             )
         )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, placement=Replicate()))
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_placement=Replicate()))
+        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, current_placement=Replicate()))
+        self.register_forward_hook(
+            partial(prepare_tensor_parallel_tensor_output, assert_current_placement=Replicate())
+        )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.tensor_parallel_word_embeddings:

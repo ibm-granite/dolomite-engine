@@ -178,6 +178,7 @@ def dtensor_to_tensor(
     return output
 
 
+@torch.no_grad()
 def modify_state_dict_to_dtensor_dict(module: nn.Module, state_dict: dict) -> dict:
     result = {}
     for key, tensor in state_dict.items():

@@ -4,6 +4,7 @@ import torch
 import torch.distributed
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Placement, Replicate, Shard
 from torch.profiler import record_function
 
 from ...utils import ProcessGroupManager
@@ -133,6 +134,48 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
             return slice[:, start_index:end_index]
     else:
         raise RuntimeError("this code should not be reachable")
+
+
+def tensor_to_dtensor(
+    module: nn.Module, inputs: tuple[torch.Tensor], current_placement: Placement, desired_placement: Placement = None
+) -> DTensor:
+    assert len(inputs) == 1
+    input = inputs[0]
+
+    tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
+
+    input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[current_placement])
+
+    if desired_placement is not None:
+        input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
+
+    return (input,)
+
+
+def dtensor_to_tensor(
+    module: nn.Module,
+    inputs: tuple[DTensor],
+    output: DTensor,
+    assert_current_placement: Placement = None,
+    desired_placement: Placement = None,
+) -> torch.Tensor:
+    if assert_current_placement is not None:
+        if isinstance(assert_current_placement, Replicate):
+            assert output.placements[0].is_replicate()
+        elif isinstance(assert_current_placement, Shard):
+            dim = assert_current_placement.dim
+            if dim == -1:
+                dim = output.dim() - 1
+            assert output.placements[0].is_shard(dim)
+
+    if desired_placement is not None:
+        output = output.redistribute(
+            device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
+        )
+
+    output = output.to_local()
+
+    return output
 
 
 def modify_state_dict_to_dtensor_dict(module: nn.Module, state_dict: dict) -> dict:

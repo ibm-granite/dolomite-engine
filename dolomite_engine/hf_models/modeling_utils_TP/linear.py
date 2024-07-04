@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Mapping
 
 import torch
@@ -12,9 +13,11 @@ from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
     copy_to_tensor_parallel_region,
+    dtensor_to_tensor,
     modify_state_dict_to_dtensor_dict,
     reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
+    tensor_to_dtensor,
 )
 
 
@@ -57,11 +60,8 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        input = copy_to_tensor_parallel_region(input)
-        bias = None if self.bias is None else self.bias.to_local()
-        input = F.linear(input, self.weight.to_local(), bias)
-        return input
+        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

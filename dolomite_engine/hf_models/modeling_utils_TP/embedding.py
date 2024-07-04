@@ -62,7 +62,7 @@ class Embedding_TP(ParameterizedEmbedding):
         else:
             masked_input = input
 
-        output_parallel = F.embedding(input, self.weight.to_local())
+        output_parallel = F.embedding(input, self.weight)
 
         if self.tensor_parallel_word_embeddings:
             # Mask the output embedding.

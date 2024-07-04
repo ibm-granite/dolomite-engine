@@ -35,6 +35,8 @@ class ModelWrapperForPretraining(ModelWrapper):
             torch.Tensor: loss tensor
         """
 
+        loss_context = contextlib.nullcontext
+
         # for pretraining we compute loss externally here instead of relying on transformers.
         # this is done because megatron's dataset returns batches of length (sequence_length + 1)
         # instead of (sequence_length), so we need to trim the input_ids before forward pass.
@@ -68,14 +70,9 @@ class ModelWrapperForPretraining(ModelWrapper):
 
             if self.tensor_parallel_word_embeddings:
                 assert not self.upcast_logits_for_loss
-                logits = DTensor.from_local(logits, device_mesh=tp_mesh, placements=[Shard(-1)])
+                loss_context = loss_parallel
 
-                with loss_parallel():
-                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
-            else:
-                if self.upcast_logits_for_loss:
-                    logits = logits.float()
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
+                logits = DTensor.from_local(logits, device_mesh=tp_mesh, placements=[Shard(-1)])
         else:
             tokens: torch.Tensor = batch["text"]
             if not tokens.is_cuda:
@@ -94,8 +91,11 @@ class ModelWrapperForPretraining(ModelWrapper):
                 model_outputs = self.model(input_ids=input_ids)
 
             logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
-            if self.upcast_logits_for_loss:
-                logits = logits.float()
+
+        if self.upcast_logits_for_loss:
+            logits = logits.float()
+
+        with loss_context():
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
 
         return loss

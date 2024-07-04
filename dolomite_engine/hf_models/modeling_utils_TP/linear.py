@@ -60,8 +60,11 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
-        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Shard(-1)))
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        input = copy_to_tensor_parallel_region(input)
+        bias = None if self.bias is None else self.bias.to_local()
+        input = F.linear(input, self.weight.to_local(), bias)
+        return input
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

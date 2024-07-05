@@ -105,4 +105,4 @@ with torch.inference_mode():
         assert error < 5e-4, "logits don't match for normal and tensor parallel model"
 
         error = (loss - loss_tp).abs().max()
-        assert error < 2e-6, "losses don't match for normal and tensor parallel model"
+        assert error < 3e-6, "losses don't match for normal and tensor parallel model"

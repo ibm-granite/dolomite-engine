@@ -1,4 +1,4 @@
-import contextlib
+from contextlib import nullcontext
 from typing import Union
 
 import torch
@@ -35,7 +35,7 @@ class ModelWrapperForPretraining(ModelWrapper):
             torch.Tensor: loss tensor
         """
 
-        loss_context = contextlib.nullcontext
+        loss_context = nullcontext
 
         # for pretraining we compute loss externally here instead of relying on transformers.
         # this is done because megatron's dataset returns batches of length (sequence_length + 1)

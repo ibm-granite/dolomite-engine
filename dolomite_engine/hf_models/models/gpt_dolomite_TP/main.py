@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import contextlib
+from contextlib import nullcontext
 from typing import Tuple, Union
 
 import torch
@@ -121,7 +121,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
             if self.upcast_logits_for_loss:
                 shift_logits = shift_logits.float()
 
-            loss_context = contextlib.nullcontext
+            loss_context = nullcontext
 
         with loss_context():
             loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))

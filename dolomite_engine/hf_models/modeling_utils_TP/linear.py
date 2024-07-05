@@ -130,7 +130,7 @@ class RowParallelLinear(ParameterizedLinear):
             )
 
         self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Shard(-1)))
-        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor, desired_placement=Replicate()))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

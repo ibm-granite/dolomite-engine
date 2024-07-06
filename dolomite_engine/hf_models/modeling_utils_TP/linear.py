@@ -15,7 +15,6 @@ from .TP import (
     copy_to_tensor_parallel_region,
     dtensor_to_tensor,
     modify_state_dict_to_dtensor_dict,
-    reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
     tensor_to_dtensor,
 )

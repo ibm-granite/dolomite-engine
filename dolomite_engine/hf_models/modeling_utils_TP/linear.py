@@ -6,6 +6,7 @@ import torch.distributed
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
+from torch.distributed._tensor.placement_types import _Partial as Partial
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ..modeling_utils import ParameterizedLinear
@@ -58,7 +59,7 @@ class ColumnParallelLinear(ParameterizedLinear):
             )
 
         self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
-        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Shard(-1)))
+        self.register_forward_hook(partial(dtensor_to_tensor, desired_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -173,7 +174,7 @@ class TensorParallelSharedLinear(ParameterizedLinear):
             )
 
         self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
-        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor, desired_placement=Replicate(), grad_placement=Partial()))
 
     @torch.no_grad()
     def reset_parameters(self) -> None:

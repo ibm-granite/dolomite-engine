@@ -156,24 +156,15 @@ def dtensor_to_tensor(
     module: nn.Module,
     inputs: tuple[DTensor],
     output: DTensor,
-    assert_current_placement: Placement = None,
     desired_placement: Placement = None,
+    grad_placement: Placement = None,
 ) -> torch.Tensor:
-    if assert_current_placement is not None:
-        if isinstance(assert_current_placement, Replicate):
-            assert output.placements[0].is_replicate()
-        elif isinstance(assert_current_placement, Shard):
-            dim = assert_current_placement.dim
-            if dim == -1:
-                dim = output.dim() - 1
-            assert output.placements[0].is_shard(dim)
-
     if desired_placement is not None:
         output = output.redistribute(
             device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
         )
 
-    output = output.to_local()
+    output = output.to_local(grad_placements=None if grad_placement is None else [grad_placement])
 
     return output
 

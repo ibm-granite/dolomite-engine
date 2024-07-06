@@ -4,7 +4,6 @@ from typing import Any, Mapping
 import torch
 import torch.distributed
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
@@ -12,7 +11,6 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rn
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
-    copy_to_tensor_parallel_region,
     dtensor_to_tensor,
     modify_state_dict_to_dtensor_dict,
     tensor_parallel_split_safetensor_slice,
@@ -174,11 +172,8 @@ class TensorParallelSharedLinear(ParameterizedLinear):
                 )
             )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        bias = None if self.bias is None else self.bias.to_local()
-        input = F.linear(input, self.weight.to_local(), bias)
-        input = copy_to_tensor_parallel_region(input)
-        return input
+        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor, assert_current_placement=Replicate()))
 
     @torch.no_grad()
     def reset_parameters(self) -> None:

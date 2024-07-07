@@ -136,7 +136,7 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
         raise RuntimeError("this code should not be reachable")
 
 
-def tensor_to_dtensor(
+def tensor_to_dtensor_hook(
     module: nn.Module, inputs: tuple[torch.Tensor], current_placement: Placement, desired_placement: Placement = None
 ) -> DTensor:
     assert len(inputs) == 1
@@ -152,7 +152,7 @@ def tensor_to_dtensor(
     return (input,)
 
 
-def dtensor_to_tensor(
+def dtensor_to_tensor_hook(
     module: nn.Module,
     inputs: tuple[DTensor],
     output: DTensor,

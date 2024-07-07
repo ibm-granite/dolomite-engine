@@ -12,10 +12,10 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rn
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
-    dtensor_to_tensor,
+    dtensor_to_tensor_hook,
     modify_state_dict_to_dtensor_dict,
     tensor_parallel_split_safetensor_slice,
-    tensor_to_dtensor,
+    tensor_to_dtensor_hook,
 )
 
 
@@ -58,8 +58,8 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
-        self.register_forward_hook(partial(dtensor_to_tensor, desired_placement=Shard(-1)))
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -124,8 +124,8 @@ class RowParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Shard(-1)))
-        self.register_forward_hook(partial(dtensor_to_tensor, desired_placement=Replicate()))
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Shard(-1)))
+        self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Replicate()))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -173,8 +173,10 @@ class TensorParallelSharedLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(tensor_to_dtensor, current_placement=Replicate()))
-        self.register_forward_hook(partial(dtensor_to_tensor, desired_placement=Replicate(), grad_placement=Partial()))
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        self.register_forward_hook(
+            partial(dtensor_to_tensor_hook, desired_placement=Replicate(), grad_placement=Partial())
+        )
 
     @torch.no_grad()
     def reset_parameters(self) -> None:

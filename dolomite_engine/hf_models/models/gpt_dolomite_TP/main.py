@@ -99,16 +99,14 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
         )
 
     def get_lm_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        hidden_states = DTensor.from_local(
-            hidden_states, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
-        )
-        hidden_states = (
-            F.linear(hidden_states, self.transformer.wte.weight)
+        if self.tensor_parallel_word_embeddings:
+            hidden_states = copy_to_tensor_parallel_region(hidden_states)
+
+        return (
+            F.linear(hidden_states, self.transformer.wte.weight.to_local())
             if self._tied_word_embeddings
             else self.lm_head(hidden_states)
         )
-        hidden_states = hidden_states.to_local(grad_placements=[Shard(-1)])
-        return hidden_states
 
     def get_autoregressive_language_modeling_loss(self, lm_logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         if labels is None:

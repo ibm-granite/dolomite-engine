@@ -4,10 +4,12 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Replicate, Shard
 from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from ....utils import SafeTensorsWeightsManager
+from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...modeling_utils_TP import (
     LMHead_TP,
     copy_to_tensor_parallel_region,
@@ -39,6 +41,8 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
 
         self.m_width = config.m_width
         self.upcast_logits_for_loss = config.upcast_logits_for_loss
+
+        self.tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
         # Initialize weights and apply final processing
         self.post_init()

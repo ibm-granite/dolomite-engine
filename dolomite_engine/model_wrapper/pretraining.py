@@ -43,8 +43,6 @@ class ModelWrapperForPretraining(ModelWrapper):
         # transformers does forward pass before however and then trims the tokens.
 
         if self.tp_world_size > 1:
-            tp_source_rank = ProcessGroupManager.get_tensor_parallel_first_rank()
-            tp_group = ProcessGroupManager.get_tensor_parallel_group()
             tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
             if self.tp_rank == 0:
@@ -58,7 +56,8 @@ class ModelWrapperForPretraining(ModelWrapper):
                     device=torch.cuda.current_device(),
                 )
 
-            torch.distributed.broadcast(tokens, src=tp_source_rank, group=tp_group)
+            # run_check = True calls a broadcast which is needed anyways with the added benefit of getting DTensors here
+            tokens = DTensor.from_local(tokens, device_mesh=tp_mesh, placements=[Replicate()], run_check=True)
 
             input_ids = tokens[:, :-1]
             labels = tokens[:, 1:]
@@ -73,7 +72,8 @@ class ModelWrapperForPretraining(ModelWrapper):
                 loss_context = loss_parallel
 
                 logits = DTensor.from_local(logits, device_mesh=tp_mesh, placements=[Shard(-1)])
-                labels = DTensor.from_local(labels, device_mesh=tp_mesh, placements=[Replicate()], run_check=False)
+            else:
+                labels = labels.to_local()
         else:
             tokens: torch.Tensor = batch["text"]
             if not tokens.is_cuda:

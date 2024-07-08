@@ -9,7 +9,7 @@ from torch.distributed.tensor.parallel import loss_parallel
 from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
+from ....utils import SafeTensorsWeightsManager
 from ...modeling_utils_TP import LMHead_TP, copy_to_tensor_parallel_region, gather_from_tensor_parallel_region
 from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteForCausalLM, GPTDolomitePreTrainedModel
 from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP

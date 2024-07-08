@@ -5,8 +5,6 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate, Shard
 from torch.distributed.tensor.parallel import loss_parallel
 from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast

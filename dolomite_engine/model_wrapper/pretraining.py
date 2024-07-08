@@ -63,11 +63,12 @@ class ModelWrapperForPretraining(ModelWrapper):
             logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
 
             if self.tensor_parallel_word_embeddings:
-                assert not self.upcast_logits_for_loss
-
                 loss = tensor_parallel_cross_entropy(logits, labels, self.vocab_size, self.upcast_logits_for_loss)
                 loss = loss.mean()
             else:
+                if self.upcast_logits_for_loss:
+                    logits = logits.float()
+
                 loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
         else:
             tokens: torch.Tensor = batch["text"]

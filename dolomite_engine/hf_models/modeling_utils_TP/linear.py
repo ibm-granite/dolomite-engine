@@ -6,15 +6,16 @@ import torch.distributed
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
+from torch.distributed._tensor.placement_types import _Partial as Partial
 
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
 from .TP import (
+    dtensor_to_tensor_hook,
     modify_state_dict_to_dtensor_dict,
-    prepare_tensor_parallel_dtensor_input,
-    prepare_tensor_parallel_tensor_output,
     tensor_parallel_split_safetensor_slice,
+    tensor_to_dtensor_hook,
 )
 
 
@@ -57,14 +58,8 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(
-            partial(
-                prepare_tensor_parallel_dtensor_input,
-                current_placement=Replicate(),
-                profiler_name="TP::copy_to_tensor_parallel_region",
-            )
-        )
-        self.register_forward_hook(partial(prepare_tensor_parallel_tensor_output, assert_current_placement=Shard(-1)))
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Shard(-1)))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -129,14 +124,8 @@ class RowParallelLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, current_placement=Shard(-1)))
-        self.register_forward_hook(
-            partial(
-                prepare_tensor_parallel_tensor_output,
-                desired_placement=Replicate(),
-                profiler_name="TP::reduce_from_tensor_parallel_region",
-            )
-        )
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Shard(-1)))
+        self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Replicate()))
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""
@@ -184,13 +173,9 @@ class TensorParallelSharedLinear(ParameterizedLinear):
                 )
             )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, current_placement=Replicate()))
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
         self.register_forward_hook(
-            partial(
-                prepare_tensor_parallel_tensor_output,
-                assert_current_placement=Replicate(),
-                profiler_name="TP::copy_to_tensor_parallel_region",
-            )
+            partial(dtensor_to_tensor_hook, desired_placement=Replicate(), grad_placement=Partial())
         )
 
     @torch.no_grad()

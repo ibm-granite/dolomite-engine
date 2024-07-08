@@ -1,4 +1,3 @@
-import contextlib
 from typing import Tuple
 
 import torch
@@ -65,57 +64,40 @@ def tensor_parallel_split_safetensor_slice(slice, dim: int, start_end: Tuple[int
         raise RuntimeError("this code should not be reachable")
 
 
-def prepare_tensor_parallel_dtensor_input(
-    module: nn.Module,
-    inputs: tuple[torch.Tensor],
-    current_placement: Placement,
-    desired_placement: Placement = None,
-    profiler_name: str = None,
+def tensor_to_dtensor_hook(
+    module: nn.Module, inputs: tuple[torch.Tensor], current_placement: Placement, desired_placement: Placement = None
 ) -> DTensor:
     assert len(inputs) == 1
     input = inputs[0]
 
     tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
-    context = contextlib.nullcontext() if profiler_name is None else record_function(profiler_name)
-    with context:
-        input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[current_placement])
+    input = DTensor.from_local(input, device_mesh=tp_mesh, run_check=False, placements=[current_placement])
 
-        if desired_placement is not None:
-            input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
+    if desired_placement is not None:
+        input = input.redistribute(device_mesh=tp_mesh, placements=[desired_placement])
 
     return (input,)
 
 
-def prepare_tensor_parallel_tensor_output(
+def dtensor_to_tensor_hook(
     module: nn.Module,
-    inputs: list[DTensor],
+    inputs: tuple[DTensor],
     output: DTensor,
-    assert_current_placement: Placement = None,
     desired_placement: Placement = None,
-    profiler_name: str = None,
+    grad_placement: Placement = None,
 ) -> torch.Tensor:
-    if assert_current_placement is not None:
-        if isinstance(assert_current_placement, Replicate):
-            assert output.placements[0].is_replicate()
-        elif isinstance(assert_current_placement, Shard):
-            dim = assert_current_placement.dim
-            if dim == -1:
-                dim = output.dim() - 1
-            assert output.placements[0].is_shard(dim)
+    if desired_placement is not None:
+        output = output.redistribute(
+            device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
+        )
 
-    context = contextlib.nullcontext() if profiler_name is None else record_function(profiler_name)
-    with context:
-        if desired_placement is not None:
-            output = output.redistribute(
-                device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[desired_placement]
-            )
-
-        output = output.to_local()
+    output = output.to_local(grad_placements=None if grad_placement is None else [grad_placement])
 
     return output
 
 
+@torch.no_grad()
 def modify_state_dict_to_dtensor_dict(module: nn.Module, state_dict: dict) -> dict:
     result = {}
     for key, tensor in state_dict.items():

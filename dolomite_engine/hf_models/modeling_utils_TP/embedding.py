@@ -1,5 +1,5 @@
-import contextlib
 import math
+from contextlib import nullcontext
 from functools import partial
 from typing import Any, Mapping
 
@@ -13,10 +13,10 @@ from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rn
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
 from .TP import (
+    dtensor_to_tensor_hook,
     modify_state_dict_to_dtensor_dict,
-    prepare_tensor_parallel_dtensor_input,
-    prepare_tensor_parallel_tensor_output,
     reduce_from_tensor_parallel_region,
+    tensor_to_dtensor_hook,
 )
 
 
@@ -47,10 +47,8 @@ class Embedding_TP(ParameterizedEmbedding):
             )
         )
 
-        self.register_forward_pre_hook(partial(prepare_tensor_parallel_dtensor_input, current_placement=Replicate()))
-        self.register_forward_hook(
-            partial(prepare_tensor_parallel_tensor_output, assert_current_placement=Replicate())
-        )
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor_hook, assert_current_placement=Replicate()))
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.tensor_parallel_word_embeddings:
@@ -91,7 +89,7 @@ class Embedding_TP(ParameterizedEmbedding):
         self.load_state_dict({"weight": weight})
 
     def reset_parameters(self) -> None:
-        context = contextlib.nullcontext if self.tensor_parallel_word_embeddings else get_cuda_rng_tracker().fork
+        context = nullcontext if self.tensor_parallel_word_embeddings else get_cuda_rng_tracker().fork
 
         with context():
             return super().reset_parameters()

@@ -13,7 +13,7 @@ from .arguments import TrainingArgs, get_args
 from .checkpointing import load_checkpoint_for_training, save_checkpoint
 from .communication import Communication
 from .data import get_megatron_gpt_dataloaders
-from .distributed import wrap_model_for_distributed_training
+from .distributed import enable_dtensors_for_computation, wrap_model_for_distributed_training
 from .enums import DistributedBackend, FP8Backend, Mode
 from .model_wrapper import ModelWrapperForPretraining, get_model, log_model
 from .train_utils import track_train_metrics, train_step
@@ -115,21 +115,25 @@ def train(
 
     start_time = time.perf_counter()
     steps_since_start_time = 0
-    train_step_context = nullcontext()
+
     use_nvte_fp8 = (
         args.mixed_precision_args.dtype == "fp8" and args.mixed_precision_args.fp8_backend == FP8Backend.nvte
     )
+
+    train_step_context = nullcontext()
+    if args.distributed_args.use_dtensors_for_computation:
+        assert not use_nvte_fp8
+        train_step_context = enable_dtensors_for_computation()
+    elif use_nvte_fp8:
+        train_step_context = te.fp8_autocast(
+            enabled=True,
+            fp8_recipe=DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max"),
+        )
 
     global_step = starting_iteration
     while global_step < num_training_steps:
         global_step += 1
         steps_since_start_time += 1
-
-        if use_nvte_fp8:
-            train_step_context = te.fp8_autocast(
-                enabled=True,
-                fp8_recipe=DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max"),
-            )
 
         loss_step, grad_norm_step = train_step(
             model=model,

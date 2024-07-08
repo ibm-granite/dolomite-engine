@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Tuple
 
 import torch
+import torch.nn as nn
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy as MixedPrecision2
 from torch.distributed._composable.fsdp import fully_shard
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -18,6 +19,7 @@ from ..model_wrapper import ModelWrapper
 from ..optimization import get_optimizer_and_lr_scheduler
 from ..utils import ProcessGroupManager, get_module_class_from_name, log_rank_0, string_to_torch_dtype
 from .deepspeed import get_deepspeed_config
+from .dtensors import enable_dtensors_for_computation, is_dtensors_computation_enabled
 from .fp8 import convert_model_to_transformer_engine
 
 
@@ -35,13 +37,13 @@ _FSDP2_MIXED_PRECISION_POLICIES = {
 
 
 def wrap_model_for_distributed_training(
-    args: TrainingArgs, model: torch.nn.Module
+    args: TrainingArgs, model: nn.Module
 ) -> Tuple[ModelWrapper, Optimizer, LambdaLR]:
     """converts the model to a ZeRO-DP sharded model
 
     Args:
         args (TrainingArgs): arguments based on training mode
-        model (ModelWrapper): any torch.nn.Module object
+        model (ModelWrapper): any nn.Module object
 
     Returns:
         Tuple[ModelWrapper, Optimizer, LambdaLR]: parallelized model, optimizer and lr_scheduler

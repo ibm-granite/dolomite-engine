@@ -1,12 +1,8 @@
-from contextlib import nullcontext
 from typing import Union
 
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate, Shard
-from torch.distributed.tensor.parallel import loss_parallel
 
 from ..arguments import InferenceArgs, TrainingArgs, UnshardingArgs
 from ..enums import Mode
@@ -34,8 +30,6 @@ class ModelWrapperForPretraining(ModelWrapper):
         Returns:
             torch.Tensor: loss tensor
         """
-
-        loss_context = nullcontext
 
         # for pretraining we compute loss externally here instead of relying on transformers.
         # this is done because megatron's dataset returns batches of length (sequence_length + 1)
@@ -70,13 +64,11 @@ class ModelWrapperForPretraining(ModelWrapper):
 
             if self.tensor_parallel_word_embeddings:
                 assert not self.upcast_logits_for_loss
-                loss_context = loss_parallel
 
                 loss = tensor_parallel_cross_entropy(logits, labels, self.vocab_size, self.upcast_logits_for_loss)
                 loss = loss.mean()
             else:
-                with loss_context():
-                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
         else:
             tokens: torch.Tensor = batch["text"]
             if not tokens.is_cuda:
@@ -99,8 +91,7 @@ class ModelWrapperForPretraining(ModelWrapper):
             if self.upcast_logits_for_loss:
                 logits = logits.float()
 
-            with loss_context():
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
 
         return loss
 

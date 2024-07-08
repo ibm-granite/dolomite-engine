@@ -1,5 +1,6 @@
 import math
 from contextlib import nullcontext
+from functools import partial
 from typing import Any, Mapping
 
 import torch
@@ -11,7 +12,12 @@ from torch.distributed._tensor.placement_types import Replicate, Shard
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
-from .TP import modify_state_dict_to_dtensor_dict, reduce_from_tensor_parallel_region
+from .TP import (
+    dtensor_to_tensor_hook,
+    modify_state_dict_to_dtensor_dict,
+    reduce_from_tensor_parallel_region,
+    tensor_to_dtensor_hook,
+)
 
 
 class Embedding_TP(ParameterizedEmbedding):
@@ -40,6 +46,9 @@ class Embedding_TP(ParameterizedEmbedding):
                 self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[placement]
             )
         )
+
+        self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Replicate()))
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.tensor_parallel_word_embeddings:

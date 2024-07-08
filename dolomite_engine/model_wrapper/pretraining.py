@@ -8,9 +8,9 @@ from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 from torch.distributed.tensor.parallel import loss_parallel
 
-from dolomite_engine.enums import Mode
-
 from ..arguments import InferenceArgs, TrainingArgs, UnshardingArgs
+from ..enums import Mode
+from ..hf_models.modeling_utils_TP import tensor_parallel_cross_entropy
 from ..utils import ProcessGroupManager
 from .base import ModelWrapper
 
@@ -72,8 +72,11 @@ class ModelWrapperForPretraining(ModelWrapper):
                 assert not self.upcast_logits_for_loss
                 loss_context = loss_parallel
 
-                logits = DTensor.from_local(logits, device_mesh=tp_mesh, placements=[Shard(-1)])
-                labels = DTensor.from_local(labels, device_mesh=tp_mesh, placements=[Replicate()], run_check=False)
+                loss = tensor_parallel_cross_entropy(logits, labels, self.vocab_size, self.upcast_logits_for_loss)
+                loss = loss.mean()
+            else:
+                with loss_context():
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
         else:
             tokens: torch.Tensor = batch["text"]
             if not tokens.is_cuda:
@@ -93,11 +96,11 @@ class ModelWrapperForPretraining(ModelWrapper):
 
             logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
 
-        if self.upcast_logits_for_loss:
-            logits = logits.float()
+            if self.upcast_logits_for_loss:
+                logits = logits.float()
 
-        with loss_context():
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
+            with loss_context():
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
 
         return loss
 

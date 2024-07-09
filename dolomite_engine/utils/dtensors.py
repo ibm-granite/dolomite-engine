@@ -1,10 +1,10 @@
-import contextlib
+from contextlib import contextmanager
 
 
 _USE_DTENSORS_FOR_COMPUTATIONS: bool = False
 
 
-@contextlib.contextmanager
+@contextmanager
 def enable_dtensors_for_computation():
     global _USE_DTENSORS_FOR_COMPUTATIONS
 

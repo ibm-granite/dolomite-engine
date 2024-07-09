@@ -6,7 +6,8 @@ import torch.distributed
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Partial, Replicate, Shard
+from torch.distributed._tensor.placement_types import Replicate, Shard
+from torch.distributed._tensor.placement_types import _Partial as Partial
 
 from ...distributed import is_dtensors_computation_enabled
 from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker

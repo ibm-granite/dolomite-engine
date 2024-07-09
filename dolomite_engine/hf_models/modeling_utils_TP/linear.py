@@ -78,8 +78,9 @@ class ColumnParallelLinear(ParameterizedLinear):
             input = dtensor_to_tensor(input, desired_placement=Shard(-1))
         else:
             input = copy_to_tensor_parallel_region(input)
-            bias = None if self.bias is None else self.bias.to_local()
-            input = F.linear(input, self.weight.to_local(), bias)
+            input = F.linear(
+                input, weight=self.weight.to_local(), bias=None if self.bias is None else self.bias.to_local()
+            )
 
         return input
 

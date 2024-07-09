@@ -32,7 +32,7 @@ _Neel Jain, Ping-yeh Chiang, Yuxin Wen, John Kirchenbauer, Hong-Min Chu, Gowtham
 ![image][Third-Party] ![image][Instruction Finetuning]
 
 # Getting Started
-Run `pip install .` to install the requirements for this repository. You might need to install `flash-attn`.
+Run `make install` to install the requirements for this repository. You might need to install `flash-attn`.
 
 # Distributed finetuning
 This repository is meant for finetuning large language models (of any scale) using multiple backends. The following backends are currently supported:

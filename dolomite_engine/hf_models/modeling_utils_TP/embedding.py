@@ -1,6 +1,5 @@
 import math
 from contextlib import nullcontext
-from functools import partial
 from typing import Any, Mapping
 
 import torch

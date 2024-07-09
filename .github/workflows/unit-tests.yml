@@ -23,7 +23,7 @@ jobs:
           python-version: 3.11
 
       - name: installation
-        run: make install
+        run: make install-dev
 
       - name: run unit tests
         run: make test

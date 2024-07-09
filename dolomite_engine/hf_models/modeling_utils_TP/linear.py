@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Any, Mapping
 
 import torch
@@ -17,12 +16,13 @@ from ...utils import (
 )
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
-from .hooks import dtensor_to_tensor_hook, tensor_to_dtensor_hook
 from .TP import (
     copy_to_tensor_parallel_region,
+    dtensor_to_tensor,
     modify_state_dict_to_dtensor_dict,
     reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
+    tensor_to_dtensor,
 )
 
 
@@ -65,13 +65,15 @@ class ColumnParallelLinear(ParameterizedLinear):
                 )
             )
 
-        if is_dtensors_computation_enabled():
-            self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
-            self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Shard(-1)))
+        # TODO activate this hook if we drop the non-dtensor path, until then use functions
+        # self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        # self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Shard(-1)))
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if is_dtensors_computation_enabled():
+            input = tensor_to_dtensor(input, current_placement=Replicate())
             input = super().forward(input)
+            input = dtensor_to_tensor(input, desired_placement=Shard(-1))
         else:
             input = copy_to_tensor_parallel_region(input)
             bias = None if self.bias is None else self.bias.to_local()
@@ -142,13 +144,15 @@ class RowParallelLinear(ParameterizedLinear):
                 )
             )
 
-        if is_dtensors_computation_enabled():
-            self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Shard(-1)))
-            self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Replicate()))
+        # TODO activate this hook if we drop the non-dtensor path, until then use functions
+        # self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Shard(-1)))
+        # self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Replicate()))
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if is_dtensors_computation_enabled():
+            input = tensor_to_dtensor(input, current_placement=Shard(-1))
             input = super().forward(input)
+            input = dtensor_to_tensor(input, desired_placement=Replicate())
         else:
             input = F.linear(input, self.weight.to_local(), None)
             input = reduce_from_tensor_parallel_region(input)
@@ -203,15 +207,17 @@ class TensorParallelSharedLinear(ParameterizedLinear):
                 )
             )
 
-        if is_dtensors_computation_enabled():
-            self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
-            self.register_forward_hook(
-                partial(dtensor_to_tensor_hook, desired_placement=Replicate(), grad_placement=Partial())
-            )
+        # TODO activate this hook if we drop the non-dtensor path, until then use functions
+        # self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
+        # self.register_forward_hook(
+        #     partial(dtensor_to_tensor_hook, desired_placement=Replicate(), grad_placement=Partial())
+        # )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if is_dtensors_computation_enabled():
+            input = tensor_to_dtensor(input, current_placement=Replicate())
             input = super().forward(input)
+            input = dtensor_to_tensor(input, desired_placement=Replicate(), grad_placement=Partial())
         else:
             bias = None if self.bias is None else self.bias.to_local()
             input = F.linear(input, self.weight.to_local(), bias)

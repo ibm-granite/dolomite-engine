@@ -14,16 +14,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: setup python
+      - name: Setup Python
         uses: actions/setup-python@v2
         with:
           python-version: 3.11
 
-      - name: installation
+      - name: Installation
         run: make install-dev
 
-      - name: run unit tests
+      - name: Unit Tests
         run: make test

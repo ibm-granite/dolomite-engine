@@ -17,13 +17,12 @@ from ...utils import (
 )
 from ..modeling_utils import ParameterizedLinear
 from ..utils import divide_if_divisible
+from .hooks import dtensor_to_tensor_hook, tensor_to_dtensor_hook
 from .TP import (
     copy_to_tensor_parallel_region,
-    dtensor_to_tensor_hook,
     modify_state_dict_to_dtensor_dict,
     reduce_from_tensor_parallel_region,
     tensor_parallel_split_safetensor_slice,
-    tensor_to_dtensor_hook,
 )
 
 

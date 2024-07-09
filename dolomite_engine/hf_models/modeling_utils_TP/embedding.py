@@ -17,12 +17,8 @@ from ...utils import (
 )
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
-from .TP import (
-    dtensor_to_tensor_hook,
-    modify_state_dict_to_dtensor_dict,
-    reduce_from_tensor_parallel_region,
-    tensor_to_dtensor_hook,
-)
+from .hooks import dtensor_to_tensor_hook, tensor_to_dtensor_hook
+from .TP import modify_state_dict_to_dtensor_dict, reduce_from_tensor_parallel_region
 
 
 class Embedding_TP(ParameterizedEmbedding):

@@ -10,7 +10,7 @@ from .arguments import TrainingArgs, get_args
 from .checkpointing import load_checkpoint_for_training, save_checkpoint
 from .communication import Communication
 from .data import ResumableDataLoader, get_dataloader, infinite_iterator
-from .distributed import enable_dtensors_for_computation, wrap_model_for_distributed_training
+from .distributed import wrap_model_for_distributed_training
 from .enums import DatasetSplit, DistributedBackend, FP8Backend, Mode
 from .model_wrapper import ModelWrapperForFinetuning, get_model, log_model
 from .train_utils import track_train_metrics, train_step
@@ -18,6 +18,7 @@ from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
     RunningMean,
+    enable_dtensors_for_computation,
     init_distributed,
     is_transformer_engine_available,
     log_rank_0,

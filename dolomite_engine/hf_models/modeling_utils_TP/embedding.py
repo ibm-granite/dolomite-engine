@@ -9,8 +9,12 @@ import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
-from ...distributed import is_dtensors_computation_enabled
-from ...utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_rng_tracker
+from ...utils import (
+    ProcessGroupManager,
+    SafeTensorsWeightsManager,
+    get_cuda_rng_tracker,
+    is_dtensors_computation_enabled,
+)
 from ..modeling_utils import ParameterizedEmbedding
 from ..utils import divide_if_divisible
 from .TP import (

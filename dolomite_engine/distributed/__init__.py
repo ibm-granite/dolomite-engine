@@ -19,7 +19,6 @@ from ..model_wrapper import ModelWrapper
 from ..optimization import get_optimizer_and_lr_scheduler
 from ..utils import ProcessGroupManager, get_module_class_from_name, log_rank_0, string_to_torch_dtype
 from .deepspeed import get_deepspeed_config
-from .dtensors import enable_dtensors_for_computation, is_dtensors_computation_enabled
 from .fp8 import convert_model_to_transformer_engine
 
 

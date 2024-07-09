@@ -224,8 +224,9 @@ class TensorParallelSharedLinear(ParameterizedLinear):
             input = super().forward(input)
             input = dtensor_to_tensor(input, desired_placement=Replicate(), grad_placement=Partial())
         else:
-            bias = None if self.bias is None else self.bias.to_local()
-            input = F.linear(input, self.weight.to_local(), bias)
+            input = F.linear(
+                input, weight=self.weight.to_local(), bias=None if self.bias is None else self.bias.to_local()
+            )
             input = copy_to_tensor_parallel_region(input)
 
         return input

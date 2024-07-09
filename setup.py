@@ -15,7 +15,7 @@ setup(
     author_email="mayank.mishra2@ibm.com",
     license="Apache License 2.0",
     url="https://github.com/ibm-granite/dolomite-engine",
-    packages=find_packages("./", exclude="tests/"),
+    packages=find_packages("./"),
     include_package_data=True,
     package_data={"": ["**/*.cu", "**/*.cpp", "**/*.cuh", "**/*.h", "**/*.pyx"]},
 )

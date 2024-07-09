@@ -70,7 +70,7 @@ class ColumnParallelLinear(ParameterizedLinear):
         # self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Replicate()))
         # self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Shard(-1)))
 
-    @record_function("TP::column_parallel_linear")
+    @record_function("TP:column_parallel_linear")
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if is_dtensors_computation_enabled():
             input = tensor_to_dtensor(input, current_placement=Replicate())
@@ -150,7 +150,7 @@ class RowParallelLinear(ParameterizedLinear):
         # self.register_forward_pre_hook(partial(tensor_to_dtensor_hook, current_placement=Shard(-1)))
         # self.register_forward_hook(partial(dtensor_to_tensor_hook, desired_placement=Replicate()))
 
-    @record_function("TP::row_parallel_linear")
+    @record_function("TP:row_parallel_linear")
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if is_dtensors_computation_enabled():
             input = tensor_to_dtensor(input, current_placement=Shard(-1))
@@ -216,7 +216,7 @@ class TensorParallelSharedLinear(ParameterizedLinear):
         #     partial(dtensor_to_tensor_hook, desired_placement=Replicate(), grad_placement=Partial())
         # )
 
-    @record_function("TP::shared_linear")
+    @record_function("TP:shared_linear")
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if is_dtensors_computation_enabled():
             input = tensor_to_dtensor(input, current_placement=Replicate())

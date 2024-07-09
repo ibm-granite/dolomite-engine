@@ -15,7 +15,7 @@ class _TensorParallelCrossEntropy(torch.autograd.Function):
     def forward(
         ctx, lm_logits: torch.Tensor, labels: torch.Tensor, vocab_size: int, upcast_logits_for_loss: bool
     ) -> torch.Tensor:
-        with record_function("TP::cross_entropy_forward"):
+        with record_function("TP:cross_entropy_forward"):
             tp_group = ProcessGroupManager.get_tensor_parallel_group()
 
             # Maximum value along vocab dimension across all GPUs.
@@ -64,7 +64,7 @@ class _TensorParallelCrossEntropy(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor) -> Tuple[torch.Tensor, None, None, None]:
-        with record_function("TP::cross_entropy_backward"):
+        with record_function("TP:cross_entropy_backward"):
             # Retreive tensors from the forward path.
             softmax, labels_mask, masked_labels = ctx.saved_tensors
 

@@ -3,14 +3,10 @@ from typing import Tuple
 import torch
 from transformers import DynamicCache
 
-from ....utils import is_flash_attention_available
 from ...enums import PositionEmbeddingType
 from ..position_embedding import apply_rotary_pos_emb
 from .base import Attention
-
-
-if is_flash_attention_available():
-    from flash_attn.flash_attn_interface import flash_attn_varlen_func
+from .flash_utils import flash_attention
 
 
 class PaddingFreeAttention(Attention):
@@ -50,7 +46,7 @@ class PaddingFreeAttention(Attention):
         softmax_scale = self._get_softmax_scale()
         dropout_p = self.attn_pdrop if self.training else 0
 
-        attn_output = flash_attn_varlen_func(
+        attn_output = flash_attention(
             query,
             key,
             value,

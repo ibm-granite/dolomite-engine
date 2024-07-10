@@ -5,12 +5,11 @@ from ....utils import is_flash_attention_available
 from ...enums import AttentionHeadType, PositionEmbeddingType
 from ..position_embedding import apply_rotary_pos_emb
 from .base import Attention
-from .utils import get_unpad_data
+from .flash_utils import flash_attention, get_unpad_data
 
 
 if is_flash_attention_available():
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input
-    from flash_attn.flash_attn_interface import flash_attn_func, flash_attn_varlen_func
 
 
 class FlashAttention2(Attention):
@@ -69,8 +68,17 @@ class FlashAttention2(Attention):
         batch_size, query_length = query.shape[:2]
 
         if attention_mask is None:
-            attn_output = flash_attn_func(
-                query, key, value, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=self.causal
+            attn_output = flash_attention(
+                query,
+                key,
+                value,
+                cu_seqlens_q=None,
+                cu_seqlens_k=None,
+                max_seqlen_q=None,
+                max_seqlen_k=None,
+                dropout_p=dropout_p,
+                softmax_scale=softmax_scale,
+                causal=self.causal,
             )
         else:
             key_length = key.shape[1]
@@ -109,7 +117,7 @@ class FlashAttention2(Attention):
             # value -> (total_q, num_heads, head_dim)
             # ==========================================================================================
 
-            attn_output = flash_attn_varlen_func(
+            attn_output = flash_attention(
                 query,
                 key,
                 value,

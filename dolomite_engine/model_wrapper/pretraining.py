@@ -41,7 +41,6 @@ class ModelWrapperForPretraining(ModelWrapper):
         if self.tp_world_size > 1:
             tp_source_rank = ProcessGroupManager.get_tensor_parallel_first_rank()
             tp_group = ProcessGroupManager.get_tensor_parallel_group()
-            tp_mesh = ProcessGroupManager.get_tensor_parallel_mesh()
 
             if self.tp_rank == 0:
                 tokens: torch.Tensor = batch["text"]

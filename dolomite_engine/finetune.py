@@ -78,7 +78,7 @@ def train(
     save_interval = args.save_args.save_interval
     log_interval = args.logging_args.log_interval
 
-    torch_profiler_trace_path = args.logging_args.torch_profiler_trace_path
+    use_dtensors_for_computation = args.distributed_args.use_dtensors_for_computation
 
     loss_running_mean_tracker = RunningMean(window=args.logging_args.running_mean_window)
 
@@ -95,10 +95,7 @@ def train(
     )
 
     train_step_context = nullcontext
-    if args.distributed_args.use_dtensors_for_computation:
-        assert not use_nvte_fp8
-        train_step_context = enable_dtensors_for_computation
-    elif use_nvte_fp8:
+    if use_nvte_fp8:
         train_step_context = partial(
             te.fp8_autocast,
             enabled=True,
@@ -107,8 +104,11 @@ def train(
 
     torch_profiler = get_torch_profiler(args.logging_args.torch_profiler_trace_path)
 
-    if torch_profiler_trace_path is not None:
+    if torch_profiler is not None:
         torch_profiler.__enter__()
+
+    if use_dtensors_for_computation:
+        enable_dtensors_for_computation().__enter__()
 
     global_step = starting_iteration
     while global_step < num_training_steps:
@@ -147,6 +147,9 @@ def train(
 
         if global_step % save_interval == 0 or global_step == num_training_steps:
             save_checkpoint(args, model, optimizer, lr_scheduler, train_dataloader, experiments_tracker, global_step)
+
+    if use_dtensors_for_computation:
+        enable_dtensors_for_computation().__exit__()
 
     if torch_profiler is not None:
         torch_profiler.__exit__()

@@ -3,6 +3,7 @@ from contextlib import nullcontext
 from functools import partial
 
 import torch
+from torch.distributed.tensor.parallel import loss_parallel
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import set_seed
@@ -90,17 +91,21 @@ def train(
     if eval_during_training:
         evaluate(val_dataloader, model, starting_iteration, experiments_tracker)
 
-    use_nvte_fp8 = (
-        args.mixed_precision_args.dtype == "fp8" and args.mixed_precision_args.fp8_backend == FP8Backend.nvte
-    )
-
-    train_step_context = nullcontext
-    if use_nvte_fp8:
-        train_step_context = partial(
+    forward_context = (
+        partial(
             te.fp8_autocast,
             enabled=True,
             fp8_recipe=DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max"),
         )
+        if args.mixed_precision_args.dtype == "fp8" and args.mixed_precision_args.fp8_backend == FP8Backend.nvte
+        else nullcontext
+    )
+
+    backward_context = (
+        loss_parallel
+        if use_dtensors_for_computation and args.distributed_args.tensor_parallel_word_embeddings
+        else nullcontext
+    )
 
     torch_profiler = get_torch_profiler(args.logging_args.torch_profiler_trace_path)
 
@@ -122,7 +127,8 @@ def train(
             train_dataloader=train_dataloader_infinite,
             gradient_accumulation_steps=gradient_accumulation_steps,
             gradient_clipping=gradient_clipping,
-            train_step_context=train_step_context,
+            forward_context=forward_context,
+            backward_context=backward_context,
         )
 
         if torch_profiler is not None:

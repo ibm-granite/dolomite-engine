@@ -72,7 +72,7 @@ class ModelWrapperForPretraining(ModelWrapper):
             if self.tensor_parallel_word_embeddings:
                 if is_dtensors_computation_enabled():
                     if self.upcast_logits_for_loss:
-                        shift_logits = shift_logits.float()
+                        logits = logits.float()
 
                     with loss_parallel():
                         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))

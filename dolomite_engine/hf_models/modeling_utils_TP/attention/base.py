@@ -12,7 +12,6 @@ from ...modeling_utils import Attention
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
 from ..linear import ColumnParallelLinear, RowParallelLinear, TensorParallelSharedLinear
-from ..TP import prepare_tensor_parallel_dtensor_input, prepare_tensor_parallel_tensor_output
 
 
 class Attention_TP(Attention):

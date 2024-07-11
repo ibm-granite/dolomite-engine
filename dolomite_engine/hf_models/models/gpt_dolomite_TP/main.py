@@ -130,7 +130,8 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
 
         if self.tensor_parallel_word_embeddings:
             if is_dtensors_computation_enabled():
-                assert not self.upcast_logits_for_loss
+                if self.upcast_logits_for_loss:
+                    shift_logits = shift_logits.float()
 
                 with loss_parallel():
                     loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))

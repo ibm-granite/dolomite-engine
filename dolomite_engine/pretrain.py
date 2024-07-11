@@ -118,8 +118,6 @@ def train(
     # model flops per GPU
     model_flops = model.get_model_tflops(global_batch_size, sequence_length) / ProcessGroupManager.get_world_size()
 
-    start_time = time.perf_counter()
-
     forward_context = (
         partial(
             te.fp8_autocast,
@@ -143,6 +141,9 @@ def train(
 
     if use_dtensors_for_computation:
         enable_dtensors_for_computation().__enter__()
+
+    start_time = time.perf_counter()
+    steps_since_start_time = 0
 
     global_step = starting_iteration
     while global_step < num_training_steps:

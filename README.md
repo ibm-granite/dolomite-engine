@@ -8,7 +8,6 @@
 [Efficient Training]: https://img.shields.io/static/v1?label=&message=Efficient%20Training&color=blueviolet
 [Efficient Inference]: https://img.shields.io/static/v1?label=&message=Efficient%20Inference&color=blueviolet
 [Instruction Finetuning]: https://img.shields.io/static/v1?label=&message=Instruction%20Finetuning&color=blueviolet
-[Memory Reduction]: https://img.shields.io/static/v1?label=&message=Memory%20Reduction&color=blueviolet
 [Mixture of Experts]: https://img.shields.io/static/v1?label=&message=Mixture%20of%20Experts&color=blueviolet
 [Model Architecture]: https://img.shields.io/static/v1?label=&message=Model%20Architecture&color=blueviolet
 
@@ -16,10 +15,10 @@
 This repository contains code used for pretraining and finetuning IBM's Granite models. It also includes the following key innovations on model architectures, finetuning methods, systems optimizations:
 1. [Saving Memory Using Padding-Free Transformer Layers during Finetuning](https://huggingface.co/blog/mayank-mishra/padding-free-transformer)  
 _Mayank Mishra_  
-![image][Memory Reduction] ![image][Efficient Training]
+![image][Efficient Training]
 1. [Reducing Transformer Key-Value Cache Size with Cross-Layer Attention](https://arxiv.org/abs/2405.12981)  
 _William Brandon, Mayank Mishra, Aniruddha Nrusimha, Rameswar Panda, Jonathan Ragan Kelly_  
-![image][Memory Reduction] ![image][Efficient Inference] ![image][Model Architecture]
+![image][Efficient Inference] ![image][Model Architecture]
 1. [Dense Training, Sparse Inference: Rethinking Training of Mixture-of-Experts Language Models](https://arxiv.org/abs/2404.05567)  
 _Bowen Pan, Yikang Shen, Haokun Liu, Mayank Mishra, Gaoyuan Zhang, Aude Oliva, Colin Raffel, Rameswar Panda_  
 ![image][Mixture of Experts] ![image][Efficient Inference] ![image][Model Architecture]

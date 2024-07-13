@@ -36,6 +36,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
                 config.n_embd,
                 std=config.initializer_range,
                 tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+                sequence_parallel=self.sequence_parallel,
             )
 
         self.m_width = config.m_width
@@ -108,6 +109,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
                 hidden_states,
                 weight=self.transformer.wte.weight,
                 tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+                sequence_parallel=self.sequence_parallel,
             )
             if self._tied_word_embeddings
             else self.lm_head(hidden_states)

@@ -5,7 +5,6 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torch.distributed._functional_collectives import all_gather_tensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 from torch.distributed.tensor.parallel import loss_parallel
 from transformers import DynamicCache

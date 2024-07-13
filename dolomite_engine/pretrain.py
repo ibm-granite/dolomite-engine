@@ -23,7 +23,6 @@ from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
     RunningMean,
-    enable_dtensors_for_computation,
     init_distributed,
     is_transformer_engine_available,
     log_rank_0,
@@ -139,9 +138,6 @@ def train(
     if torch_profiler is not None:
         torch_profiler.__enter__()
 
-    if use_dtensors_for_computation:
-        enable_dtensors_for_computation().__enter__()
-
     start_time = time.perf_counter()
     steps_since_start_time = 0
 
@@ -212,9 +208,6 @@ def train(
 
     if eval_during_training:
         evaluate(test_dataloaders, model, global_step, experiments_tracker, eval_steps, group_names)
-
-    if use_dtensors_for_computation:
-        enable_dtensors_for_computation().__exit__()
 
     if torch_profiler is not None:
         torch_profiler.__exit__()

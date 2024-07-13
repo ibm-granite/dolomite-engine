@@ -20,7 +20,6 @@ from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
     RunningMean,
-    enable_dtensors_for_computation,
     init_distributed,
     is_transformer_engine_available,
     log_rank_0,
@@ -112,9 +111,6 @@ def train(
     if torch_profiler is not None:
         torch_profiler.__enter__()
 
-    if use_dtensors_for_computation:
-        enable_dtensors_for_computation().__enter__()
-
     global_step = starting_iteration
     while global_step < num_training_steps:
         global_step += 1
@@ -153,9 +149,6 @@ def train(
 
         if global_step % save_interval == 0 or global_step == num_training_steps:
             save_checkpoint(args, model, optimizer, lr_scheduler, train_dataloader, experiments_tracker, global_step)
-
-    if use_dtensors_for_computation:
-        enable_dtensors_for_computation().__exit__()
 
     if torch_profiler is not None:
         torch_profiler.__exit__()

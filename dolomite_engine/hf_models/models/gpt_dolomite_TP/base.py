@@ -14,7 +14,7 @@ class GPTDolomitePreTrainedModel_TP(GPTDolomitePreTrainedModel):
     _no_split_modules = ["GPTDolomiteBlock_TP"]
 
     def __init__(self, config: GPTDolomiteConfig, *inputs, **kwargs):
-        super().__init__(config, *inputs, **kwargs)
+        GPTDolomitePreTrainedModel.__init__(self, config, *inputs, **kwargs)
 
         self.tensor_parallel_word_embeddings = kwargs.get("tensor_parallel_word_embeddings", False)
         self.sequence_parallel = kwargs.get("sequence_parallel", False)

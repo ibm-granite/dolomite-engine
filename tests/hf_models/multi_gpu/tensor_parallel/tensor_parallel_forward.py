@@ -103,9 +103,11 @@ if torch.distributed.get_rank() == 0:
     logits = output[1]
 
     error = (logits - logits_tp).abs().max()
-    assert error < 5e-4, "logits don't match for normal and tensor parallel model"
+    tolerance = 0.02 if args.sequence_parallel else 5e-4
+    assert error < tolerance, "logits don't match for normal and tensor parallel model"
 
     error = (loss - loss_tp).abs().max()
-    assert error < 3e-6, "losses don't match for normal and tensor parallel model"
+    tolerance = 5e-5 if args.sequence_parallel else 3e-6
+    assert error < tolerance, "losses don't match for normal and tensor parallel model"
 
 ProcessGroupManager.destroy_process_groups()

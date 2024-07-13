@@ -22,9 +22,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
 
         self.vocab_size = config.vocab_size
 
-        self.transformer = GPTDolomiteModel_TP(
-            config, tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings, **kwargs
-        )
+        self.transformer = GPTDolomiteModel_TP(config, **kwargs)
 
         if not self._tied_word_embeddings:
             self.lm_head = LMHead_TP(

@@ -38,6 +38,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
             self.embed_dim,
             std=self.initializer_range,
             tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+            sequence_parallel=self.sequence_parallel,
         )
 
         self.drop = nn.Identity() if config.embd_pdrop == 0 else Dropout_TP(config.embd_pdrop)

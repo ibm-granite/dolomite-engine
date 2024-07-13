@@ -25,7 +25,6 @@ class GPTDolomiteBlock_TP(GPTDolomiteBlock):
         self.attention_head_type = AttentionHeadType(config.attention_head_type)
         self.layer_idx = layer_idx
         self.m_residual = config.m_residual
-        self.sequence_parallel = sequence_parallel
 
         self.ln_1 = get_normalization_function_TP(
             config.normalization_function,

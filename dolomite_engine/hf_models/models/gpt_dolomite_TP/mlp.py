@@ -27,7 +27,6 @@ class MLP_TP(MLP):
         self.add_bias = config.add_bias
         residual_dropout = config.resid_pdrop
         self.is_glu_activation = is_glu(activation_function)
-        self.sequence_parallel = sequence_parallel
 
         init_method = InitMethod(config.init_method)
         initializer_range = config.initializer_range

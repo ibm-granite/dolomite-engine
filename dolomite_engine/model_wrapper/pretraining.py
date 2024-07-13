@@ -9,7 +9,7 @@ from torch.distributed.tensor.parallel import loss_parallel
 
 from ..arguments import InferenceArgs, TrainingArgs, UnshardingArgs
 from ..enums import Mode
-from ..hf_models.modeling_utils_TP import tensor_parallel_cross_entropy, tensor_to_dtensor
+from ..hf_models.modeling_utils_TP import tensor_to_dtensor
 from ..utils import ProcessGroupManager
 from .base import ModelWrapper
 

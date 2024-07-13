@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
-from .....utils import ProcessGroupManager, is_dtensors_computation_enabled
+from .....utils import ProcessGroupManager
 from ....modeling_utils import RMSNorm
 from ...TP import dtensor_to_tensor, tensor_to_dtensor
 
@@ -24,18 +24,12 @@ class RMSNorm_TP(RMSNorm):
         input_dtype = input.dtype
         input = input.float()
 
-        weight = self.weight
-
-        if is_dtensors_computation_enabled():
-            input = tensor_to_dtensor(input, current_placement=Shard(1) if self.sequence_parallel else Replicate())
-        else:
-            weight = weight.to_local()
+        input = tensor_to_dtensor(input, current_placement=Shard(1) if self.sequence_parallel else Replicate())
 
         variance = input.pow(2).mean(-1, keepdim=True)
         input = input * torch.rsqrt(variance + self.eps)
-        input = weight * input.to(input_dtype)
+        input = self.weight * input.to(input_dtype)
 
-        if is_dtensors_computation_enabled():
-            input = dtensor_to_tensor(input, desired_placement=Shard(1) if self.sequence_parallel else Replicate())
+        input = dtensor_to_tensor(input, desired_placement=Shard(1) if self.sequence_parallel else Replicate())
 
         return input

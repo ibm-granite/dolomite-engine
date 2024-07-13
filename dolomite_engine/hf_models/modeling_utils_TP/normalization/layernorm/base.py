@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 
-from .....utils import ProcessGroupManager, is_dtensors_computation_enabled
+from .....utils import ProcessGroupManager
 from ...TP import dtensor_to_tensor, tensor_to_dtensor
 
 
@@ -26,11 +25,7 @@ class LayerNorm_TP(nn.LayerNorm):
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if is_dtensors_computation_enabled():
-            input = tensor_to_dtensor(input, current_placement=Shard(1) if self.sequence_parallel else Replicate())
-            input = super().forward(input)
-            input = dtensor_to_tensor(input, desired_placement=Shard(1) if self.sequence_parallel else Replicate())
-        else:
-            input = F.layer_norm(input, self.normalized_shape, self.weight.to_local(), self.bias.to_local(), self.eps)
-
+        input = tensor_to_dtensor(input, current_placement=Shard(1) if self.sequence_parallel else Replicate())
+        input = super().forward(input)
+        input = dtensor_to_tensor(input, desired_placement=Shard(1) if self.sequence_parallel else Replicate())
         return input

@@ -22,7 +22,7 @@ class GPTDolomitePreTrainedModel_TP(GPTDolomitePreTrainedModel):
 
 class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
     def __init__(self, config: GPTDolomiteConfig, **kwargs) -> None:
-        GPTDolomitePreTrainedModel.__init__(self, config, **kwargs)
+        GPTDolomitePreTrainedModel_TP.__init__(self, config, **kwargs)
 
         self.attention_head_type = AttentionHeadType(config.attention_head_type)
         self.embed_dim = config.hidden_size

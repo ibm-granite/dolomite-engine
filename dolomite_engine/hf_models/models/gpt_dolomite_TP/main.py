@@ -22,7 +22,7 @@ from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP
 
 class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCausalLM):
     def __init__(self, config: GPTDolomiteConfig, **kwargs) -> None:
-        GPTDolomitePreTrainedModel.__init__(self, config, **kwargs)
+        GPTDolomitePreTrainedModel_TP.__init__(self, config, **kwargs)
 
         self.vocab_size = config.vocab_size
 

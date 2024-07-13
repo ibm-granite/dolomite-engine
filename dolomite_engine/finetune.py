@@ -78,8 +78,6 @@ def train(
     save_interval = args.save_args.save_interval
     log_interval = args.logging_args.log_interval
 
-    use_dtensors_for_computation = args.distributed_args.use_dtensors_for_computation
-
     loss_running_mean_tracker = RunningMean(window=args.logging_args.running_mean_window)
 
     model.train()
@@ -100,11 +98,7 @@ def train(
         else nullcontext
     )
 
-    backward_context = (
-        loss_parallel
-        if use_dtensors_for_computation and args.distributed_args.tensor_parallel_word_embeddings
-        else nullcontext
-    )
+    backward_context = loss_parallel if args.distributed_args.tensor_parallel_word_embeddings else nullcontext
 
     torch_profiler = get_torch_profiler(args.logging_args.torch_profiler_trace_path)
 

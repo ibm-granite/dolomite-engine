@@ -17,6 +17,7 @@ class TensorParallelTest(TestCommons):
             TestCommons.get_position_embedding_types(),
             ["eager", "sdpa"],
             [False, True],
+            [False, True],
         )
     )
     def test_tensor_parallel_forward(
@@ -25,6 +26,7 @@ class TensorParallelTest(TestCommons):
         position_embedding_type: PositionEmbeddingType,
         attention_implementation: str,
         tensor_parallel_word_embeddings: bool,
+        sequence_parallel: bool,
     ) -> None:
         self.skip_test_if_device_unavailable(torch.device("cuda"))
         if attention_implementation == "flash_attention_2" and position_embedding_type == PositionEmbeddingType.alibi:
@@ -51,5 +53,8 @@ class TensorParallelTest(TestCommons):
 
             if tensor_parallel_word_embeddings:
                 command.append("--tensor-parallel-word-embeddings")
+
+            if sequence_parallel:
+                command.append("--sequence-parallel")
 
             subprocess.run(command, check=True)

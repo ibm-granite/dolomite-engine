@@ -22,6 +22,7 @@ parser.add_argument("--position-embedding-type", type=str)
 parser.add_argument("--attention-implementation", type=str)
 parser.add_argument("--tmp-path", type=str)
 parser.add_argument("--tensor-parallel-word-embeddings", action="store_true")
+parser.add_argument("--sequence-parallel", action="store_true")
 args = parser.parse_args()
 
 
@@ -69,6 +70,7 @@ with torch.device("meta"):
         config,
         tensor_parallel_word_embeddings=args.tensor_parallel_word_embeddings,
         attn_implementation=args.attention_implementation,
+        sequence_parallel=args.sequence_parallel,
     )
 
 # copy to device without copying storage

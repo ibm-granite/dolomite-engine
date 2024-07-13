@@ -11,7 +11,7 @@ _ATTENTION_MODULES = {
 }
 
 
-def get_attention_module(
+def get_attention_module_TP(
     config: CommonConfig,
     causal: bool,
     attention_implementation: str,

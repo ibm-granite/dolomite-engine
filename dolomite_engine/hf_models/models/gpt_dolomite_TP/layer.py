@@ -16,6 +16,7 @@ class GPTDolomiteBlock_TP(GPTDolomiteBlock):
         attention_implementation: str,
         use_padding_free_transformer: bool,
         layer_idx: int = None,
+        sequence_parallel: bool = False,
     ) -> None:
         nn.Module.__init__(self)
 
@@ -24,23 +25,31 @@ class GPTDolomiteBlock_TP(GPTDolomiteBlock):
         self.attention_head_type = AttentionHeadType(config.attention_head_type)
         self.layer_idx = layer_idx
         self.m_residual = config.m_residual
+        self.sequence_parallel = sequence_parallel
 
         self.ln_1 = get_normalization_function_TP(
             config.normalization_function,
             hidden_size,
             eps=config.layer_norm_epsilon,
             normalization_implementation=normalization_implementation,
+            sequence_parallel=sequence_parallel,
         )
         self.attn = get_attention_module(
-            config, True, attention_implementation, use_padding_free_transformer, layer_idx
+            config,
+            True,
+            attention_implementation=attention_implementation,
+            use_padding_free_transformer=use_padding_free_transformer,
+            layer_idx=layer_idx,
+            sequence_parallel=sequence_parallel,
         )
         self.ln_2 = get_normalization_function_TP(
             config.normalization_function,
             hidden_size,
             eps=config.layer_norm_epsilon,
             normalization_implementation=normalization_implementation,
+            sequence_parallel=sequence_parallel,
         )
-        self.mlp = MLP_TP(config)
+        self.mlp = MLP_TP(config, sequence_parallel=sequence_parallel)
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

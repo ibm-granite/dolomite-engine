@@ -49,6 +49,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
                     self.attention_implementation,
                     self._use_padding_free_transformer,
                     layer_idx=i,
+                    sequence_parallel=self.sequence_parallel,
                 )
                 for i in range(config.num_hidden_layers)
             ]

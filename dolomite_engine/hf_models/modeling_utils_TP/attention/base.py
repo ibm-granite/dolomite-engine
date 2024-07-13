@@ -15,7 +15,9 @@ from ..linear import ColumnParallelLinear, RowParallelLinear, TensorParallelShar
 
 
 class Attention_TP(Attention):
-    def __init__(self, config: CommonConfig, causal: bool, layer_idx: int = None) -> None:
+    def __init__(
+        self, config: CommonConfig, causal: bool, layer_idx: int = None, sequence_parallel: bool = False
+    ) -> None:
         nn.Module.__init__(self)
 
         tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
@@ -77,6 +79,7 @@ class Attention_TP(Attention):
                 self.global_hidden_size + 2 * self.global_num_key_value_heads * self.head_dim,
                 bias=self.add_bias,
                 std=std,
+                sequence_parallel=sequence_parallel,
             )
         elif self.attention_head_type == AttentionHeadType.gqa:
             assert (
@@ -105,6 +108,7 @@ class Attention_TP(Attention):
                 self.global_hidden_size + 2 * self.global_num_key_value_heads * self.head_dim,
                 bias=self.add_bias,
                 std=std,
+                sequence_parallel=sequence_parallel,
             )
         elif self.attention_head_type == AttentionHeadType.mqa:
             if self.global_num_key_value_heads is None:
@@ -123,7 +127,13 @@ class Attention_TP(Attention):
         std = initializer_range / math.sqrt(2 * n_layer)
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.c_proj = RowParallelLinear(self.global_hidden_size, self.global_hidden_size, bias=self.add_bias, std=std)
+        self.c_proj = RowParallelLinear(
+            self.global_hidden_size,
+            self.global_hidden_size,
+            bias=self.add_bias,
+            std=std,
+            sequence_parallel=sequence_parallel,
+        )
 
         self.attn_pdrop = config.attn_pdrop
         self.resid_pdrop = config.resid_pdrop

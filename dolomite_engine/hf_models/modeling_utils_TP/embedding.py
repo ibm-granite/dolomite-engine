@@ -26,10 +26,16 @@ from .TP import (
 
 class Embedding_TP(ParameterizedEmbedding):
     def __init__(
-        self, num_embeddings: int, embedding_dim: int, std: float = None, tensor_parallel_word_embeddings: bool = False
+        self,
+        num_embeddings: int,
+        embedding_dim: int,
+        std: float = None,
+        tensor_parallel_word_embeddings: bool = False,
+        sequence_parallel: bool = False,
     ) -> None:
         self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
         self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings and self.tp_world_size > 1
+        self.sequence_parallel = sequence_parallel
 
         if self.tensor_parallel_word_embeddings:
             self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(
@@ -59,7 +65,7 @@ class Embedding_TP(ParameterizedEmbedding):
         if is_dtensors_computation_enabled():
             input = tensor_to_dtensor(input, current_placement=Replicate())
             input = super().forward(input)
-            input = dtensor_to_tensor(input, desired_placement=Replicate())
+            input = dtensor_to_tensor(input, desired_placement=Shard(1) if self.sequence_parallel else Replicate())
         else:
             if self.tensor_parallel_word_embeddings:
                 # Build the mask.

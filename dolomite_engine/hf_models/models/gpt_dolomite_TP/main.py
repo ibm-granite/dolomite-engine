@@ -21,19 +21,18 @@ from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP
 
 
 class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCausalLM):
-    def __init__(self, config: GPTDolomiteConfig, tensor_parallel_word_embeddings: bool = False, **kwargs) -> None:
+    def __init__(self, config: GPTDolomiteConfig, **kwargs) -> None:
         GPTDolomitePreTrainedModel.__init__(self, config, **kwargs)
 
-        self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings
         self.vocab_size = config.vocab_size
 
         self.transformer = GPTDolomiteModel_TP(
-            config, tensor_parallel_word_embeddings=tensor_parallel_word_embeddings, **kwargs
+            config, tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings, **kwargs
         )
 
         if not self._tied_word_embeddings:
             self.lm_head = LMHead_TP(
-                config.vocab_size,
+                self.vocab_size,
                 config.n_embd,
                 std=config.initializer_range,
                 tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,

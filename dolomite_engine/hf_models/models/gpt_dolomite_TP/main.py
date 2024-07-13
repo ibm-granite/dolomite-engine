@@ -16,7 +16,7 @@ from ...modeling_utils_TP import (
     tensor_parallel_cross_entropy,
     tensor_to_dtensor,
 )
-from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteForCausalLM, GPTDolomitePreTrainedModel
+from ..gpt_dolomite import GPTDolomiteConfig, GPTDolomiteForCausalLM
 from .base import GPTDolomiteModel_TP, GPTDolomitePreTrainedModel_TP
 
 

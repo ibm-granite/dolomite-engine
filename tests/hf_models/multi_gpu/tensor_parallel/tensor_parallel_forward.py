@@ -11,6 +11,7 @@ from dolomite_engine.utils import (
     ProcessGroupManager,
     SafeTensorsWeightsManager,
     set_cuda_rng_tracker,
+    string_to_torch_dtype,
 )
 
 from ...test_common import TestCommons
@@ -20,6 +21,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--attention-head-type", type=str)
 parser.add_argument("--position-embedding-type", type=str)
 parser.add_argument("--attention-implementation", type=str)
+parser.add_argument("--torch-dtype", type=str)
 parser.add_argument("--tmp-path", type=str)
 parser.add_argument("--tensor-parallel-word-embeddings", action="store_true")
 parser.add_argument("--sequence-parallel", action="store_true")
@@ -35,6 +37,7 @@ cuda_rng_tracker = CUDA_RNGStatesTracker()
 cuda_rng_tracker.add("tensor-parallel-seed", 42)
 set_cuda_rng_tracker(cuda_rng_tracker)
 
+torch_dtype = string_to_torch_dtype(args.torch_dtype)
 
 num_key_value_heads = None
 if AttentionHeadType(args.attention_head_type) == AttentionHeadType.gqa:
@@ -61,6 +64,7 @@ if torch.distributed.get_rank() == 0:
     model.eval()
 
     model.save_pretrained(args.tmp_path, safe_serialization=True)
+    model = model.to(torch_dtype)
 
 torch.distributed.barrier()
 
@@ -83,6 +87,7 @@ safetensors_weight_manager = SafeTensorsWeightsManager(args.tmp_path)
 model_tp.load_from_safetensors_weights_manager(safetensors_weight_manager)
 
 # set model to eval mode
+model_tp = model_tp.to(torch_dtype)
 model_tp.eval()
 
 set_seed(42)

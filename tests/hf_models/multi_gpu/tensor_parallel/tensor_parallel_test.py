@@ -6,6 +6,7 @@ import torch.distributed
 from parameterized import parameterized
 
 from dolomite_engine.hf_models import AttentionHeadType, PositionEmbeddingType
+from dolomite_engine.utils import torch_dtype_to_string
 
 from ...test_common import TestCommons
 
@@ -15,7 +16,8 @@ class TensorParallelTest(TestCommons):
         TestCommons.make_args_matrix(
             TestCommons.get_attention_head_types(),
             TestCommons.get_position_embedding_types(),
-            ["eager", "sdpa", "flash_attention_2"],
+            [("eager", torch.float32), ("sdpa", torch.float32), ("flash_attention_2", torch.float16)],
+            TestCommons.get_attention_implementations(),
             [False, True],
         )
     )
@@ -23,9 +25,12 @@ class TensorParallelTest(TestCommons):
         self,
         attention_head_type: AttentionHeadType,
         position_embedding_type: PositionEmbeddingType,
-        attention_implementation: str,
+        attention_implementation_torch_dtype: str,
         sequence_parallel: bool,
     ) -> None:
+        attention_implementation, torch_dtype = attention_implementation_torch_dtype
+        torch_dtype = torch_dtype_to_string(torch_dtype)
+
         self.skip_test_if_device_unavailable(torch.device("cuda"))
         if attention_implementation == "flash_attention_2" and position_embedding_type == PositionEmbeddingType.alibi:
             self.skipTest("skipping test because Alibi is not supported with flash attention")
@@ -42,6 +47,8 @@ class TensorParallelTest(TestCommons):
                 "--attention-head-type",
                 attention_head_type.value,
                 "--position-embedding-type",
+                "--torch-dtype",
+                torch_dtype,
                 position_embedding_type.value,
                 "--attention-implementation",
                 attention_implementation,

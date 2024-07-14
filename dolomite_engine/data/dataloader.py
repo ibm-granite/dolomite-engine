@@ -1,4 +1,4 @@
-from typing import Callable, Generator, Iterable
+from typing import Callable, Iterable
 
 import torch
 import torch.distributed
@@ -63,7 +63,7 @@ class DispatchingDataLoader(ResumableDataLoader):
 
         self.keys = keys
 
-    def __iter__(self) -> Generator[dict[list[int]]]:
+    def __iter__(self):
         iterator = super().__iter__() if self.is_source else range(self._length)
 
         for batch in iterator:

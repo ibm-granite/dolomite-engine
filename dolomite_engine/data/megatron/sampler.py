@@ -1,6 +1,3 @@
-from typing import Generator
-
-
 class MegatronBatchSampler:
     def __init__(
         self,
@@ -34,7 +31,7 @@ class MegatronBatchSampler:
         end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 
-    def __iter__(self) -> Generator[list[list[int]]]:
+    def __iter__(self):
         batch = []
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):

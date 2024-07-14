@@ -1,6 +1,5 @@
 import json
 import os
-from typing import Generator
 
 import torch
 from safetensors import safe_open
@@ -51,7 +50,7 @@ class SafeTensorsWeightsManager:
     def __len__(self) -> int:
         return len(self.tensor_filenames)
 
-    def __iter__(self) -> Generator[str]:
+    def __iter__(self):
         for tensor_name in self.tensor_filenames:
             yield tensor_name
 

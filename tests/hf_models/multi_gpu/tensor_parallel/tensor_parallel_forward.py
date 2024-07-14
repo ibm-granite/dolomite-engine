@@ -87,7 +87,6 @@ model_tp.eval()
 
 set_seed(42)
 
-
 input_ids = torch.randint(0, 50255, (4, 512), device=torch.cuda.current_device(), requires_grad=False)
 labels = torch.randint(0, 50255, (4, 512), device=torch.cuda.current_device(), requires_grad=False)
 

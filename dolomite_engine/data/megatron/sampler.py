@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Generator
 
 
 class MegatronBatchSampler:
@@ -29,12 +29,12 @@ class MegatronBatchSampler:
     def __len__(self) -> int:
         return self.total_samples
 
-    def _get_start_end_idx(self) -> Tuple[int, int]:
+    def _get_start_end_idx(self) -> tuple[int, int]:
         start_idx = self.rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[list[list[int]]]:
         batch = []
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):

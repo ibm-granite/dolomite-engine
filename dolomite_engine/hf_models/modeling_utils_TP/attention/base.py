@@ -194,7 +194,11 @@ class _MQA_QueryKeyValueProjection(nn.Module):
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
         self.q_attn = ColumnParallelLinear(
-            self.global_hidden_size, self.global_hidden_size, bias=self.add_bias, std=std
+            self.global_hidden_size,
+            self.global_hidden_size,
+            bias=self.add_bias,
+            std=std,
+            sequence_parallel=sequence_parallel,
         )
 
         std = initializer_range / math.sqrt(2 * n_layer)

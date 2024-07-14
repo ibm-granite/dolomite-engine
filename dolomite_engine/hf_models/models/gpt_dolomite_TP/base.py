@@ -38,6 +38,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
             self.embed_dim,
             std=self.initializer_range,
             tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+            use_padding_free_transformer=self._use_padding_free_transformer,
             sequence_parallel=self.sequence_parallel,
         )
 
@@ -60,6 +61,8 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
             self.embed_dim,
             eps=config.layer_norm_epsilon,
             normalization_implementation=self.normalization_implementation,
+            use_padding_free_transformer=self._use_padding_free_transformer,
+            sequence_parallel=self.sequence_parallel,
         )
 
         self.position_embedding_type = PositionEmbeddingType(config.position_embedding_type)
@@ -146,6 +149,7 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
                 max_position_embeddings,
                 self.embed_dim,
                 tensor_parallel_word_embeddings=False,
+                use_padding_free_transformer=self._use_padding_free_transformer,
                 sequence_parallel=self.sequence_parallel,
             )
         elif self.position_embedding_type == PositionEmbeddingType.alibi:

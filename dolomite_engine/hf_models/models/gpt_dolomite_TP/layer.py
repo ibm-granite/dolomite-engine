@@ -31,6 +31,7 @@ class GPTDolomiteBlock_TP(GPTDolomiteBlock):
             hidden_size,
             eps=config.layer_norm_epsilon,
             normalization_implementation=normalization_implementation,
+            use_padding_free_transformer=use_padding_free_transformer,
             sequence_parallel=sequence_parallel,
         )
         self.attn = get_attention_module_TP(
@@ -46,6 +47,7 @@ class GPTDolomiteBlock_TP(GPTDolomiteBlock):
             hidden_size,
             eps=config.layer_norm_epsilon,
             normalization_implementation=normalization_implementation,
+            use_padding_free_transformer=use_padding_free_transformer,
             sequence_parallel=sequence_parallel,
         )
         self.mlp = MLP_TP(config, sequence_parallel=sequence_parallel)

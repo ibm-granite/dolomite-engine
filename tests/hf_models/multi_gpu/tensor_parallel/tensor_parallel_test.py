@@ -16,7 +16,8 @@ class TensorParallelTest(TestCommons):
         TestCommons.make_args_matrix(
             TestCommons.get_attention_head_types(),
             TestCommons.get_position_embedding_types(),
-            [("eager", torch.float32), ("sdpa", torch.float32), ("flash_attention_2", torch.float16)],
+            TestCommons.get_attention_implementations(),
+            TestCommons.get_dtypes(),
             [False, True],
         )
     )
@@ -24,15 +25,20 @@ class TensorParallelTest(TestCommons):
         self,
         attention_head_type: AttentionHeadType,
         position_embedding_type: PositionEmbeddingType,
-        attention_implementation_torch_dtype: str,
+        attention_implementation: str,
+        torch_dtype: torch.dtype,
         sequence_parallel: bool,
     ) -> None:
-        attention_implementation, torch_dtype = attention_implementation_torch_dtype
-        torch_dtype = torch_dtype_to_string(torch_dtype)
-
         self.skip_test_if_device_unavailable(torch.device("cuda"))
         if attention_implementation == "flash_attention_2" and position_embedding_type == PositionEmbeddingType.alibi:
             self.skipTest("skipping test because Alibi is not supported with flash attention")
+
+        if (attention_implementation, torch_dtype) not in [
+            ("eager", torch.float32),
+            ("sdpa", torch.float32),
+            ("flash_attention_2", torch.float16),
+        ]:
+            self.skipTest("skipping test since running all takes too long")
 
         gpus_per_node = torch.cuda.device_count()
 
@@ -48,7 +54,7 @@ class TensorParallelTest(TestCommons):
                 "--position-embedding-type",
                 position_embedding_type.value,
                 "--torch-dtype",
-                torch_dtype,
+                torch_dtype_to_string(torch_dtype),
                 "--attention-implementation",
                 attention_implementation,
                 "--tmp-path",

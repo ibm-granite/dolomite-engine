@@ -131,7 +131,9 @@ class Attention_TP(Attention):
 
             self.num_key_value_heads = 1
 
-            self.c_attn = _MQA_QueryKeyValueProjection(config, sequence_parallel=sequence_parallel)
+            self.c_attn = _MQA_QueryKeyValueProjection(
+                config, use_padding_free_transformer=use_padding_free_transformer, sequence_parallel=sequence_parallel
+            )
         else:
             raise ValueError(f"unexpected attention_head_type ({self.attention_head_type})")
 
@@ -175,7 +177,9 @@ class Attention_TP(Attention):
 
 
 class _MQA_QueryKeyValueProjection(nn.Module):
-    def __init__(self, config: CommonConfig, sequence_parallel: bool = False) -> None:
+    def __init__(
+        self, config: CommonConfig, use_padding_free_transformer: bool = False, sequence_parallel: bool = False
+    ) -> None:
         super().__init__()
 
         self.global_hidden_size = config.n_embd
@@ -263,11 +267,10 @@ class _MQASharedLinear(ParameterizedLinear):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         std: float | None = None,
+        use_padding_free_transformer: bool = False,
         sequence_parallel: bool = False,
     ) -> None:
         super().__init__(in_features, out_features, bias, device, dtype, std)
-
-        self.sequence_parallel = sequence_parallel
 
         self.weight = nn.Parameter(
             DTensor.from_local(
@@ -281,8 +284,16 @@ class _MQASharedLinear(ParameterizedLinear):
                 )
             )
 
+        if sequence_parallel:
+            if use_padding_free_transformer:
+                self.input_placement = Shard(0)
+            else:
+                self.input_placement = Shard(1)
+        else:
+            self.input_placement = Replicate()
+
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        input = tensor_to_dtensor(input, current_placement=Shard(1) if self.sequence_parallel else Replicate())
+        input = tensor_to_dtensor(input, current_placement=self.input_placement)
         input = super().forward(input)
         input = dtensor_to_tensor(input, desired_placement=Replicate(), grad_placement=Partial())
         return input

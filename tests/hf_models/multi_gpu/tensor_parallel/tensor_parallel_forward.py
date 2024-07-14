@@ -99,9 +99,15 @@ labels = torch.randint(0, 50255, (4, 512), device=torch.cuda.current_device(), r
 
 cu_seqlens = None
 max_seqlen = None
+position_ids = None
 if args.use_padding_free_transformer:
-    cu_seqlens = torch.arange(0, input_ids.numel() + 1, input_ids.shape[1], device=torch.cuda.current_device())
+    cu_seqlens = torch.arange(
+        0, input_ids.numel() + 1, input_ids.shape[1], dtype=torch.int32, device=torch.cuda.current_device()
+    )
     max_seqlen = torch.arange(input_ids.shape[1], device=torch.cuda.current_device())
+    position_ids = torch.arange(0, input_ids.shape[1], 1, device=torch.cuda.current_device()).repeat(
+        input_ids.shape[0]
+    )
 
 output_tp = model_tp(input_ids=input_ids, labels=labels, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
 loss_tp = output_tp[0]

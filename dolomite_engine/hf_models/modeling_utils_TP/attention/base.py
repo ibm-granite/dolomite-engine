@@ -20,7 +20,12 @@ from ..TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to
 
 class Attention_TP(Attention):
     def __init__(
-        self, config: CommonConfig, causal: bool, layer_idx: int | None = None, sequence_parallel: bool = False
+        self,
+        config: CommonConfig,
+        causal: bool,
+        layer_idx: int | None = None,
+        use_padding_free_transformer: bool = False,
+        sequence_parallel: bool = False,
     ) -> None:
         nn.Module.__init__(self)
 
@@ -83,6 +88,7 @@ class Attention_TP(Attention):
                 self.global_hidden_size + 2 * self.global_num_key_value_heads * self.head_dim,
                 bias=self.add_bias,
                 std=std,
+                use_padding_free_transformer=use_padding_free_transformer,
                 sequence_parallel=sequence_parallel,
             )
         elif self.attention_head_type == AttentionHeadType.gqa:
@@ -112,6 +118,7 @@ class Attention_TP(Attention):
                 self.global_hidden_size + 2 * self.global_num_key_value_heads * self.head_dim,
                 bias=self.add_bias,
                 std=std,
+                use_padding_free_transformer=use_padding_free_transformer,
                 sequence_parallel=sequence_parallel,
             )
         elif self.attention_head_type == AttentionHeadType.mqa:
@@ -136,6 +143,7 @@ class Attention_TP(Attention):
             self.global_hidden_size,
             bias=self.add_bias,
             std=std,
+            use_padding_free_transformer=use_padding_free_transformer,
             sequence_parallel=sequence_parallel,
         )
 
@@ -198,6 +206,7 @@ class _MQA_QueryKeyValueProjection(nn.Module):
             self.global_hidden_size,
             bias=self.add_bias,
             std=std,
+            use_padding_free_transformer=use_padding_free_transformer,
             sequence_parallel=sequence_parallel,
         )
 
@@ -209,6 +218,7 @@ class _MQA_QueryKeyValueProjection(nn.Module):
             2 * self.head_dim,
             bias=self.add_bias,
             std=std,
+            use_padding_free_transformer=use_padding_free_transformer,
             sequence_parallel=sequence_parallel,
         )
 

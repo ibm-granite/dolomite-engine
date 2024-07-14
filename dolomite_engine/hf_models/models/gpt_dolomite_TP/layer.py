@@ -50,7 +50,9 @@ class GPTDolomiteBlock_TP(GPTDolomiteBlock):
             use_padding_free_transformer=use_padding_free_transformer,
             sequence_parallel=sequence_parallel,
         )
-        self.mlp = MLP_TP(config, sequence_parallel=sequence_parallel)
+        self.mlp = MLP_TP(
+            config, use_padding_free_transformer=use_padding_free_transformer, sequence_parallel=sequence_parallel
+        )
 
     def load_from_safetensors_weights_manager(
         self, safetensors_weight_manager: SafeTensorsWeightsManager, prefix: str = ""

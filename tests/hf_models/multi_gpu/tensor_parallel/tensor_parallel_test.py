@@ -17,7 +17,6 @@ class TensorParallelTest(TestCommons):
             TestCommons.get_attention_head_types(),
             TestCommons.get_position_embedding_types(),
             [("eager", torch.float32), ("sdpa", torch.float32), ("flash_attention_2", torch.float16)],
-            TestCommons.get_attention_implementations(),
             [False, True],
         )
     )

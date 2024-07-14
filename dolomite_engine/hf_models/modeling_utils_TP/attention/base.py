@@ -12,10 +12,10 @@ from ....utils import ProcessGroupManager, SafeTensorsWeightsManager, get_cuda_r
 from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
 from ...modeling_utils import Attention, ParameterizedLinear
-from ...modeling_utils_TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
 from ..linear import ColumnParallelLinear, RowParallelLinear
+from ..TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
 
 
 class Attention_TP(Attention):

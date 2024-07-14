@@ -15,7 +15,7 @@ class TensorParallelTest(TestCommons):
         TestCommons.make_args_matrix(
             TestCommons.get_attention_head_types(),
             TestCommons.get_position_embedding_types(),
-            ["eager", "sdpa"],
+            ["eager", "sdpa", "flash_attention_2"],
             [False, True],
         )
     )

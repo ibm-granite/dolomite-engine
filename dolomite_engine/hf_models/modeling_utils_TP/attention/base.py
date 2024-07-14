@@ -18,7 +18,7 @@ from ..linear import ColumnParallelLinear, RowParallelLinear
 from ..TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
 
 
-class Attention_TP(Attention):
+class _BaseAttention_TP(nn.Module):
     def __init__(
         self,
         config: CommonConfig,
@@ -160,6 +160,24 @@ class Attention_TP(Attention):
     ) -> None:
         self.c_attn.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix=prefix + "c_attn.")
         self.c_proj.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix=prefix + "c_proj.")
+
+
+class Attention_TP(_BaseAttention_TP, Attention):
+    def __init__(
+        self,
+        config: CommonConfig,
+        causal: bool,
+        layer_idx: int | None = None,
+        sequence_parallel: bool = False,
+    ) -> None:
+        _BaseAttention_TP.__init__(
+            self,
+            config,
+            causal,
+            layer_idx=layer_idx,
+            use_padding_free_transformer=False,
+            sequence_parallel=sequence_parallel,
+        )
 
     def _prepare_qkv_for_forward_mqa(
         self, query_key_value: tuple[torch.Tensor, torch.Tensor, torch.Tensor]

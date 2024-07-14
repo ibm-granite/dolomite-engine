@@ -585,7 +585,7 @@ def log_args(args: TrainingArgs | InferenceArgs | UnshardingArgs) -> None:
     log_rank_0(logging.INFO, "-------------------- end of arguments ---------------------")
 
 
-def _check_datasets(datasets: List[DatasetArgs]) -> None:
+def _check_datasets(datasets: list[DatasetArgs]) -> None:
     assert len(datasets) != 0, "datasets cannot be an empty list"
     # check data_names are unique
     assert len(datasets) == len(

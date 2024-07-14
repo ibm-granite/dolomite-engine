@@ -24,6 +24,7 @@ parser.add_argument("--attention-implementation", type=str)
 parser.add_argument("--torch-dtype", type=str)
 parser.add_argument("--tmp-path", type=str)
 parser.add_argument("--tensor-parallel-word-embeddings", action="store_true")
+parser.add_argument("--use-padding-free-transformer", action="store_true")
 parser.add_argument("--sequence-parallel", action="store_true")
 args = parser.parse_args()
 
@@ -75,6 +76,7 @@ with torch.device("meta"):
         config,
         tensor_parallel_word_embeddings=args.tensor_parallel_word_embeddings,
         attn_implementation=args.attention_implementation,
+        use_padding_free_transformer=args.use_padding_free_transformer,
         sequence_parallel=args.sequence_parallel,
     )
 

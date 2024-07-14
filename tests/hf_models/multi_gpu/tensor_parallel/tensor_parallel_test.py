@@ -19,6 +19,7 @@ class TensorParallelTest(TestCommons):
             TestCommons.get_attention_implementations(),
             TestCommons.get_dtypes(),
             [False, True],
+            [False, True],
         )
     )
     def test_tensor_parallel_forward(
@@ -27,6 +28,7 @@ class TensorParallelTest(TestCommons):
         position_embedding_type: PositionEmbeddingType,
         attention_implementation: str,
         torch_dtype: torch.dtype,
+        use_padding_free_transformer: bool,
         sequence_parallel: bool,
     ) -> None:
         self.skip_test_if_device_unavailable(torch.device("cuda"))
@@ -60,6 +62,9 @@ class TensorParallelTest(TestCommons):
                 "--tmp-path",
                 tmp_path,
             ]
+
+            if use_padding_free_transformer:
+                command.append("--use-padding-free-transformer")
 
             if sequence_parallel:
                 command.append("--sequence-parallel")

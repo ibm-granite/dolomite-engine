@@ -42,6 +42,10 @@ class TensorParallelTest(TestCommons):
         ]:
             self.skipTest("skipping test since running all takes too long")
 
+        if use_padding_free_transformer and attention_implementation != "flash_attention_2":
+            print(use_padding_free_transformer, attention_implementation)
+            self.skipTest("skipping test since flash attention is needed for padding free transformer")
+
         gpus_per_node = torch.cuda.device_count()
 
         with tempfile.TemporaryDirectory() as tmp_path:

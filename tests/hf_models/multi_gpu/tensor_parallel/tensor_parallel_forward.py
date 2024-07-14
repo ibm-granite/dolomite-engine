@@ -72,7 +72,7 @@ torch.distributed.barrier()
 # use dummy tensors to avoid initializing model here
 with torch.device("meta"):
     # try sharding vocab matrices if really struggling for memory
-    model_tp = GPTDolomiteForCausalLM_TP(
+    model_tp = GPTDolomiteForCausalLM_TP._from_config(
         config,
         tensor_parallel_word_embeddings=args.tensor_parallel_word_embeddings,
         attn_implementation=args.attention_implementation,

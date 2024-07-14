@@ -15,7 +15,7 @@ from .utils import repeat_key_value
 
 
 class Attention(nn.Module):
-    def __init__(self, config: CommonConfig, causal: bool, layer_idx: int = None) -> None:
+    def __init__(self, config: CommonConfig, causal: bool, layer_idx: int | None = None) -> None:
         super().__init__()
 
         self.causal = causal

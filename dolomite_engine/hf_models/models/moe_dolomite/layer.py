@@ -15,7 +15,7 @@ class SparseMoEBlock(nn.Module):
         normalization_implementation: str,
         attention_implementation: str,
         use_padding_free_transformer: bool,
-        layer_idx: int = None,
+        layer_idx: int | None = None,
     ) -> None:
         super().__init__()
 

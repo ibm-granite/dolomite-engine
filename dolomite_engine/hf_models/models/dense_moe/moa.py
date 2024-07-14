@@ -13,7 +13,7 @@ from .inference import mask_probability
 
 class DenseMoA_SDPA(SDPA):
     def __init__(
-        self, config: DenseMoEConfig, causal: bool, layer_idx: int = None, inference_method: dict = None
+        self, config: DenseMoEConfig, causal: bool, layer_idx: int | None = None, inference_method: dict | None = None
     ) -> None:
         assert (
             config.n_head % config.num_experts == 0

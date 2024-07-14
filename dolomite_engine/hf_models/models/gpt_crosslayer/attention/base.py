@@ -10,7 +10,7 @@ from ..config import GPTCrossLayerConfig
 
 
 class CrossLayerAttention(nn.Module):
-    def __init__(self, config: GPTCrossLayerConfig, causal: bool, layer_idx: int = None) -> None:
+    def __init__(self, config: GPTCrossLayerConfig, causal: bool, layer_idx: int | None = None) -> None:
         super().__init__()
 
         self.causal = causal

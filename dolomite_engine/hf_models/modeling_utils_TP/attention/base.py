@@ -20,7 +20,7 @@ from ..TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to
 
 class Attention_TP(Attention):
     def __init__(
-        self, config: CommonConfig, causal: bool, layer_idx: int = None, sequence_parallel: bool = False
+        self, config: CommonConfig, causal: bool, layer_idx: int | None = None, sequence_parallel: bool = False
     ) -> None:
         nn.Module.__init__(self)
 

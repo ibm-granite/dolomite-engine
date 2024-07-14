@@ -109,7 +109,9 @@ if args.use_padding_free_transformer:
         input_ids.shape[0]
     )
 
-output_tp = model_tp(input_ids=input_ids, labels=labels, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
+output_tp = model_tp(
+    input_ids=input_ids, labels=labels, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, position_ids=position_ids
+)
 loss_tp = output_tp[0]
 logits_tp = output_tp[1]
 

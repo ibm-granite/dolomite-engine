@@ -97,7 +97,13 @@ set_seed(42)
 input_ids = torch.randint(0, 50255, (4, 512), device=torch.cuda.current_device(), requires_grad=False)
 labels = torch.randint(0, 50255, (4, 512), device=torch.cuda.current_device(), requires_grad=False)
 
-output_tp = model_tp(input_ids=input_ids, labels=labels)
+cu_seqlens = None
+max_seqlen = None
+if args.use_padding_free_transformer:
+    cu_seqlens = torch.arange(0, input_ids.numel() + 1, input_ids.shape[1], device=torch.cuda.current_device())
+    max_seqlen = torch.arange(input_ids.shape[1], device=torch.cuda.current_device())
+
+output_tp = model_tp(input_ids=input_ids, labels=labels, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
 loss_tp = output_tp[0]
 logits_tp = output_tp[1]
 

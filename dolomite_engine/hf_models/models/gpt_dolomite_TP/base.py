@@ -127,9 +127,6 @@ class GPTDolomiteModel_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteModel):
                 alibi_bias = alibi_bias.unsqueeze(2)
                 if query_length != 1:
                     alibi_bias = alibi_bias.expand(-1, -1, query_length, -1)
-                alibi_bias = alibi_bias.view(
-                    batch_size * (self.num_heads // self.tp_world_size), query_length, key_length
-                )
             else:
                 raise NotImplementedError()
         elif self._use_sdpa:

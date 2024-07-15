@@ -42,7 +42,7 @@ class ModelWrapperForPretraining(ModelWrapper):
         batch = self._prepare_model_inputs(input_ids)
 
         model_outputs = self.model(**batch)
-        logits = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
+        logits: torch.Tensor = model_outputs[0] if isinstance(model_outputs, tuple) else model_outputs.logits
 
         if self.upcast_logits_for_loss:
             logits = logits.float()

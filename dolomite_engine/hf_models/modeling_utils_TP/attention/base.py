@@ -176,24 +176,6 @@ class _BaseAttention_TP(nn.Module):
         return query, key, value
 
 
-class Attention_TP(_BaseAttention_TP, Attention):
-    def __init__(
-        self,
-        config: CommonConfig,
-        causal: bool,
-        layer_idx: int | None = None,
-        sequence_parallel: bool = False,
-    ) -> None:
-        _BaseAttention_TP.__init__(
-            self,
-            config,
-            causal,
-            layer_idx=layer_idx,
-            use_padding_free_transformer=False,
-            sequence_parallel=sequence_parallel,
-        )
-
-
 class _MQA_QueryKeyValueProjection(nn.Module):
     def __init__(
         self, config: CommonConfig, use_padding_free_transformer: bool = False, sequence_parallel: bool = False
@@ -324,3 +306,21 @@ class _MQASharedLinear(ParameterizedLinear):
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
         state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
         return super().load_state_dict(state_dict, strict, assign)
+
+
+class Attention_TP(_BaseAttention_TP, Attention):
+    def __init__(
+        self,
+        config: CommonConfig,
+        causal: bool,
+        layer_idx: int | None = None,
+        sequence_parallel: bool = False,
+    ) -> None:
+        _BaseAttention_TP.__init__(
+            self,
+            config,
+            causal,
+            layer_idx=layer_idx,
+            use_padding_free_transformer=False,
+            sequence_parallel=sequence_parallel,
+        )

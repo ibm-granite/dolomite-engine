@@ -118,8 +118,8 @@ class ModelWrapper(torch.nn.Module):
             List[str]: list of generated text. input is trimmed from the generated text
         """
 
-        if self.use_padding_free_transformer:
-            raise NotImplementedError("padding free transformer doesn't support generation")
+        if self.use_padding_free_transformer or self.tp_world_size > 1:
+            raise NotImplementedError("padding free transformer and tensor parallel doesn't support generation")
 
         for i in batch:
             batch[i] = batch[i].to(torch.cuda.current_device())

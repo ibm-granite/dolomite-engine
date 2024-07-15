@@ -76,7 +76,7 @@ class ModelWrapperForFinetuning(ModelWrapper):
             else:
                 keys = ["input_ids", "attention_mask", "labels"]
 
-                batch_shape = batch[keys[0]].shape if self.tp_rank == 0 else None
+                batch_shape = batch["input_ids"].shape if self.tp_rank == 0 else None
                 batch_shape = Communication.broadcast_object(batch_shape, src=tp_source_rank, group=tp_group)
 
                 if self.tp_rank == 0:

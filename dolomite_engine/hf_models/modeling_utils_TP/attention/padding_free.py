@@ -1,3 +1,5 @@
+import torch
+
 from ...config import CommonConfig
 from ...modeling_utils import PaddingFreeAttention
 from .base import _BaseAttention_TP
@@ -19,3 +21,8 @@ class PaddingFreeAttention_TP(_BaseAttention_TP, PaddingFreeAttention):
             use_padding_free_transformer=True,
             sequence_parallel=sequence_parallel,
         )
+
+    def _prepare_qkv_for_forward_mqa(
+        self, hidden_states: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return PaddingFreeAttention._prepare_qkv_for_forward_mqa(self, hidden_states)

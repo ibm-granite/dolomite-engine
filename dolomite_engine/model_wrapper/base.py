@@ -79,8 +79,6 @@ class ModelWrapper(torch.nn.Module):
                 self.attention_implementation == AttentionImplementation.flash_attention_2
             ), "padding free transformer only works with flash attention"
 
-            assert self.tp_world_size == 1, "padding free transformer is not supported with tensor parallel"
-
         self._setup_tokenizer(args)
         self._setup_model(args)
 

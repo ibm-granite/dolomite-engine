@@ -122,6 +122,7 @@ class GPTDolomiteForCausalLM_TP(GPTDolomitePreTrainedModel_TP, GPTDolomiteForCau
                 hidden_states,
                 weight=self.transformer.wte.weight,
                 tensor_parallel_word_embeddings=self.tensor_parallel_word_embeddings,
+                use_padding_free_transformer=self._use_padding_free_transformer,
                 sequence_parallel=self.sequence_parallel,
             )
             if self._tied_word_embeddings

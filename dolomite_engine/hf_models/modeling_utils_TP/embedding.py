@@ -25,6 +25,8 @@ class Embedding_TP(ParameterizedEmbedding):
     ) -> None:
         self.tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
         self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings and self.tp_world_size > 1
+        self.use_padding_free_transformer = use_padding_free_transformer
+        self.sequence_parallel = sequence_parallel
 
         if self.tensor_parallel_word_embeddings:
             self.vocab_start_index, self.vocab_end_index, num_embeddings_per_tp_rank = get_tensor_parallel_vocab_info(

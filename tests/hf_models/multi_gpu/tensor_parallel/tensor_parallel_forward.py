@@ -104,9 +104,6 @@ labels = torch.randint(
     0, 50255, (batch_size, sequence_length), device=torch.cuda.current_device(), requires_grad=False
 )
 
-cu_seqlens = None
-max_seqlen = None
-position_ids = None
 if args.use_padding_free_transformer:
     cu_seqlens = torch.arange(
         0, input_ids.numel() + 1, sequence_length, dtype=torch.int32, device=torch.cuda.current_device()
@@ -122,9 +119,7 @@ if args.use_padding_free_transformer:
         position_ids=position_ids,
     )
 else:
-    output_tp = model_tp(
-        input_ids=input_ids, labels=labels, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, position_ids=position_ids
-    )
+    output_tp = model_tp(input_ids=input_ids, labels=labels)
 
 loss_tp = output_tp[0]
 logits_tp = output_tp[1]

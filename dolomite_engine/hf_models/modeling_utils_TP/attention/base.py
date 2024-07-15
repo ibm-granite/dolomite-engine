@@ -161,6 +161,20 @@ class _BaseAttention_TP(nn.Module):
         self.c_attn.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix=prefix + "c_attn.")
         self.c_proj.load_from_safetensors_weights_manager(safetensors_weight_manager, prefix=prefix + "c_proj.")
 
+    def _prepare_qkv_for_forward_mqa(
+        self, query_key_value: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        query, key, value = query_key_value
+        batch_size, query_length = query.shape[:-1]
+
+        query = query.view(batch_size, query_length, self.num_heads, -1)
+
+        query = query.transpose(1, 2)
+        key = key.unsqueeze(1)
+        value = value.unsqueeze(1)
+
+        return query, key, value
+
 
 class Attention_TP(_BaseAttention_TP, Attention):
     def __init__(
@@ -178,20 +192,6 @@ class Attention_TP(_BaseAttention_TP, Attention):
             use_padding_free_transformer=False,
             sequence_parallel=sequence_parallel,
         )
-
-    def _prepare_qkv_for_forward_mqa(
-        self, query_key_value: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        query, key, value = query_key_value
-        batch_size, query_length = query.shape[:-1]
-
-        query = query.view(batch_size, query_length, self.num_heads, -1)
-
-        query = query.transpose(1, 2)
-        key = key.unsqueeze(1)
-        value = value.unsqueeze(1)
-
-        return query, key, value
 
 
 class _MQA_QueryKeyValueProjection(nn.Module):

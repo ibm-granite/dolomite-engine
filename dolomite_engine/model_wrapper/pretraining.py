@@ -47,16 +47,18 @@ class ModelWrapperForPretraining(ModelWrapper):
         if self.upcast_logits_for_loss:
             logits = logits.float()
 
+        loss_context = nullcontext
+
         if self.tp_world_size > 1:
             logits = tensor_to_dtensor(
                 logits, current_placement=Shard(-1) if self.tensor_parallel_word_embeddings else Replicate()
             )
             labels = tensor_to_dtensor(labels, current_placement=Replicate())
 
-            loss_context = loss_parallel if self.tensor_parallel_word_embeddings else nullcontext
-            with loss_context():
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
-        else:
+            if self.tensor_parallel_word_embeddings:
+                loss_context = loss_parallel
+
+        with loss_context():
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.reshape(-1))
 
         return loss

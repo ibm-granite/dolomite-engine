@@ -137,6 +137,9 @@ if torch.distributed.get_rank() == 0:
     loss = output[0]
     logits = output[1]
 
+    if args.use_padding_free_transformer:
+        logits_tp = logits_tp.reshape(batch_size, sequence_length, -1)
+
     error = (logits - logits_tp).abs().max()
     assert error < 5e-4, "logits don't match for normal and tensor parallel model"
 

@@ -23,6 +23,14 @@ class PaddingFreeAttention_TP(_BaseAttention_TP, PaddingFreeAttention):
         )
 
     def _prepare_qkv_for_forward_mqa(
-        self, hidden_states: torch.Tensor
+        self, query_key_value: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return PaddingFreeAttention._prepare_qkv_for_forward_mqa(self, hidden_states)
+        query, key, value = query_key_value
+
+        total_q = query.shape[0]
+
+        query = query.view(total_q, self.num_heads, -1)
+        key = key.unsqueeze(1)
+        value = value.unsqueeze(1)
+
+        return query, key, value

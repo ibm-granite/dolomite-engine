@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Dolomite Engine documentation
+Dolomite Engine
 =============================
 
 Add your content using ``reStructuredText`` syntax. See the
@@ -11,8 +11,14 @@ Add your content using ``reStructuredText`` syntax. See the
 documentation for details.
 
 
+Models classes
+-----------------------------
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-   modules
+   model-classes
+
+Pretraining
+-----------------------------
+.. toctree::
+   :maxdepth: 2

@@ -15,5 +15,5 @@ style:
 	pre-commit run --all-files
 
 documenation:
-	sphinx-apidoc -o docs dolomite_engine
+	# sphinx-apidoc -o docs dolomite_engine
 	cd docs && make html && cd ..

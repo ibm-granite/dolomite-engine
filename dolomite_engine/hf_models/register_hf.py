@@ -55,7 +55,6 @@ def is_custom_model(model_class: type[AutoModelForCausalLM] | type[AutoModelForS
 
     Args:
         model_class (type[AutoModelForCausalLM] | type[AutoModelForSeq2SeqLM]): the model class from HuggingFace
-
         model_type (str): the `model_type` argument in the `AutoConfig` of the model
 
     Returns:

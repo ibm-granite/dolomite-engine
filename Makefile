@@ -16,3 +16,4 @@ style:
 
 documenation:
 	sphinx-apidoc -o docs dolomite_engine
+	cd docs && make html && cd ..

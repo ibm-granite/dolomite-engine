@@ -26,13 +26,13 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinxemoji.sphinxemoji",
     "sphinx_copybutton",
+    "sphinx.ext.napoleon",
 ]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-add_module_names = False
-
+add_module_names = True
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

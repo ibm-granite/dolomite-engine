@@ -33,6 +33,11 @@ _CUSTOM_MODEL_CLASSES = []
 
 
 def register_model_classes() -> None:
+    """
+    Registers model classes implemented in Dolomite Engine to be used with HuggingFace APIs.
+    Just call this function wherever you are trying to use the custom classes.
+    """
+
     for config_class, auto_model_class, auto_model_for_causal_lm_class in _CUSTOM_MODEL_REGISTRY:
         model_type = config_class.model_type
 
@@ -45,6 +50,18 @@ def register_model_classes() -> None:
 
 
 def is_custom_model(model_class: type[AutoModelForCausalLM] | type[AutoModelForSeq2SeqLM], model_type: str) -> bool:
+    """
+    Checks whether the specified model class or model type belong to a custom model class in Dolomite Engine.
+
+    Args:
+        model_class (type[AutoModelForCausalLM] | type[AutoModelForSeq2SeqLM]): the model class from HuggingFace
+
+        model_type (str): the `model_type` argument in the `AutoConfig` of the model
+
+    Returns:
+        bool: whether the specified model is a custom model or not
+    """
+
     return model_class.__name__ in _CUSTOM_MODEL_CLASSES or model_type in _CUSTOM_MODEL_TYPES
 
 

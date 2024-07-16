@@ -1,3 +1,7 @@
 pytest
 parameterized
 pre-commit
+sphinx
+sphinx-rtd-theme
+sphinxemoji
+sphinx-copybutton

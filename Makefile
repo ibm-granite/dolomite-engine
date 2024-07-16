@@ -13,3 +13,6 @@ update-precommit:
 
 style:
 	pre-commit run --all-files
+
+documenation:
+	sphinx-apidoc -o docs dolomite_engine

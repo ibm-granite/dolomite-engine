@@ -48,6 +48,43 @@ class CommonConfig(PretrainedConfig):
         upcast_logits_for_loss: bool = False,
         **kwargs,
     ) -> None:
+        """A common config class that is inherited by the config classes of almost all models.
+
+        Args:
+            vocab_size (int, optional): word embedding matrix size. Defaults to 50257.
+            n_positions (int, optional): position embedding matrix size. Defaults to 1024.
+            n_embd (int, optional): embedding dimension. Defaults to 768.
+            n_layer (int, optional): number of layers. Defaults to 12.
+            n_head (int, optional): number of query heads. Defaults to 12.
+            num_key_value_heads (int | None, optional): number of key value heads. Defaults to None.
+            n_inner (int | None, optional): FFN inner dimension. Defaults to None.
+            activation_function (str, optional): activation function. Defaults to "gelu_pytorch_tanh".
+            attention_head_type (str, optional): attention head type, can be "mha", "mqa" or "gqa". Defaults to "mqa".
+            resid_pdrop (float, optional): residual dropout. Defaults to 0.1.
+            embd_pdrop (float, optional): embedding dropout. Defaults to 0.1.
+            attn_pdrop (float, optional): attention dropout. Defaults to 0.1.
+            normalization_function (str, optional): normalization function. Defaults to "layernorm".
+            layer_norm_epsilon (float, optional): tolerance for normalization function. Defaults to 1e-5.
+            initializer_range (float, optional): hyperparam to use for initialization, can be standard deviation etc. Defaults to 0.02.
+            scale_attn_weights (bool, optional): whether to scale attention QK^T. Defaults to True.
+            attention_multiplier (float | None, optional): attention multiplier for scaling. None means `1 / sqrt(head_dim)`. Defaults to None.
+            use_cache (bool, optional): whether to use cache during generation. Defaults to True.
+            bos_token_id (int, optional): bos token id. Defaults to 50256.
+            eos_token_id (int, optional): eos token id. Defaults to 50256.
+            pad_token_id (int, optional): pad token id. Defaults to 50256.
+            attention_softmax_in_fp32 (bool, optional): whether to compute attention softmax in fp32 for eager attention implementation. Defaults to True.
+            scale_attention_softmax_in_fp32 (bool, optional): . Defaults to True.
+            add_bias (bool, optional): _description_. Defaults to True.
+            position_embedding_type (str, optional): _description_. Defaults to "learned_absolute".
+            rope_theta (int, optional): _description_. Defaults to 10000.
+            rope_scaling (dict | None, optional): _description_. Defaults to None.
+            m_emb (float | None, optional): _description_. Defaults to None.
+            m_width (float | None, optional): _description_. Defaults to None.
+            m_residual (float | None, optional): _description_. Defaults to None.
+            init_method (str, optional): _description_. Defaults to "normal".
+            upcast_logits_for_loss (bool, optional): _description_. Defaults to False.
+        """
+
         self.vocab_size = vocab_size
         self.n_positions = n_positions
         self.n_embd = n_embd

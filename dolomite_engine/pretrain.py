@@ -17,7 +17,7 @@ from .data import get_megatron_gpt_dataloaders
 from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, FP8Backend, Mode
 from .model_wrapper import ModelWrapperForPretraining, get_model, log_model
-from .train_utils import get_torch_profiler, track_train_metrics, train_step
+from .train_utils import get_model_tflops, get_torch_profiler, track_train_metrics, train_step
 from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
@@ -112,7 +112,17 @@ def train(
     tokens_per_batch = global_batch_size * sequence_length
 
     # model flops per GPU
-    model_flops = model.get_model_tflops(global_batch_size, sequence_length) / ProcessGroupManager.get_world_size()
+    model_flops = (
+        get_model_tflops(
+            model_class=args.model_args.model_class,
+            config=model.config,
+            batch_size=global_batch_size,
+            sequence_length=sequence_length,
+            gradient_checkpointing_method=args.distributed_args.gradient_checkpointing_method,
+            gradient_checkpointing_args=args.distributed_args.gradient_checkpointing_args,
+        )
+        / ProcessGroupManager.get_world_size()
+    )
 
     forward_context = (
         partial(

@@ -1,7 +1,9 @@
 import torch
 import torch.distributed
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
-from ..arguments import InferenceArgs, TrainingArgs, UnshardingArgs
+from dolomite_engine.enums import AttentionImplementation, DistributedBackend
+
 from ..communication import Communication
 from ..enums import Mode
 from ..hf_models import convert_padding_free_lists_to_tensors
@@ -10,8 +12,47 @@ from .base import ModelWrapper
 
 
 class ModelWrapperForFinetuning(ModelWrapper):
-    def __init__(self, args: TrainingArgs | InferenceArgs | UnshardingArgs, mode: Mode):
-        super().__init__(args, mode)
+    def __init__(
+        self,
+        mode: Mode,
+        model_name: str | None,
+        pretrained_config: dict | None,
+        model_class: AutoModelForCausalLM | AutoModelForSeq2SeqLM,
+        dtype: torch.dtype,
+        efficient_initialization: bool,
+        attention_implementation: AttentionImplementation,
+        use_padding_free_transformer: bool,
+        tensor_parallel_word_embeddings: bool,
+        sequence_parallel: bool,
+        distributed_backend: DistributedBackend,
+        random_seed: int,
+        neft_alpha: float | None = None,
+        trust_remote_code: bool = False,
+        tokenizer_name: str | None = None,
+        additional_special_tokens: list[str] = None,
+        reset_attention_mask: bool = False,
+        reset_position_ids: bool = False,
+    ) -> None:
+        super().__init__(
+            mode=mode,
+            model_name=model_name,
+            pretrained_config=pretrained_config,
+            model_class=model_class,
+            dtype=dtype,
+            efficient_initialization=efficient_initialization,
+            attention_implementation=attention_implementation,
+            use_padding_free_transformer=use_padding_free_transformer,
+            tensor_parallel_word_embeddings=tensor_parallel_word_embeddings,
+            sequence_parallel=sequence_parallel,
+            distributed_backend=distributed_backend,
+            random_seed=random_seed,
+            neft_alpha=neft_alpha,
+            trust_remote_code=trust_remote_code,
+            tokenizer_name=tokenizer_name,
+            additional_special_tokens=additional_special_tokens,
+            reset_attention_mask=reset_attention_mask,
+            reset_position_ids=reset_position_ids,
+        )
 
         assert not self.reset_attention_mask, "reset_attention_mask is only supported with pretraining"
         assert not self.reset_position_ids, "reset_position_ids is only supported with pretraining"

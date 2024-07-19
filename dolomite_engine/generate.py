@@ -7,7 +7,7 @@ from .arguments import InferenceArgs, get_args
 from .checkpointing import load_checkpoint_for_inference, save_args
 from .data import BaseDataset, collate_fn, get_datasets_list
 from .enums import DatasetKeys, DatasetSplit, Mode
-from .model_wrapper import ModelWrapper, get_model
+from .model_wrapper import ModelWrapper, ModelWrapperForFinetuning, get_model
 from .utils import ProcessGroupManager, ProgressBar, setup_tf32
 
 
@@ -81,7 +81,27 @@ def main() -> None:
     torch.cuda.set_device(0)
 
     if args.load_args is None:
-        model = get_model(args, mode)
+        assert not args.model_args.efficient_initialization
+        assert not args.model_args.use_padding_free_transformer
+
+        model = ModelWrapperForFinetuning(
+            mode=mode,
+            model_name=args.model_args.model_name,
+            pretrained_config=args.model_args.pretrained_config,
+            model_class=args.model_args.model_class,
+            dtype=args.mixed_precision_args.dtype,
+            efficient_initialization=False,
+            attention_implementation=args.model_args.attention_implementation,
+            use_padding_free_transformer=False,
+            tensor_parallel_word_embeddings=False,
+            sequence_parallel=False,
+            distributed_backend=None,
+            random_seed=args.random_args.seed,
+            neft_alpha=None,
+            trust_remote_code=args.model_args.trust_remote_code,
+            tokenizer_name=args.tokenizer_args.tokenizer_name,
+            additional_special_tokens=args.tokenizer_args.additional_special_tokens,
+        )
 
         datasets_list, _ = get_datasets_list(
             args,

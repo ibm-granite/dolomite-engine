@@ -52,9 +52,9 @@ class ModelWrapperForPretraining(ModelWrapper):
             sequence_parallel (bool): whether to use sequence parallel
             distributed_backend (DistributedBackend): distributed backend to use for model
             random_seed (int): random seed to use for tensor parallel seed management
-            micro_batch_size (int): _description_
-            sequence_length (int): _description_
-            neft_alpha (float | None, optional): _description_. Defaults to None.
+            micro_batch_size (int): micro batch size for pretraining
+            sequence_length (int): sequence length for pretraining
+            neft_alpha (float | None, optional): alpha parameter for NEFTune. Defaults to None.
             trust_remote_code (bool, optional): whether the model has remote code in the HF bucket. Defaults to False.
             tokenizer_name (str | None, optional): path of the model on disk or HF hub. Defaults to None. If None, the `model_name` is used for tokenizer.
             additional_special_tokens (list[str] | None, optional): additional special tokens to use for expanding tokenizer. Defaults to None.

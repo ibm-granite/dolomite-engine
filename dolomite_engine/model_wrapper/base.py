@@ -54,7 +54,7 @@ class ModelWrapper(nn.Module):
             sequence_parallel (bool): whether to use sequence parallel
             distributed_backend (DistributedBackend): distributed backend to use for model
             random_seed (int): random seed to use for tensor parallel seed management
-            neft_alpha (float | None, optional): _description_. Defaults to None.
+            neft_alpha (float | None, optional): alpha parameter for NEFTune. Defaults to None.
             trust_remote_code (bool, optional): whether the model has remote code in the HF bucket. Defaults to False.
             tokenizer_name (str | None, optional): path of the model on disk or HF hub. Defaults to None. If None, the `model_name` is used for tokenizer.
             additional_special_tokens (list[str] | None, optional): additional special tokens to use for expanding tokenizer. Defaults to None.
@@ -251,7 +251,7 @@ class ModelWrapper(nn.Module):
 
         original_forward = self.model.get_input_embeddings().forward
 
-        def _noisy_forward(x: torch.Tensor):
+        def _noisy_forward(x: torch.Tensor) -> torch.Tensor:
             x = original_forward(x)
 
             # to check if we are in eval mode we use self.training instead of self.model.training

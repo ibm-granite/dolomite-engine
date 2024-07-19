@@ -84,24 +84,29 @@ def main() -> None:
         assert not args.model_args.efficient_initialization
         assert not args.model_args.use_padding_free_transformer
 
-        model = ModelWrapperForFinetuning(
-            mode=mode,
-            model_name=args.model_args.model_name,
-            pretrained_config=args.model_args.pretrained_config,
-            model_class=args.model_args.model_class,
-            dtype=args.mixed_precision_args.dtype,
-            efficient_initialization=False,
-            attention_implementation=args.model_args.attention_implementation,
-            use_padding_free_transformer=False,
-            tensor_parallel_word_embeddings=False,
-            sequence_parallel=False,
-            distributed_backend=None,
-            random_seed=args.random_args.seed,
-            neft_alpha=None,
-            trust_remote_code=args.model_args.trust_remote_code,
-            tokenizer_name=args.tokenizer_args.tokenizer_name,
-            additional_special_tokens=args.tokenizer_args.additional_special_tokens,
-        )
+        with (
+            torch.device(torch.cuda.current_device()),
+            ProcessGroupManager.set_dummy_tensor_parallel_rank(0),
+            ProcessGroupManager.set_dummy_tensor_parallel_world_size(1),
+        ):
+            model = ModelWrapperForFinetuning(
+                mode=mode,
+                model_name=args.model_args.model_name,
+                pretrained_config=args.model_args.pretrained_config,
+                model_class=args.model_args.model_class,
+                dtype=args.mixed_precision_args.dtype,
+                efficient_initialization=False,
+                attention_implementation=args.model_args.attention_implementation,
+                use_padding_free_transformer=False,
+                tensor_parallel_word_embeddings=False,
+                sequence_parallel=False,
+                distributed_backend=None,
+                random_seed=args.random_args.seed,
+                neft_alpha=None,
+                trust_remote_code=args.model_args.trust_remote_code,
+                tokenizer_name=args.tokenizer_args.tokenizer_name,
+                additional_special_tokens=args.tokenizer_args.additional_special_tokens,
+            )
 
         datasets_list, _ = get_datasets_list(
             args,

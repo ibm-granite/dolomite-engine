@@ -72,7 +72,7 @@ class ModelWrapper(nn.Module):
         self.use_padding_free_transformer = use_padding_free_transformer
         self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings
         self.sequence_parallel = sequence_parallel
-        self.tokenizer_name = tokenizer_name if self.model_name is None else tokenizer_name
+        self.tokenizer_name = tokenizer_name if self.model_name is None else self.model_name
         self.trust_remote_code = trust_remote_code
 
         self.tp_rank = ProcessGroupManager.get_tensor_parallel_rank()

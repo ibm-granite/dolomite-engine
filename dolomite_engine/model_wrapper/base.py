@@ -37,9 +37,7 @@ class ModelWrapper(nn.Module):
         neft_alpha: float | None = None,
         trust_remote_code: bool = False,
         tokenizer_name: str | None = None,
-        additional_special_tokens: list[str] = None,
-        reset_attention_mask: bool = False,
-        reset_position_ids: bool = False,
+        additional_special_tokens: list[str] | None = None,
     ) -> None:
         """initializes a model wrapper for a HuggingFace model
 
@@ -47,21 +45,19 @@ class ModelWrapper(nn.Module):
             mode (Mode): training / inference mode
             model_name (str | None): path of the model on disk or HF hub
             pretrained_config (dict | None): config of the model to load model from, only used if `model_name` is None
-            model_class (AutoModelForCausalLM | AutoModelForSeq2SeqLM): _description_
-            dtype (torch.dtype): _description_
-            efficient_initialization (bool): _description_
-            attention_implementation (AttentionImplementation): _description_
-            use_padding_free_transformer (bool): _description_
-            tensor_parallel_word_embeddings (bool): _description_
-            sequence_parallel (bool): _description_
-            distributed_backend (DistributedBackend): _description_
-            random_seed (int): _description_
+            model_class (AutoModelForCausalLM | AutoModelForSeq2SeqLM): HF model class to use for model loading
+            dtype (torch.dtype): dtype for the model
+            efficient_initialization (bool): whether to use efficient initialization for the model initialization, saves CPU memory
+            attention_implementation (AttentionImplementation): attention implementation for the model
+            use_padding_free_transformer (bool): whether to use padding free transformer
+            tensor_parallel_word_embeddings (bool): whether to use tensor parallel word embeddings
+            sequence_parallel (bool): whether to use sequence parallel
+            distributed_backend (DistributedBackend): distributed backend to use for model
+            random_seed (int): random seed to use for tensor parallel seed management
             neft_alpha (float | None, optional): _description_. Defaults to None.
-            trust_remote_code (bool, optional): _description_. Defaults to False.
-            tokenizer_name (str | None, optional): _description_. Defaults to None.
-            additional_special_tokens (list[str], optional): _description_. Defaults to None.
-            reset_attention_mask (bool, optional): _description_. Defaults to False.
-            reset_position_ids (bool, optional): _description_. Defaults to False.
+            trust_remote_code (bool, optional): whether the model has remote code in the HF bucket. Defaults to False.
+            tokenizer_name (str | None, optional): path of the model on disk or HF hub. Defaults to None. If None, the `model_name` is used for tokenizer.
+            additional_special_tokens (list[str] | None, optional): additional special tokens to use for expanding tokenizer. Defaults to None.
         """
 
         super().__init__()
@@ -72,8 +68,6 @@ class ModelWrapper(nn.Module):
         self.model_class = model_class
         self.efficient_initialization = efficient_initialization
         self.dtype = dtype
-        self.reset_attention_mask = reset_attention_mask
-        self.reset_position_ids = reset_position_ids
         self.attention_implementation = attention_implementation
         self.use_padding_free_transformer = use_padding_free_transformer
         self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings

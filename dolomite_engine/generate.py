@@ -7,7 +7,7 @@ from .arguments import InferenceArgs, get_args
 from .checkpointing import load_checkpoint_for_inference, save_args
 from .data import BaseDataset, collate_fn, get_datasets_list
 from .enums import DatasetKeys, DatasetSplit, Mode
-from .model_wrapper import ModelWrapper, ModelWrapperForFinetuning, get_model
+from .model_wrapper import ModelWrapper, ModelWrapperForFinetuning
 from .utils import ProcessGroupManager, ProgressBar, setup_tf32
 
 
@@ -50,9 +50,7 @@ def generate(args: InferenceArgs, model: ModelWrapper, datasets_list: list[BaseD
 
                 generated_text, num_generated_tokens = model.generate(batch, generate_kwargs)
 
-                for example, generated_text_, num_generated_tokens_ in zip(
-                    batch, generated_text, num_generated_tokens
-                ):
+                for generated_text_, num_generated_tokens_ in zip(generated_text, num_generated_tokens):
                     output_file.write(
                         json.dumps(
                             {

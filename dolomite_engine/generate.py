@@ -108,26 +108,20 @@ def main() -> None:
                 additional_special_tokens=args.tokenizer_args.additional_special_tokens,
             )
 
-        datasets_list, _ = get_datasets_list(
-            args,
-            split=DatasetSplit.test,
-            mode=mode,
-            tokenizer=model.tokenizer,
-            is_encoder_decoder=model.is_encoder_decoder,
-        )
+        args_from_checkpoint = args
     else:
         model, args_from_checkpoint, _ = load_checkpoint_for_inference(args, mode)
 
         # override with datasets passed in current config
         args_from_checkpoint.datasets = args.datasets
 
-        datasets_list, _ = get_datasets_list(
-            args_from_checkpoint,
-            split=DatasetSplit.test,
-            mode=mode,
-            tokenizer=model.tokenizer,
-            is_encoder_decoder=model.is_encoder_decoder,
-        )
+    datasets_list, _ = get_datasets_list(
+        args_from_checkpoint,
+        split=DatasetSplit.test,
+        mode=mode,
+        tokenizer=model.tokenizer,
+        is_encoder_decoder=model.is_encoder_decoder,
+    )
 
     model = model.to(torch.cuda.current_device())
 

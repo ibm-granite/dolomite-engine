@@ -40,7 +40,7 @@ def get_datasets_list(
     """get the list of datasets from their configs
 
     Args:
-        dataset_args_list (list[DatasetArgs]): list DatasetArgs objects
+        dataset_args_list (list[DatasetArgs]): list of DatasetArgs objects
         split (DatasetSplit): train / val / test split
         mode (Mode): training / inference mode for running the program
         tokenizer (AutoTokenizer): tokenizer

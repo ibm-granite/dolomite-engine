@@ -62,6 +62,11 @@ class ModelWrapperForPretraining(ModelWrapper):
             reset_position_ids (bool, optional): whether to reset position ids during pretraining. Defaults to False.
         """
 
+        self.micro_batch_size = micro_batch_size
+        self.sequence_length = sequence_length
+        self.reset_attention_mask = reset_attention_mask
+        self.reset_position_ids = reset_position_ids
+
         super().__init__(
             mode=mode,
             model_name=model_name,
@@ -81,10 +86,6 @@ class ModelWrapperForPretraining(ModelWrapper):
             additional_special_tokens=additional_special_tokens,
         )
 
-        self.micro_batch_size = micro_batch_size
-        self.sequence_length = sequence_length
-        self.reset_attention_mask = reset_attention_mask
-        self.reset_position_ids = reset_position_ids
         self.upcast_logits_for_loss = getattr(self.config, "upcast_logits_for_loss", False)
 
     def forward(self, batch: dict) -> torch.Tensor:

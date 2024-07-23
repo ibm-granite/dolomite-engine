@@ -506,7 +506,7 @@ class GPTDolomiteModel(GPTDolomitePreTrainedModel):
         #     rope_cos_sin -> 2 * (key_length, head_dim)
         # ==========================================================================================
 
-        attention_mask = self._get_causal_mask(
+        attention_mask = self._get_maybe_causal_mask(
             attention_mask, alibi_bias, batch_size, query_length, key_length, hidden_states.dtype, device
         )
 
@@ -556,7 +556,7 @@ class GPTDolomiteModel(GPTDolomitePreTrainedModel):
             self.mask_value = torch.full([], torch.finfo(torch.float16).min, dtype=dtype, device=device)
         return self.mask_value
 
-    def _get_causal_mask(
+    def _get_maybe_causal_mask(
         self,
         attention_mask: torch.Tensor | None,
         alibi_bias: torch.Tensor | None,

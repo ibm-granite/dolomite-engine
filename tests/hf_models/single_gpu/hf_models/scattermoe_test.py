@@ -30,7 +30,7 @@ class ScatterMoETest(TestCommons):
         scatter_model.eval()
         naive_model.eval()
 
-        print(naive_model.load_state_dict(scatter_model.state_dict(), strict=False))
+        naive_model.load_state_dict(scatter_model.state_dict())
 
         naive_output = naive_model(input_ids=input_ids, attention_mask=attention_mask)
         scatter_output = scatter_model(input_ids=input_ids, attention_mask=attention_mask)

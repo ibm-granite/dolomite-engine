@@ -35,8 +35,8 @@ class ScatterMoETest(TestCommons):
         for layer_idx in range(len(naive_model.transformer.h)):
             naive_layer = naive_model.transformer.h[layer_idx]
             scatter_layer = scatter_model.transformer.h[layer_idx]
-            c_fc_weights = [e.c_fc.weight.data for e in naive_layer.mlp]
-            c_proj_weights = [e.c_proj.weight.data for e in naive_layer.mlp]
+            c_fc_weights = [e.c_fc.weight.data for e in naive_layer.mlp.experts]
+            c_proj_weights = [e.c_proj.weight.data for e in naive_layer.mlp.experts]
             scatter_layer.mlp.c_fc.weight.data[:] = torch.stack(c_fc_weights)
             scatter_layer.mlp.c_proj.weight.data[:] = torch.stack(c_proj_weights)
 

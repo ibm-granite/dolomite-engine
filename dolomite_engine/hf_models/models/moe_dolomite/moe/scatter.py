@@ -16,7 +16,9 @@ if is_scattermoe_available():
 
 
 class ScatterMoE(SparseMoE):
-    def __init__(self, config: MoEDolomiteConfig, use_padding_free_transformer: bool) -> None:
+    def __init__(
+        self, config: MoEDolomiteConfig, use_padding_free_transformer: bool, layer_idx: int | None = None
+    ) -> None:
         nn.Module.__init__(self)
 
         self.hidden_size = config.hidden_size
@@ -25,6 +27,7 @@ class ScatterMoE(SparseMoE):
         self.top_k = config.num_experts_per_tok
         self.normalize_expert_weights = config.normalize_expert_weights
         self.use_padding_free_transformer = use_padding_free_transformer
+        self.layer_idx = layer_idx
 
         self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
         self.experts = _ScatterMoEMLP(config)
@@ -160,3 +163,29 @@ class _ParameterizedScatteredExperts(ParameterizedLinear):
         return "num_experts={}, input_size={}, output_size={}".format(
             self.num_experts, self.input_size, self.output_size
         )
+
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        prefix_separated = prefix.split(".")
+        extension = prefix_separated[-2]
+        prefix = ".".join(prefix_separated[:-2])
+
+        weights = [w.squeeze(0) for w in self.weight.chunk(self.num_experts)]
+        for i, weight in enumerate(weights):
+            destination[f"{prefix}.{i}.{extension}.weight"] = weight
+
+        assert self.bias is None
+
+    def _load_from_state_dict(
+        self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+    ):
+        prefix_separated = prefix.split(".")
+        extension = prefix_separated[-2]
+        prefix = ".".join(prefix_separated[:-2])
+
+        weights = [state_dict[f"{prefix}.{i}.{extension}.weight"] for i in range(self.num_experts)]
+        weights = torch.stack(weights)
+
+        with torch.no_grad():
+            self.weight.copy_(weights)
+
+        assert f"{prefix}.0.{extension}.bias" not in state_dict

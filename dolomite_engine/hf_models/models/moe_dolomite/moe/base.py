@@ -8,7 +8,9 @@ from ..config import MoEDolomiteConfig
 
 
 class SparseMoE(nn.Module):
-    def __init__(self, config: MoEDolomiteConfig, use_padding_free_transformer: bool) -> None:
+    def __init__(
+        self, config: MoEDolomiteConfig, use_padding_free_transformer: bool, layer_idx: int | None = None
+    ) -> None:
         super().__init__()
 
         self.hidden_size = config.hidden_size
@@ -17,6 +19,7 @@ class SparseMoE(nn.Module):
         self.top_k = config.num_experts_per_tok
         self.normalize_expert_weights = config.normalize_expert_weights
         self.use_padding_free_transformer = use_padding_free_transformer
+        self.layer_idx = layer_idx
 
         self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
         self.experts = nn.ModuleList([MLP(config) for _ in range(self.num_experts)])

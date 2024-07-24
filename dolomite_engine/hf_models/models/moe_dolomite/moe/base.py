@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,19 +16,10 @@ class SparseMoE(nn.Module):
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
         self.normalize_expert_weights = config.normalize_expert_weights
-
-        # router
-        self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
-
-        config_copy = deepcopy(config)
-        config_copy.add_bias = False
-        self.experts = nn.ModuleList([MLP(config_copy) for _ in range(self.num_experts)])
-        del config_copy
-
-        # shared bias amoung experts (Megablocks has shared bias for some reason)
-        self.bias = nn.Parameter(torch.zeros(self.hidden_size)) if config.add_bias else None
-
         self.use_padding_free_transformer = use_padding_free_transformer
+
+        self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
+        self.experts = nn.ModuleList([MLP(config) for _ in range(self.num_experts)])
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         if not self.use_padding_free_transformer:

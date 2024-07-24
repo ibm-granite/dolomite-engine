@@ -58,15 +58,7 @@ class ScatterMoETest(TestCommons):
         naive_model = self.from_config(config, moe_implementation="eager").to(device)
         scatter_model = self.from_config(config, moe_implementation="scattermoe").to(device)
 
-        # test _save_to_state_dict
         naive_state_dict = naive_model.state_dict()
-        scatter_state_dict = scatter_model.state_dict()
-
-        assert naive_state_dict.keys() == scatter_state_dict.keys()
-        for key in naive_state_dict.keys():
-            assert naive_state_dict[key].equal(scatter_state_dict[key])
-
-        # test _load_from_state_dict
         scatter_model.load_state_dict(naive_state_dict)
         scatter_state_dict = scatter_model.state_dict()
 

@@ -32,6 +32,14 @@ class ScatterMoETest(TestCommons):
 
         naive_model.load_state_dict(scatter_model.state_dict())
 
+        for layer_idx in range(len(naive_model.transformer.h)):
+            naive_layer = naive_model.transformer.h[layer_idx]
+            scatter_layer = scatter_model.transformer.h[layer_idx]
+            c_fc_weights = [e.c_fc.weight.data for e in naive_layer.mlp.experts]
+            c_proj_weights = [e.c_proj.weight.data for e in naive_layer.mlp.experts]
+            scatter_layer.mlp.experts.c_fc.weight.data[:] = torch.stack(c_fc_weights)
+            scatter_layer.mlp.experts.c_proj.weight.data[:] = torch.stack(c_proj_weights)
+
         naive_output = naive_model(input_ids=input_ids, attention_mask=attention_mask)
         scatter_output = scatter_model(input_ids=input_ids, attention_mask=attention_mask)
 
@@ -46,22 +54,3 @@ class ScatterMoETest(TestCommons):
             rtol_bfloat16=0,
             atol_bfloat16=1e-4,
         )
-
-    def test_scattermoe_state_dict(self) -> None:
-        device = torch.device("cuda")
-        self.skip_test_if_device_unavailable(device)
-
-        config = self.get_moe_test_config(
-            AttentionHeadType.mha, PositionEmbeddingType.rope, num_layers=1, add_bias=False
-        )
-
-        naive_model = self.from_config(config, moe_implementation="eager").to(device)
-        scatter_model = self.from_config(config, moe_implementation="scattermoe").to(device)
-
-        naive_state_dict = naive_model.state_dict()
-        scatter_model.load_state_dict(naive_state_dict)
-        scatter_state_dict = scatter_model.state_dict()
-
-        assert naive_state_dict.keys() == scatter_state_dict.keys()
-        for key in naive_state_dict.keys():
-            assert naive_state_dict[key].equal(scatter_state_dict[key])

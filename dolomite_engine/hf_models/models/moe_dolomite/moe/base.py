@@ -60,9 +60,6 @@ class SparseMoE(nn.Module):
         if not self.use_padding_free_transformer:
             final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, self.hidden_size)
 
-        if self.bias is not None:
-            final_hidden_states = final_hidden_states + self.bias
-
         return final_hidden_states, router_logits
 
     def _compute_routing_weights(self, hidden_states: torch.Tensor) -> torch.Tensor:
@@ -83,7 +80,3 @@ class SparseMoE(nn.Module):
         routing_weights = routing_weights.to(hidden_states.dtype)
 
         return router_logits, routing_weights, selected_experts
-
-    def extra_repr(self) -> str | None:
-        if hasattr(self, "bias") and self.bias is not None:
-            return f"(bias): Parameter(size={tuple(self.bias.size())})"

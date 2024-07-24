@@ -1,4 +1,5 @@
 import math
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -27,7 +28,14 @@ class ScatterMoE(SparseMoE):
 
         # router
         self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
+
+        config_copy = deepcopy(config)
+        config_copy.add_bias = False
         self.experts = _ScatterMoEMLP(config)
+        del config_copy
+
+        # shared bias amoung experts (Megablocks has shared bias for some reason)
+        self.bias = nn.Parameter(torch.zeros(self.hidden_size)) if config.add_bias else None
 
         self.use_padding_free_transformer = use_padding_free_transformer
 
@@ -42,6 +50,9 @@ class ScatterMoE(SparseMoE):
 
         if not self.use_padding_free_transformer:
             hidden_states = hidden_states.reshape(batch_size, sequence_length, self.hidden_size)
+
+        if self.bias is not None:
+            hidden_states = hidden_states + self.bias
 
         return hidden_states, router_logits
 

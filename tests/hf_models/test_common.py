@@ -235,7 +235,7 @@ class TestCommons(TestCase):
 
         if moe_implementation == "eager":
             assert "SparseMoE" in str(model)
-        else:
+        elif moe_implementation == "scattermoe":
             assert "ScatterMoE" in str(model)
 
         kwargs.pop("torch_dtype", None)

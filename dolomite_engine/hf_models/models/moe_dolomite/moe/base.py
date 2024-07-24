@@ -72,7 +72,7 @@ class SparseMoE(nn.Module):
             final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, self.hidden_size)
 
         if self.bias is not None:
-            final_hidden_states += self.bias
+            final_hidden_states = final_hidden_states + self.bias
 
         return final_hidden_states, router_logits
 

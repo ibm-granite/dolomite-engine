@@ -30,28 +30,7 @@ class ScatterMoE(SparseMoE):
         self.layer_idx = layer_idx
 
         self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
-        self.experts = _ScatterMoEMLP(config)
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        if not self.use_padding_free_transformer:
-            batch_size, sequence_length, _ = hidden_states.shape
-            hidden_states = hidden_states.view(-1, self.hidden_size)
-
-        router_logits, routing_weights, selected_experts = self._compute_routing_weights(hidden_states)
-
-        hidden_states = self.experts(hidden_states, routing_weights, selected_experts)
-
-        if not self.use_padding_free_transformer:
-            hidden_states = hidden_states.reshape(batch_size, sequence_length, self.hidden_size)
-
-        return hidden_states, router_logits
-
-
-class _ScatterMoEMLP(nn.Module):
-    def __init__(self, config: MoEDolomiteConfig) -> None:
-        super().__init__()
-
-        hidden_size = config.n_embd
         intermediate_size = config.n_inner
         activation_function = config.activation_function
         residual_dropout = config.resid_pdrop
@@ -63,15 +42,12 @@ class _ScatterMoEMLP(nn.Module):
         n_layer = config.n_layer
         init_method = InitMethod(config.init_method)
 
-        self.num_experts = config.num_experts
-        self.top_k = config.num_experts_per_tok
-
         std = initializer_range
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
         self.c_fc = _ParameterizedScatteredExperts(
             self.num_experts,
-            hidden_size,
+            self.hidden_size,
             2 * intermediate_size if is_glu(activation_function) else intermediate_size,
             std=std,
         )
@@ -81,11 +57,11 @@ class _ScatterMoEMLP(nn.Module):
         std = initializer_range / math.sqrt(2 * n_layer)
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.c_proj = _ParameterizedScatteredExperts(self.num_experts, intermediate_size, hidden_size, std=std)
+        self.c_proj = _ParameterizedScatteredExperts(self.num_experts, intermediate_size, self.hidden_size, std=std)
 
         self.dropout = nn.Identity() if residual_dropout == 0 else nn.Dropout(residual_dropout)
 
-    def forward(
+    def _compute_expert_outputs(
         self, hidden_states: torch.Tensor, routing_weights: torch.Tensor, selected_experts: torch.Tensor
     ) -> torch.Tensor:
         with torch.no_grad():
@@ -163,29 +139,3 @@ class _ParameterizedScatteredExperts(ParameterizedLinear):
         return "num_experts={}, input_size={}, output_size={}".format(
             self.num_experts, self.input_size, self.output_size
         )
-
-    def _save_to_state_dict(self, destination, prefix, keep_vars):
-        prefix_separated = prefix.split(".")
-        extension = prefix_separated[-2]
-        prefix = ".".join(prefix_separated[:-2])
-
-        weights = [w.squeeze(0) for w in self.weight.chunk(self.num_experts)]
-        for i, weight in enumerate(weights):
-            destination[f"{prefix}.{i}.{extension}.weight"] = weight
-
-        assert self.bias is None
-
-    def _load_from_state_dict(
-        self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
-    ):
-        prefix_separated = prefix.split(".")
-        extension = prefix_separated[-2]
-        prefix = ".".join(prefix_separated[:-2])
-
-        weights = [state_dict[f"{prefix}.{i}.{extension}.weight"] for i in range(self.num_experts)]
-        weights = torch.stack(weights)
-
-        with torch.no_grad():
-            self.weight.copy_(weights)
-
-        assert f"{prefix}.0.{extension}.bias" not in state_dict

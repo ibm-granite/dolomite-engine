@@ -30,7 +30,35 @@ class SparseMoE(nn.Module):
             hidden_states = hidden_states.view(-1, self.hidden_size)
 
         router_logits, routing_weights, selected_experts = self._compute_routing_weights(hidden_states)
+        hidden_states = self._compute_expert_outputs(hidden_states, routing_weights, selected_experts)
 
+        if not self.use_padding_free_transformer:
+            hidden_states = hidden_states.reshape(batch_size, sequence_length, self.hidden_size)
+
+        return hidden_states, router_logits
+
+    def _compute_routing_weights(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        # router_logits -> (total_q, num_experts)
+        router_logits = self.gate(hidden_states)
+
+        routing_weights = F.softmax(router_logits, dim=-1, dtype=torch.float)
+
+        if self.top_k == 1:
+            routing_weights, selected_experts = routing_weights.max(dim=-1, keepdim=True)
+        else:
+            routing_weights, selected_experts = routing_weights.topk(self.top_k, dim=-1)
+
+        if self.normalize_expert_weights:
+            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+
+        # we cast back to the input dtype
+        routing_weights = routing_weights.to(hidden_states.dtype)
+
+        return router_logits, routing_weights, selected_experts
+
+    def _compute_expert_outputs(
+        self, hidden_states: torch.Tensor, routing_weights: torch.Tensor, selected_experts: torch.Tensor
+    ) -> torch.Tensor:
         final_hidden_states = torch.zeros_like(hidden_states)
 
         # One hot encode the selected experts to create an expert mask
@@ -60,26 +88,4 @@ class SparseMoE(nn.Module):
             # the `top_x` tensor here.
             final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
 
-        if not self.use_padding_free_transformer:
-            final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, self.hidden_size)
-
-        return final_hidden_states, router_logits
-
-    def _compute_routing_weights(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        # router_logits -> (total_q, num_experts)
-        router_logits = self.gate(hidden_states)
-
-        routing_weights = F.softmax(router_logits, dim=-1, dtype=torch.float)
-
-        if self.top_k == 1:
-            routing_weights, selected_experts = routing_weights.max(dim=-1, keepdim=True)
-        else:
-            routing_weights, selected_experts = routing_weights.topk(self.top_k, dim=-1)
-
-        if self.normalize_expert_weights:
-            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
-
-        # we cast back to the input dtype
-        routing_weights = routing_weights.to(hidden_states.dtype)
-
-        return router_logits, routing_weights, selected_experts
+        return final_hidden_states

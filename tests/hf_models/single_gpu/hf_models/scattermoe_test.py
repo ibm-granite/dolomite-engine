@@ -30,7 +30,7 @@ class ScatterMoETest(TestCommons):
         scatter_model.eval()
         naive_model.eval()
 
-        naive_model.load_state_dict(scatter_model.state_dict())
+        naive_model.load_state_dict(scatter_model.state_dict(), strict=False)
 
         for layer_idx in range(len(naive_model.transformer.h)):
             naive_layer = naive_model.transformer.h[layer_idx]

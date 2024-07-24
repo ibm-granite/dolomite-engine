@@ -55,17 +55,17 @@ class _ScatterMoEMLP(nn.Module):
 
         assert not config.add_bias, "ScatterMoE does not support add_bias"
 
-        self.init_method = InitMethod(config.init_method)
-        self.initializer_range = config.initializer_range
-        self.m_width = config.m_width
-        self.n_layer = config.n_layer
+        initializer_range = config.initializer_range
+        m_width = config.m_width
+        n_layer = config.n_layer
+        init_method = InitMethod(config.init_method)
 
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
 
-        std = self.initializer_range
-        if self.init_method == InitMethod.mup:
-            std /= math.sqrt(self.m_width)
+        std = initializer_range
+        if init_method == InitMethod.mup:
+            std /= math.sqrt(m_width)
         self.c_fc = _ParameterizedScatteredExperts(
             self.num_experts,
             hidden_size,
@@ -75,9 +75,9 @@ class _ScatterMoEMLP(nn.Module):
 
         self.act = get_activation_function(activation_function)
 
-        std = self.initializer_range / math.sqrt(2 * self.n_layer)
-        if self.init_method == InitMethod.mup:
-            std /= math.sqrt(self.m_width)
+        std = initializer_range / math.sqrt(2 * n_layer)
+        if init_method == InitMethod.mup:
+            std /= math.sqrt(m_width)
         self.c_proj = _ParameterizedScatteredExperts(self.num_experts, intermediate_size, hidden_size, std=std)
 
         self.dropout = nn.Identity() if residual_dropout == 0 else nn.Dropout(residual_dropout)
@@ -100,9 +100,7 @@ class _ScatterMoEMLP(nn.Module):
             expert_offsets,
             grouped_out=True,
         )
-
         hidden_states = self.act(hidden_states)
-
         hidden_states = self.c_proj(
             hidden_states,
             1,
@@ -113,9 +111,7 @@ class _ScatterMoEMLP(nn.Module):
             grouped_in=True,
             gates=routing_weights,
         )
-
         hidden_states = self.dropout(hidden_states)
-
         return hidden_states
 
 

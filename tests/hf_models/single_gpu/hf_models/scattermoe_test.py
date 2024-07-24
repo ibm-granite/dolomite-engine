@@ -46,3 +46,30 @@ class ScatterMoETest(TestCommons):
             rtol_bfloat16=0,
             atol_bfloat16=1e-4,
         )
+
+    def test_scattermoe_state_dict(self) -> None:
+        device = torch.device("cuda")
+        self.skip_test_if_device_unavailable(device)
+
+        config = self.get_moe_test_config(
+            AttentionHeadType.mha, PositionEmbeddingType.rope, num_layers=1, add_bias=False
+        )
+
+        naive_model = self.from_config(config, moe_implementation="eager").to(device)
+        scatter_model = self.from_config(config, moe_implementation="scattermoe").to(device)
+
+        # test _save_to_state_dict
+        naive_state_dict = naive_model.state_dict()
+        scatter_state_dict = scatter_model.state_dict()
+
+        assert naive_state_dict.keys() == scatter_state_dict.keys()
+        for key in naive_state_dict.keys():
+            assert naive_state_dict[key].equal(scatter_state_dict[key])
+
+        # test _load_from_state_dict
+        scatter_model.load_state_dict(naive_state_dict)
+        scatter_state_dict = scatter_model.state_dict()
+
+        assert naive_state_dict.keys() == scatter_state_dict.keys()
+        for key in naive_state_dict.keys():
+            assert naive_state_dict[key].equal(scatter_state_dict[key])

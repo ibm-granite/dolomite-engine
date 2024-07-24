@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,14 +19,7 @@ class SparseMoE(nn.Module):
 
         # router
         self.gate = ParameterizedLinear(hidden_size, self.num_experts, bias=False)
-
-        config_copy = deepcopy(config)
-        config_copy.add_bias = False
-        self.experts = nn.ModuleList([MLP(config_copy) for _ in range(self.num_experts)])
-        del config_copy
-
-        # shared bias amoung experts (Megablocks has shared bias for some reason)
-        self.bias = nn.Parameter(torch.zeros(hidden_size)) if config.add_bias else None
+        self.experts = nn.ModuleList([MLP(config) for _ in range(self.num_experts)])
 
         self._use_padding_free_transformer = use_padding_free_transformer
 
@@ -87,11 +78,4 @@ class SparseMoE(nn.Module):
         if not self._use_padding_free_transformer:
             final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
 
-        if self.bias is not None:
-            final_hidden_states += self.bias
-
         return final_hidden_states, router_logits
-
-    def extra_repr(self) -> str | None:
-        if self.bias is not None:
-            return f"(bias): Parameter(size={tuple(self.bias.size())})"

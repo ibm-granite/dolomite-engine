@@ -375,7 +375,8 @@ def load_checkpoint_for_inference(
             if was_compiled_model:
                 for key in list(state.keys()):
                     assert key.startswith("_orig_mod.")
-                    state[key.lstrip("_orig_mod.")] = state.pop(key)
+                    new_key = key.split("_orig_mod.")[1]
+                    state[new_key] = state.pop(key)
 
             with (
                 torch.device("meta") if use_meta else torch.device(torch.cuda.current_device()),

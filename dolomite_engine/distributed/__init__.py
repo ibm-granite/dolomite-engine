@@ -6,10 +6,12 @@ import torch
 import torch.nn as nn
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy as MixedPrecision2
 from torch.distributed._composable.fsdp import fully_shard
+from torch.distributed._composable.replicate import replicate
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision as MixedPrecision1
 from torch.distributed.fsdp import ShardingStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -176,19 +178,8 @@ def wrap_model_for_distributed_training(
             if stage == 0:
                 assert not efficient_initialization
 
-                mixed_precision_policy = deepcopy(_FSDP1_MIXED_PRECISION_POLICIES[dtype])
-                if communication_dtype is not None:
-                    mixed_precision_policy.reduce_dtype = string_to_torch_dtype(communication_dtype)
-
-                model = FSDP(
-                    model,
-                    sharding_strategy=ShardingStrategy.NO_SHARD,
-                    mixed_precision=mixed_precision_policy,
-                    device_id=torch.cuda.current_device(),
-                    limit_all_gathers=True,
-                    use_orig_params=True,
-                    device_mesh=None if tp_world_size == 1 else ProcessGroupManager.get_data_parallel_mesh(),
-                )
+                # TODO add mixed precision
+                model = replicate(model)
             else:
                 mixed_precision_policy = deepcopy(_FSDP2_MIXED_PRECISION_POLICIES[dtype])
                 if communication_dtype is not None:

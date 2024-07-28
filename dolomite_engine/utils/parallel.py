@@ -22,6 +22,12 @@ _TENSOR_PARALLEL_RANK: int | None = None
 _TENSOR_PARALLEL_WORLD_SIZE: int | None = None
 _TENSOR_PARALLEL_FIRST_RANK: int | None = None
 
+# pipeline parallel
+_PIPELINE_PARALLEL_MESH: DeviceMesh | None = None
+_PIPELINE_PARALLEL_GROUP: ProcessGroup | None = None
+_PIPELINE_PARALLEL_RANK: int | None = None
+_PIPELINE_PARALLEL_WORLD_SIZE: int | None = None
+
 # data parallel
 _DATA_PARALLEL_MESH: DeviceMesh | None = None
 _DATA_PARALLEL_GROUP: ProcessGroup | None = None
@@ -35,6 +41,7 @@ class ProcessGroupManager:
     def __init__(
         self,
         tensor_parallel_size: int = 1,
+        pipeline_parallel_size: int = 1,
         data_parallel_size: int | None = None,
         data_parallel_replication_world_size: int | None = None,
         data_parallel_sharding_world_size: int | None = None,
@@ -52,9 +59,9 @@ class ProcessGroupManager:
         total_gpus = int(os.getenv("WORLD_SIZE", 1))
 
         if data_parallel_size is None:
-            data_parallel_size = total_gpus // tensor_parallel_size
+            data_parallel_size = total_gpus // (tensor_parallel_size * pipeline_parallel_size)
 
-        assert tensor_parallel_size * data_parallel_size == total_gpus
+        assert tensor_parallel_size * pipeline_parallel_size * data_parallel_size == total_gpus
 
         if data_parallel_replication_world_size is None:
             assert data_parallel_sharding_world_size is None
@@ -71,8 +78,8 @@ class ProcessGroupManager:
 
         _MESH = init_device_mesh(
             "cuda",
-            (data_parallel_size, tensor_parallel_size),
-            mesh_dim_names=("dp", "tp"),
+            (pipeline_parallel_size, data_parallel_size, tensor_parallel_size),
+            mesh_dim_names=("pp", "dp", "tp"),
         )
 
         local_rank = int(os.getenv("LOCAL_RANK", 0))
@@ -83,7 +90,7 @@ class ProcessGroupManager:
         return torch.distributed.is_initialized()
 
     @staticmethod
-    def get_mesh() -> int:
+    def get_mesh() -> DeviceMesh:
         global _MESH
         return _MESH
 
@@ -191,6 +198,40 @@ class ProcessGroupManager:
 
         _TENSOR_PARALLEL_FIRST_RANK = original_rank
 
+    # pipeline parallel
+    @staticmethod
+    def get_pipeline_parallel_mesh() -> DeviceMesh:
+        global _PIPELINE_PARALLEL_MESH
+
+        if _PIPELINE_PARALLEL_MESH is None:
+            global _MESH
+            _PIPELINE_PARALLEL_MESH = _MESH["pp"]
+        return _PIPELINE_PARALLEL_MESH
+
+    @staticmethod
+    def get_pipeline_parallel_group() -> ProcessGroup:
+        global _PIPELINE_PARALLEL_GROUP
+
+        if _PIPELINE_PARALLEL_GROUP is None:
+            _PIPELINE_PARALLEL_GROUP = ProcessGroupManager.get_pipeline_parallel_mesh().get_group()
+        return _PIPELINE_PARALLEL_GROUP
+
+    @staticmethod
+    def get_pipeline_parallel_rank() -> int:
+        global _PIPELINE_PARALLEL_RANK
+
+        if _PIPELINE_PARALLEL_RANK is None:
+            _PIPELINE_PARALLEL_RANK = ProcessGroupManager.get_pipeline_parallel_mesh().get_local_rank()
+        return _PIPELINE_PARALLEL_RANK
+
+    @staticmethod
+    def get_pipeline_parallel_world_size() -> int:
+        global _PIPELINE_PARALLEL_WORLD_SIZE
+
+        if _PIPELINE_PARALLEL_WORLD_SIZE is None:
+            _PIPELINE_PARALLEL_WORLD_SIZE = ProcessGroupManager.get_pipeline_parallel_mesh().size()
+        return _PIPELINE_PARALLEL_WORLD_SIZE
+
     # data parallel
     @staticmethod
     def get_data_parallel_mesh() -> DeviceMesh:
@@ -264,6 +305,10 @@ class ProcessGroupManager:
             dp_mesh = DeviceMesh("cuda", dp_mesh)
 
         return dp_mesh
+
+    @staticmethod
+    def get_coordinate() -> list[int]:
+        return ProcessGroupManager.get_mesh().get_coordinate()
 
     @staticmethod
     def destroy_process_groups() -> None:

@@ -45,7 +45,7 @@ class ScatterMoE(SparseMoE):
         std = initializer_range
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.c_fc = _ParameterizedScatteredExperts(
+        self.c_fc = ParameterizedScatteredExperts(
             self.num_experts,
             self.hidden_size,
             2 * intermediate_size if is_glu(activation_function) else intermediate_size,
@@ -57,7 +57,7 @@ class ScatterMoE(SparseMoE):
         std = initializer_range / math.sqrt(2 * n_layer)
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.c_proj = _ParameterizedScatteredExperts(self.num_experts, intermediate_size, self.hidden_size, std=std)
+        self.c_proj = ParameterizedScatteredExperts(self.num_experts, intermediate_size, self.hidden_size, std=std)
 
         self.dropout = nn.Identity() if residual_dropout == 0 else nn.Dropout(residual_dropout)
 

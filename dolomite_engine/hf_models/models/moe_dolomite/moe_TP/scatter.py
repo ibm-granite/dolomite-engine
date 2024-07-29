@@ -158,15 +158,15 @@ class ScatterMoETP(SparseMoE):
         return hidden_states
 
 
-class _ColumnParallelScatteredExperts(_ParameterizedScatteredExperts):
+class ColumnParallelScatteredExperts(_ParameterizedScatteredExperts):
     def __init__(
         self,
         num_experts: int,
         input_size: int,
         output_size: int,
-        std: float | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        std: float | None = None,
     ) -> None:
         tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
         self.out_features_per_device = divide_if_divisible(
@@ -224,15 +224,15 @@ class _ColumnParallelScatteredExperts(_ParameterizedScatteredExperts):
         return super().load_state_dict(state_dict, strict, assign)
 
 
-class _RowParallelScatteredExperts(_ParameterizedScatteredExperts):
+class RowParallelScatteredExperts(_ParameterizedScatteredExperts):
     def __init__(
         self,
         num_experts: int,
         input_size: int,
         output_size: int,
-        std: float | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        std: float | None = None,
     ) -> None:
         tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
         self.in_features_per_device = divide_if_divisible(

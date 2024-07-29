@@ -45,6 +45,7 @@ class ColumnParallelLinear(ParameterizedLinear):
             dtype=dtype,
             std=std,
         )
+
         self.weight = nn.Parameter(
             DTensor.from_local(
                 self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Shard(0)]

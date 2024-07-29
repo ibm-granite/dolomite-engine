@@ -162,17 +162,17 @@ class ColumnParallelScatteredExperts(_ParameterizedScatteredExperts):
     def __init__(
         self,
         num_experts: int,
-        input_size: int,
-        output_size: int,
+        in_features: int,
+        out_features: int,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         std: float | None = None,
     ) -> None:
         tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
         self.out_features_per_device = divide_if_divisible(
-            output_size,
+            out_features,
             tp_world_size,
-            f"`output_size` ({output_size}) must be divisible by `tensor_parallel_world_size` ({tp_world_size})",
+            f"`out_features` ({out_features}) must be divisible by `tensor_parallel_world_size` ({tp_world_size})",
         )
         super().__init__(
             num_experts=num_experts,

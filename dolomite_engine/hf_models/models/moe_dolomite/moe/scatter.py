@@ -94,12 +94,12 @@ class ScatterMoE(SparseMoE):
         return hidden_states
 
 
-class _ParameterizedScatteredExperts(ParameterizedLinear):
+class ParameterizedScatteredExperts(ParameterizedLinear):
     def __init__(
         self,
         num_experts: int,
-        input_size: int,
-        output_size: int,
+        in_features: int,
+        out_features: int,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         std: float | None = None,
@@ -107,12 +107,12 @@ class _ParameterizedScatteredExperts(ParameterizedLinear):
         nn.Module.__init__(self)
 
         self.num_experts = num_experts
-        self.input_size = input_size
-        self.output_size = output_size
+        self.in_features = in_features
+        self.out_features = out_features
 
         self.std = std
 
-        self.weight = nn.Parameter(torch.empty((num_experts, output_size, input_size), device=device, dtype=dtype))
+        self.weight = nn.Parameter(torch.empty((num_experts, out_features, in_features), device=device, dtype=dtype))
         self.bias = None
 
         self.reset_parameters()
@@ -144,6 +144,6 @@ class _ParameterizedScatteredExperts(ParameterizedLinear):
         return results
 
     def extra_repr(self):
-        return "num_experts={}, input_size={}, output_size={}".format(
-            self.num_experts, self.input_size, self.output_size
+        return "num_experts={}, in_features={}, out_features={}".format(
+            self.num_experts, self.in_features, self.out_features
         )

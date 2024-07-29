@@ -100,13 +100,11 @@ class _ParameterizedScatteredExperts(ParameterizedLinear):
         num_experts: int,
         input_size: int,
         output_size: int,
-        std: float | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        std: float | None = None,
     ) -> None:
         nn.Module.__init__(self)
-        device = device if device is not None else torch.cuda.current_device()
-        dtype = dtype if dtype is not None else torch.get_default_dtype()
 
         self.num_experts = num_experts
         self.input_size = input_size

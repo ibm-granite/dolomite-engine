@@ -182,6 +182,7 @@ class ColumnParallelScatteredExperts(_ParameterizedScatteredExperts):
             device=device,
             dtype=dtype,
         )
+
         self.weight = nn.Parameter(
             DTensor.from_local(
                 self.weight,
@@ -244,10 +245,11 @@ class RowParallelScatteredExperts(_ParameterizedScatteredExperts):
             num_experts=num_experts,
             output_size=output_size,
             input_size=self.in_features_per_device,
-            std=std,
             device=device,
             dtype=dtype,
+            std=std,
         )
+
         self.weight = nn.Parameter(
             DTensor.from_local(
                 self.weight,

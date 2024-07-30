@@ -1,5 +1,3 @@
-from typing import Tuple, Union
-
 import torch
 import torch.nn as nn
 from transformers import DynamicCache
@@ -7,7 +5,7 @@ from transformers import DynamicCache
 from ...enums import AttentionHeadType
 from ...modeling_utils import get_attention_module, get_normalization_function
 from .config import MoEDolomiteConfig
-from .moe import SparseMoE
+from .moe import get_moe
 
 
 class SparseMoEBlock(nn.Module):
@@ -17,7 +15,8 @@ class SparseMoEBlock(nn.Module):
         normalization_implementation: str,
         attention_implementation: str,
         use_padding_free_transformer: bool,
-        layer_idx: int = None,
+        moe_implementation: str,
+        layer_idx: int | None = None,
     ) -> None:
         super().__init__()
 
@@ -42,20 +41,23 @@ class SparseMoEBlock(nn.Module):
             eps=config.layer_norm_epsilon,
             normalization_implementation=normalization_implementation,
         )
-        self.mlp = SparseMoE(config, use_padding_free_transformer=use_padding_free_transformer)
+        self.mlp = get_moe(
+            config,
+            moe_implementation=moe_implementation,
+            use_padding_free_transformer=use_padding_free_transformer,
+            layer_idx=layer_idx,
+        )
 
     def forward(
         self,
         hidden_states: torch.Tensor,
-        past_key_values: DynamicCache = None,
-        attention_mask: torch.Tensor = None,
-        rope_cos_sin: torch.Tensor = None,
-        cu_seqlens: torch.Tensor = None,
-        max_seqlen: torch.Tensor = None,
+        past_key_values: DynamicCache | None = None,
+        attention_mask: torch.Tensor | None = None,
+        rope_cos_sin: torch.Tensor | None = None,
+        cu_seqlens: torch.Tensor | None = None,
+        max_seqlen: torch.Tensor | None = None,
         output_router_logits: bool = False,
-    ) -> Union[
-        Tuple[torch.Tensor], Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ]:
+    ) -> tuple[torch.Tensor]:
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
 

@@ -31,7 +31,9 @@ class SafeTensorsWeightsManager:
         f = self.file_handles[filename]
         return f.get_slice(tensor_name)
 
-    def get_tensor(self, tensor_name: str, dtype: torch.dtype = None, device: torch.device = None) -> torch.Tensor:
+    def get_tensor(
+        self, tensor_name: str, dtype: torch.dtype | None = None, device: torch.device | None = None
+    ) -> torch.Tensor:
         filename = self.tensor_filenames[tensor_name]
         f = self.file_handles[filename]
         tensor = f.get_tensor(tensor_name)
@@ -48,7 +50,7 @@ class SafeTensorsWeightsManager:
     def __len__(self) -> int:
         return len(self.tensor_filenames)
 
-    def __iter__(self) -> str:
+    def __iter__(self):
         for tensor_name in self.tensor_filenames:
             yield tensor_name
 
@@ -73,7 +75,7 @@ class SafeTensorsWeightsManager:
 
     @staticmethod
     def save_state_dict(state_dict: dict, save_path: str) -> None:
-        os.makedirs(save_path)
+        os.makedirs(save_path, exist_ok=True)
 
         shards, index = shard_checkpoint(state_dict, max_shard_size="5GB", weights_name=SAFE_WEIGHTS_NAME)
 

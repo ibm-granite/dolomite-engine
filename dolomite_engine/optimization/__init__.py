@@ -1,10 +1,8 @@
-from typing import Tuple
-
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
 from ..enums import LRDecaySchedule, ParamsGroupMethod
-from ..hf_models import GPTDolomiteConfig, GPTDolomiteForCausalLM
+from ..hf_models import GPTDolomiteConfig, GPTDolomiteForCausalLM, RNNDolomiteConfig, RNNDolomiteForCausalLM
 from ..hf_models.modeling_utils import Attention
 from ..hf_models.models.gpt_dolomite.layer import MLP
 from ..model_wrapper import ModelWrapper
@@ -25,7 +23,7 @@ def get_optimizer_and_lr_scheduler(
     lr_decay_factor: float,
     params_group_method: ParamsGroupMethod,
     extra_lr_scheduler_args: dict,
-) -> Tuple[Optimizer, LambdaLR]:
+) -> tuple[Optimizer, LambdaLR]:
     trainable_parameters_or_param_groups = _get_param_groups(model, optimizer_class_args, params_group_method)
 
     optimizer = get_optimizer(
@@ -49,12 +47,16 @@ def get_optimizer_and_lr_scheduler(
     return optimizer, lr_scheduler
 
 
-def _get_param_groups(model: ModelWrapper, optimizer_class_args: dict, params_group_method: ParamsGroupMethod):
+def _get_param_groups(model: ModelWrapper, optimizer_class_args: dict, params_group_method: ParamsGroupMethod | None):
     if params_group_method is None:
         trainable_parameters_or_param_groups = model.parameters()
     elif params_group_method == ParamsGroupMethod.mup:
-        assert isinstance(model.config, GPTDolomiteConfig), "mup is only supported with GPTDolomiteForCausalLM"
-        assert isinstance(model.model, GPTDolomiteForCausalLM), "mup is only supported with GPTDolomiteForCausalLM"
+        assert isinstance(
+            model.config, (GPTDolomiteConfig, RNNDolomiteConfig)
+        ), "mup is not supported with this model architecture"
+        assert isinstance(
+            model.model, (GPTDolomiteForCausalLM, RNNDolomiteForCausalLM)
+        ), "mup is not supported with this model architecture"
         assert (
             model.config.init_method == "mup"
         ), "both init method for model and params group method for optimizer should be set to mup"

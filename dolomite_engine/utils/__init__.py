@@ -9,8 +9,11 @@ from .mixed_precision import normalize_dtype_string, string_to_torch_dtype, torc
 from .packages import (
     is_apex_available,
     is_deepspeed_available,
+    is_einops_available,
+    is_fla_available,
     is_flash_attention_available,
     is_ms_amp_available,
+    is_scattermoe_available,
     is_transformer_engine_available,
     is_triton_available,
 )

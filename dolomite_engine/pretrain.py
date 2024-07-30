@@ -1,9 +1,10 @@
-import contextlib
 import logging
 import time
-from typing import List
+from contextlib import nullcontext
+from functools import partial
 
 import torch
+from torch.distributed.tensor.parallel import loss_parallel
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -13,10 +14,10 @@ from .arguments import TrainingArgs, get_args
 from .checkpointing import load_checkpoint_for_training, save_checkpoint
 from .communication import Communication
 from .data import get_megatron_gpt_dataloaders
-from .distributed import wrap_model_for_distributed_training
+from .distributed import set_deepspeed_config, wrap_model_for_distributed_training
 from .enums import DistributedBackend, FP8Backend, Mode
-from .finetune import track_train_metrics, train_step
 from .model_wrapper import ModelWrapperForPretraining, get_model, log_model
+from .train_utils import get_model_tflops, get_torch_profiler, track_train_metrics, train_step
 from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
@@ -34,7 +35,7 @@ if is_transformer_engine_available():
 
 
 def track_val_metrics(
-    global_step: int, val_loss: float, experiments_tracker: ExperimentsTracker, group_name: str = None
+    global_step: int, val_loss: float, experiments_tracker: ExperimentsTracker, group_name: str | None = None
 ) -> None:
     """tracks metrics like validation loss
 
@@ -42,7 +43,7 @@ def track_val_metrics(
         global_step (int): global step during training
         val_loss (float): validation loss for the validation data
         experiments_tracker (ExperimentsTracker): metrics tracker
-        group_name (str): group name for the validation / test set
+        group_name (str | None): group name for the validation / test set
     """
 
     message = f"step = {global_step}, val_loss = {val_loss:.4f}"
@@ -61,8 +62,8 @@ def train(
     optimizer: Optimizer,
     lr_scheduler: LambdaLR,
     train_dataloader: DataLoader,
-    val_dataloaders: List[DataLoader],
-    test_dataloaders: List[DataLoader],
+    val_dataloaders: list[DataLoader],
+    test_dataloaders: list[DataLoader],
     experiments_tracker: ExperimentsTracker,
     starting_iteration: int = 0,
 ) -> None:
@@ -74,8 +75,8 @@ def train(
         optimizer (Optimizer): optimizer
         lr_scheduler (LRScheduler): learning rate scheduler
         train_dataloader (DataLoader): training dataloader
-        val_dataloaders (List[DataLoader]): validation dataloaders
-        test_dataloaders (List[DataLoader]): test dataloaders
+        val_dataloaders (list[DataLoader]): validation dataloaders
+        test_dataloaders (list[DataLoader]): test dataloaders
         experiments_tracker (ExperimentsTracker): metrics tracker
         starting_iteration (int): starting iteration
     """
@@ -105,33 +106,48 @@ def train(
 
     micro_batch_size = args.training_parameters.micro_batch_size
     sequence_length = args.datasets[0].class_args.get("sequence_length")
-
-    model_flops = model.get_model_tflops(micro_batch_size * gradient_accumulation_steps, sequence_length)
-
-    tokens_per_batch = (
-        micro_batch_size
-        * gradient_accumulation_steps
-        * ProcessGroupManager.get_data_parallel_world_size()
-        * sequence_length
+    global_batch_size = (
+        micro_batch_size * gradient_accumulation_steps * ProcessGroupManager.get_data_parallel_world_size()
     )
+    tokens_per_batch = global_batch_size * sequence_length
+
+    # model flops per GPU
+    model_flops = (
+        get_model_tflops(
+            model_class=args.model_args.model_class,
+            config=model.config,
+            batch_size=global_batch_size,
+            sequence_length=sequence_length,
+            gradient_checkpointing_method=args.distributed_args.gradient_checkpointing_method,
+            gradient_checkpointing_args=args.distributed_args.gradient_checkpointing_args,
+        )
+        / ProcessGroupManager.get_world_size()
+    )
+
+    forward_context = (
+        partial(
+            te.fp8_autocast,
+            enabled=True,
+            fp8_recipe=DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max"),
+        )
+        if args.mixed_precision_args.dtype == "fp8" and args.mixed_precision_args.fp8_backend == FP8Backend.nvte
+        else nullcontext
+    )
+
+    backward_context = loss_parallel if args.distributed_args.tensor_parallel_word_embeddings else nullcontext
+
+    torch_profiler = get_torch_profiler(args.logging_args.torch_profiler_trace_path)
+
+    if torch_profiler is not None:
+        torch_profiler.__enter__()
 
     start_time = time.perf_counter()
     steps_since_start_time = 0
-    train_step_context = contextlib.nullcontext()
-    use_nvte_fp8 = (
-        args.mixed_precision_args.dtype == "fp8" and args.mixed_precision_args.fp8_backend == FP8Backend.nvte
-    )
 
     global_step = starting_iteration
     while global_step < num_training_steps:
         global_step += 1
         steps_since_start_time += 1
-
-        if use_nvte_fp8:
-            train_step_context = te.fp8_autocast(
-                enabled=True,
-                fp8_recipe=DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max"),
-            )
 
         loss_step, grad_norm_step = train_step(
             model=model,
@@ -141,8 +157,12 @@ def train(
             train_dataloader=train_dataloader,
             gradient_accumulation_steps=gradient_accumulation_steps,
             gradient_clipping=gradient_clipping,
-            train_step_context=train_step_context,
+            forward_context=forward_context,
+            backward_context=backward_context,
         )
+
+        if torch_profiler is not None:
+            torch_profiler.step()
 
         if global_step % log_interval == 0:
             time_elapsed = time.perf_counter() - start_time
@@ -192,25 +212,28 @@ def train(
     if eval_during_training:
         evaluate(test_dataloaders, model, global_step, experiments_tracker, eval_steps, group_names)
 
+    if torch_profiler is not None:
+        torch_profiler.__exit__()
+
 
 @torch.no_grad()
 def evaluate(
-    val_dataloaders: List[DataLoader],
+    val_dataloaders: list[DataLoader],
     model: ModelWrapperForPretraining,
     global_step: int,
     experiments_tracker: ExperimentsTracker,
     eval_steps: int,
-    group_names: List[str],
+    group_names: list[str],
 ) -> float:
     """main validation loop for the program
 
     Args:
-        val_dataloaders (List[DataLoader]): list of validation dataloaders
+        val_dataloaders (list[DataLoader]): list of validation dataloaders
         model (ModelWrapperForPretraining): model
         global_step (int): global step during training
         experiments_tracker (ExperimentsTracker): metrics tracker
         eval_steps (int): number of steps to run eval for
-        group_names (List[str]): names of the datasets in validation/test group
+        group_names (list[str]): names of the datasets in validation/test group
 
     Returns:
         float: loss at the current step
@@ -270,6 +293,9 @@ def main() -> None:
     )
     set_seed(args.random_args.seed)
 
+    if args.distributed_args.distributed_backend == DistributedBackend.deepspeed:
+        set_deepspeed_config(args)
+
     model = get_model(args, mode)
     model, optimizer, lr_scheduler = wrap_model_for_distributed_training(args, model)
 
@@ -312,6 +338,8 @@ def main() -> None:
         experiments_tracker=experiments_tracker,
         starting_iteration=starting_iteration,
     )
+
+    ProcessGroupManager.destroy_process_groups()
 
 
 if __name__ == "__main__":

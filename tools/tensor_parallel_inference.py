@@ -25,7 +25,7 @@ set_cuda_rng_tracker(cuda_rng_tracker)
 
 model_name = "save/"
 
-model = GPTDolomiteForCausalLM_TP.from_pretrained(model_name, tensor_parallel_embeddings=True)
+model = GPTDolomiteForCausalLM_TP.from_pretrained(model_name, tensor_parallel_word_embeddings=True)
 
 if torch.distributed.get_rank() == 0:
     print(model)
@@ -46,3 +46,5 @@ y = model.generate(**x, max_new_tokens=100)
 
 if torch.distributed.get_rank() == 0:
     print(tokenizer.batch_decode(y)[0])
+
+ProcessGroupManager.destroy_process_groups()

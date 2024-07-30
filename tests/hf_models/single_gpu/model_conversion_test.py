@@ -53,8 +53,6 @@ class ModelConversionTest(TestCommons):
             normalization_function="rmsnorm",
             m_emb=2,
             m_width=2,
-            m_residual=2,
-            attention_multiplier=0.03,
         )
 
         self.model_conversion_test(

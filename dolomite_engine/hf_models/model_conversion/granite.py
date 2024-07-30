@@ -65,8 +65,8 @@ def _import_config_from_huggingface(original_config: GraniteConfig) -> GPTDolomi
         bos_token_id=original_config.bos_token_id,
         eos_token_id=original_config.eos_token_id,
         pad_token_id=original_config.pad_token_id,
-        m_emb=original_config.embedding_multiplier,
-        m_residual=original_config.residual_multiplier,
+        m_emb=None if original_config.embedding_multiplier == 1 else original_config.embedding_multiplier,
+        m_residual=None if original_config.residual_multiplier == 1 else original_config.residual_multiplier,
         m_width=None if original_config.logits_scaling == 1 else original_config.logits_scaling,
         attention_multiplier=original_config.attention_multiplier,
     )
@@ -127,8 +127,8 @@ def _export_config_to_huggingface(config: GPTDolomiteConfig) -> GraniteConfig:
         bos_token_id=config.bos_token_id,
         eos_token_id=config.eos_token_id,
         pad_token_id=config.pad_token_id,
-        embedding_multiplier=config.m_emb,
-        residual_multiplier=config.m_residual,
+        embedding_multiplier=1 if config.m_emb is None else config.m_emb,
+        residual_multiplier=1 if config.m_residual is None else config.m_residual,
         logits_scaling=1 if config.m_width is None else config.m_width,
         attention_multiplier=config.attention_multiplier,
     )

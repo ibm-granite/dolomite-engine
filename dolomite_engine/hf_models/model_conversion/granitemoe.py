@@ -69,7 +69,6 @@ def _import_config_from_huggingface(original_config: GraniteMoeConfig) -> MoEDol
         attn_pdrop=original_config.attention_dropout,
         num_experts=original_config.num_local_experts,
         num_experts_per_tok=original_config.num_experts_per_tok,
-        normalize_expert_weights=False,
         output_router_logits=original_config.output_router_logits,
         router_aux_loss_coef=original_config.router_aux_loss_coef,
         bos_token_id=original_config.bos_token_id,
@@ -168,7 +167,6 @@ def _export_config_to_huggingface(config: MoEDolomiteConfig) -> GraniteMoeConfig
     assert config.activation_function == "swiglu"
     assert config.normalization_function == "rmsnorm"
     assert config.position_embedding_type == "rope"
-    assert not config.normalize_expert_weights
     assert not config.add_bias
 
     original_config = GraniteMoeConfig(

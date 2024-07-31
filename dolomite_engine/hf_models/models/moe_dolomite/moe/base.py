@@ -60,8 +60,6 @@ class SparseMoE(nn.Module):
         self.top_k = config.num_experts_per_tok
         self.use_padding_free_transformer = use_padding_free_transformer
         self.layer_idx = layer_idx
-        self.softmax_after_topk = config.softmax_after_topk
-        self.normalize_expert_weights = config.normalize_expert_weights
 
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.n_inner
@@ -128,15 +126,8 @@ class SparseMoE(nn.Module):
         router_logits = self.gate(hidden_states)
         # router_logits -> (total_q, num_experts)
 
-        if self.softmax_after_topk:
-            router_logits, selected_experts = self._get_topk(router_logits)
-            router_weights = F.softmax(router_logits.float(), dim=-1)
-        else:
-            router_weights = F.softmax(router_logits.float(), dim=-1)
-            router_weights, selected_experts = self._get_topk(router_weights)
-
-            if self.normalize_expert_weights:
-                router_weights = router_weights / router_weights.sum(dim=-1, keepdim=True)
+        router_logits, selected_experts = self._get_topk(router_logits)
+        router_weights = F.softmax(router_logits.float(), dim=-1)
 
         # we cast back to the input dtype
         router_weights = router_weights.type_as(hidden_states)

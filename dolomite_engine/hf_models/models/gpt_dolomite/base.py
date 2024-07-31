@@ -553,7 +553,7 @@ class GPTDolomiteModel(GPTDolomitePreTrainedModel):
     def _get_mask_value(self, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
         # torch.where expects a tensor. We use a cache to avoid recreating it every time.
         if self.mask_value is None or self.mask_value.dtype != dtype or self.mask_value.device != device:
-            self.mask_value = torch.full([], torch.finfo(torch.float16).min, dtype=dtype, device=device)
+            self.mask_value = torch.full([], torch.finfo(dtype).min, dtype=dtype, device=device)
         return self.mask_value
 
     def _get_maybe_causal_mask(

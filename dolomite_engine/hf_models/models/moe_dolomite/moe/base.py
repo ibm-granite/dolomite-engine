@@ -126,8 +126,8 @@ class SparseMoE(nn.Module):
         router_logits = self.gate(hidden_states)
         # router_logits -> (total_q, num_experts)
 
-        router_logits, selected_experts = self._get_topk(router_logits)
-        router_weights = F.softmax(router_logits.float(), dim=-1)
+        router_weights, selected_experts = self._get_topk(router_logits)
+        router_weights = F.softmax(router_weights.float(), dim=-1)
 
         # we cast back to the input dtype
         router_weights = router_weights.type_as(hidden_states)

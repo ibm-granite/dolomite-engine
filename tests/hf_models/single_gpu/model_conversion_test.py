@@ -91,6 +91,7 @@ class ModelConversionTest(TestCommons):
             normalization_function="rmsnorm",
             m_emb=2,
             m_width=2,
+            normalize_expert_weights=False,
         )
 
         self.model_conversion_test(

@@ -110,6 +110,7 @@ class TestCommons(TestCase):
         m_width: float = None,
         m_residual: float = None,
         attention_multiplier: float = None,
+        normalize_expert_weights: bool = True,
     ) -> MoEDolomiteConfig:
         return MoEDolomiteConfig(
             vocab_size=2048,
@@ -133,6 +134,7 @@ class TestCommons(TestCase):
             m_width=m_width,
             m_residual=m_residual,
             attention_multiplier=attention_multiplier,
+            normalize_expert_weights=normalize_expert_weights,
         )
 
     def get_dummy_inputs(self, device: torch.device, return_list: bool = False) -> tuple[torch.Tensor | list[int]]:

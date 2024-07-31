@@ -1,3 +1,4 @@
+import torch
 from transformers import AutoConfig, AutoTokenizer, GenerationConfig, GraniteMoeConfig
 
 from ...utils import SafeTensorsWeightsManager, download_repo
@@ -112,8 +113,8 @@ def _import_state_dict_from_huggingface(
             f"model.layers.{layer_idx}.block_sparse_moe.router.layer.weight"
         )
 
-        state_dict[f"transformer.h.{layer_idx}.mlp.c_fc.weight"] = safetensors_weight_manager.get_tensor(
-            f"model.layers.{layer_idx}.block_sparse_moe.input_linear.weight"
+        state_dict[f"transformer.h.{layer_idx}.mlp.c_fc.weight"] = _split_and_reorder_for_glu(
+            safetensors_weight_manager.get_tensor(f"model.layers.{layer_idx}.block_sparse_moe.input_linear.weight")
         )
         state_dict[f"transformer.h.{layer_idx}.mlp.c_proj.weight"] = safetensors_weight_manager.get_tensor(
             f"model.layers.{layer_idx}.block_sparse_moe.output_linear.weight"
@@ -232,7 +233,7 @@ def _export_state_dict_to_huggingface(
             safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.mlp.gate.weight")
         )
 
-        state_dict[f"model.layers.{layer_idx}.block_sparse_moe.input_linear.weight"] = (
+        state_dict[f"model.layers.{layer_idx}.block_sparse_moe.input_linear.weight"] = _split_and_reorder_for_glu(
             safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.mlp.c_fc.weight")
         )
         state_dict[f"model.layers.{layer_idx}.block_sparse_moe.output_linear.weight"] = (
@@ -255,3 +256,9 @@ def _export_state_dict_to_huggingface(
         )
 
     return state_dict
+
+
+def _split_and_reorder_for_glu(weight: torch.Tensor) -> torch.Tensor:
+    x, y = weight.chunk(2, dim=1)
+    weight = torch.cat([y, x], dim=1)
+    return weight

@@ -58,9 +58,10 @@ class SparseMoE(nn.Module):
 
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
-        self.normalize_expert_weights = config.normalize_expert_weights
         self.use_padding_free_transformer = use_padding_free_transformer
         self.layer_idx = layer_idx
+        self.softmax_after_topk = config.softmax_after_topk
+        self.normalize_expert_weights = config.normalize_expert_weights
 
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.n_inner
@@ -127,15 +128,15 @@ class SparseMoE(nn.Module):
         router_logits = self.gate(hidden_states)
         # router_logits -> (total_q, num_experts)
 
-        router_weights = F.softmax(router_logits.float(), dim=-1)
-
-        if self.top_k == 1:
-            router_weights, selected_experts = router_weights.max(dim=-1, keepdim=True)
+        if self.softmax_after_topk:
+            router_logits, selected_experts = self._get_topk(router_logits)
+            router_weights = F.softmax(router_logits.float(), dim=-1)
         else:
-            router_weights, selected_experts = router_weights.topk(self.top_k, dim=-1)
+            router_weights = F.softmax(router_logits.float(), dim=-1)
+            router_weights, selected_experts = self._get_topk(router_weights)
 
-        if self.normalize_expert_weights:
-            router_weights = router_weights / router_weights.sum(dim=-1, keepdim=True)
+            if self.normalize_expert_weights:
+                router_weights = router_weights / router_weights.sum(dim=-1, keepdim=True)
 
         # we cast back to the input dtype
         router_weights = router_weights.type_as(hidden_states)
@@ -150,7 +151,7 @@ class SparseMoE(nn.Module):
         batch_index, batch_gates, num_experts_per_token = self._compute_expert_assignment(
             router_weights, selected_experts
         )
-        # batch_index, batch_gates, expert_size, router_logits = self.gate(hidden_states)
+
         expert_inputs = hidden_states[batch_index]
 
         hidden_states = self.c_fc(expert_inputs, num_experts_per_token)
@@ -179,3 +180,11 @@ class SparseMoE(nn.Module):
         batch_gates = router_weights[index_sorted_experts]  # [num_tokens * top_k]
 
         return batch_index, batch_gates, num_experts_per_token
+
+    def _get_topk(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.top_k == 1:
+            x, indices = x.max(dim=-1, keepdim=True)
+        else:
+            x, indices = x.topk(self.top_k, dim=-1)
+
+        return x, indices

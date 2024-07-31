@@ -40,6 +40,7 @@ class MoEDolomiteConfig(CommonConfig):
         normalize_expert_weights: bool = True,
         output_router_logits: bool = False,
         router_aux_loss_coef: float = 0.001,
+        softmax_after_topk: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -77,6 +78,8 @@ class MoEDolomiteConfig(CommonConfig):
 
         self.num_experts = num_experts
         self.num_experts_per_tok = num_experts_per_tok
+
+        self.softmax_after_topk = softmax_after_topk
         self.normalize_expert_weights = normalize_expert_weights
 
         self.output_router_logits = output_router_logits

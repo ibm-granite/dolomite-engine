@@ -7,7 +7,6 @@ from ..modeling_utils import (
     split_query_key_value_tensor_for_attention,
 )
 from ..models import MoEDolomiteConfig
-from ..models.gpt_dolomite import interleave_up_gate_tensor_for_mlp, split_up_gate_tensor_for_mlp
 
 
 def import_from_huggingface_granitemoe(pretrained_model_name_or_path: str, save_path: str) -> None:
@@ -112,22 +111,12 @@ def _import_state_dict_from_huggingface(
             f"model.layers.{layer_idx}.block_sparse_moe.router.layer.weight"
         )
 
-        for expert_idx in range(num_experts):
-            state_dict[f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_fc.weight"] = (
-                interleave_up_gate_tensor_for_mlp(
-                    safetensors_weight_manager.get_tensor(
-                        f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w3.weight"
-                    ),
-                    safetensors_weight_manager.get_tensor(
-                        f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w1.weight"
-                    ),
-                )
-            )
-            state_dict[f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_proj.weight"] = (
-                safetensors_weight_manager.get_tensor(
-                    f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w2.weight"
-                )
-            )
+        state_dict[f"transformer.h.{layer_idx}.mlp.c_fc.weight"] = safetensors_weight_manager.get_tensor(
+            f"model.layers.{layer_idx}.block_sparse_moe.input_linear.weight"
+        )
+        state_dict[f"transformer.h.{layer_idx}.mlp.c_proj.weight"] = safetensors_weight_manager.get_tensor(
+            f"model.layers.{layer_idx}.block_sparse_moe.output_linear.weight"
+        )
 
         state_dict[f"transformer.h.{layer_idx}.attn.c_attn.weight"] = interleave_query_key_value_tensor_for_attention(
             safetensors_weight_manager.get_slice(f"model.layers.{layer_idx}.self_attn.q_proj.weight"),
@@ -243,25 +232,11 @@ def _export_state_dict_to_huggingface(
         )
 
         state_dict[f"model.layers.{layer_idx}.block_sparse_moe.input_linear.weight"] = (
-            safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.mlp.gate.weight")
+            safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.mlp.c_fc.weight")
         )
-
-        f"model.layers.{layer_idx}.block_sparse_moe.output_linear.weight"
-
-        for expert_idx in range(num_experts):
-            up_weight, gate_weight = split_up_gate_tensor_for_mlp(
-                safetensors_weight_manager.get_tensor(
-                    f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_fc.weight"
-                )
-            )
-            state_dict[f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w3.weight"] = up_weight
-            state_dict[f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w1.weight"] = gate_weight
-
-            state_dict[f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w2.weight"] = (
-                safetensors_weight_manager.get_tensor(
-                    f"transformer.h.{layer_idx}.mlp.experts.{expert_idx}.c_proj.weight"
-                )
-            )
+        state_dict[f"model.layers.{layer_idx}.block_sparse_moe.output_linear.weight"] = (
+            safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.mlp.c_proj.weight")
+        )
 
         query_weight, key_weight, value_weight = split_query_key_value_tensor_for_attention(
             safetensors_weight_manager.get_tensor(f"transformer.h.{layer_idx}.attn.c_attn.weight"),

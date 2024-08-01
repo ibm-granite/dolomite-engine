@@ -579,6 +579,8 @@ class GPTDolomiteModel(GPTDolomitePreTrainedModel):
                     self._get_mask_value(attention_mask.device, dtype),
                 )
 
+                # this is needed to prevent NaN since SDPA
+                # see issue: https://github.com/pytorch/pytorch/issues/110213
                 attention_mask = attention_mask * ~torch.all(
                     attention_mask == self._get_mask_value(attention_mask.device, dtype), dim=-1, keepdim=True
                 )

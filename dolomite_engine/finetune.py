@@ -3,6 +3,7 @@ from contextlib import nullcontext
 from functools import partial
 
 import torch
+from torch.distributed import ReduceOp
 from torch.distributed.tensor.parallel import loss_parallel
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -191,14 +192,16 @@ def evaluate(
     model.eval()
 
     loss_sum = 0
-    micro_step = 0
+    micro_steps = 0
 
     for batch in val_dataloader:
         loss_value = model(batch).item()
         loss_sum += loss_value
-        micro_step += 1
+        micro_steps += 1
 
-    loss_mean = loss_sum / micro_step
+    loss_mean = loss_sum / micro_steps
+    torch.distributed.all_reduce(loss_mean, op=ReduceOp.AVG, group=ProcessGroupManager.get_data_parallel_group())
+
     track_val_metrics(global_step, loss_mean, experiments_tracker)
 
     model.train()

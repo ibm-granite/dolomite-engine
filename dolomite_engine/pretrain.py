@@ -4,6 +4,7 @@ from contextlib import nullcontext
 from functools import partial
 
 import torch
+from torch.distributed import ReduceOp
 from torch.distributed.tensor.parallel import loss_parallel
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -268,6 +269,8 @@ def evaluate(
             loss_sum += loss_value
 
         loss_mean = loss_sum / eval_steps
+        torch.distributed.all_reduce(loss_mean, op=ReduceOp.AVG, group=ProcessGroupManager.get_data_parallel_group())
+
         track_val_metrics(global_step, loss_mean, experiments_tracker, group_name)
 
     model.train()

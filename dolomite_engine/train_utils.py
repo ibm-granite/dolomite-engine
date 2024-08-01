@@ -2,6 +2,7 @@ import logging
 from contextlib import AbstractContextManager, nullcontext
 
 import torch
+from torch.distributed import ReduceOp
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForSeq2SeqLM
@@ -106,7 +107,9 @@ def train_step(
     else:
         raise ValueError(f"unexpected distributed backend ({distributed_backend})")
 
-    loss = loss / gradient_accumulation_steps
+    loss /= gradient_accumulation_steps
+    torch.distributed.all_reduce(loss, op=ReduceOp.AVG, group=ProcessGroupManager.get_data_parallel_group())
+
     loss = loss.item()
     grad_norm = 0 if grad_norm is None else grad_norm.item()
 

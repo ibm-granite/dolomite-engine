@@ -573,7 +573,7 @@ class GPTDolomiteModel(GPTDolomitePreTrainedModel):
                     attention_mask, batch_size, query_length, key_length, device
                 )
 
-                attention_mask = attention_mask * ~torch.all(attention_mask == 0, dim=-1, keepdim=True)
+                attention_mask = attention_mask * ~torch.all(~attention_mask, dim=-1, keepdim=True)
 
                 attention_mask = torch.where(
                     attention_mask,

@@ -21,7 +21,6 @@ from .train_utils import get_model_tflops, get_torch_profiler, track_train_metri
 from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
-    RunningMean,
     init_distributed,
     is_transformer_engine_available,
     log_rank_0,

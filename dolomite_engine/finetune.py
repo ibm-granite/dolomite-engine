@@ -195,12 +195,13 @@ def evaluate(
     micro_steps = 0
 
     for batch in val_dataloader:
-        loss_value = model(batch).item()
-        loss_sum += loss_value
+        loss = model(batch)
+        loss_sum += loss
         micro_steps += 1
 
     loss_mean = loss_sum / micro_steps
     torch.distributed.all_reduce(loss_mean, op=ReduceOp.AVG, group=ProcessGroupManager.get_data_parallel_group())
+    loss_mean = loss_mean.item()
 
     track_val_metrics(global_step, loss_mean, experiments_tracker)
 

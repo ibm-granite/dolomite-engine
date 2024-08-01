@@ -265,11 +265,12 @@ def evaluate(
         loss_sum = 0
         for _ in range(eval_steps):
             batch = next(val_dataloader)
-            loss_value = model(batch).item()
-            loss_sum += loss_value
+            loss = model(batch)
+            loss_sum += loss
 
         loss_mean = loss_sum / eval_steps
         torch.distributed.all_reduce(loss_mean, op=ReduceOp.AVG, group=ProcessGroupManager.get_data_parallel_group())
+        loss_mean = loss_mean.item()
 
         track_val_metrics(global_step, loss_mean, experiments_tracker, group_name)
 

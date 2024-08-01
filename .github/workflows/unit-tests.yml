@@ -24,8 +24,7 @@ jobs:
 
       - name: Installation
         run: |
-          python -m pip install --upgrade pip
-          pip install torch pytest parameterized pydantic peft datasets
+          make install-dev
           git clone -b granite https://github.com/mayank31398/transformers && cd transformers && pip install . && cd ..
 
       - name: Unit Tests

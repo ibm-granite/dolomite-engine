@@ -122,7 +122,7 @@ def track_train_metrics(
     grad_norm_step: float,
     current_lr: float,
     experiments_tracker: ExperimentsTracker,
-    loss_running_mean_tracker: RunningMean,
+    loss_running_mean: float,
     flops: float | None = None,
     billion_tokens_per_day: float | None = None,
     step_time: float | None = None,
@@ -134,14 +134,11 @@ def track_train_metrics(
         train_loss_step (float): training loss at the current step
         current_lr (float): learning rate at the current step
         experiments_tracker (ExperimentsTracker): metrics tracker
-        loss_running_mean_tracker (RunningMean): running mean accumulator for loss
+        loss_running_mean (float): running mean for the loss
         flops (float | None, optional): total model flops. Defaults to None
         billion_tokens_per_day (float | None, optional): billions of tokens per day. Defaults to None
         step_time (float | None, optional): time per step in seconds
     """
-
-    # update loss running mean
-    loss_running_mean = loss_running_mean_tracker.add_loss(train_loss_step)
 
     # experiments tracker
     message = {"loss_step": train_loss_step, "loss_running_mean": loss_running_mean, "learning_rate": current_lr}

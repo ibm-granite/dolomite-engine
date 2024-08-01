@@ -12,7 +12,7 @@ from .enums import DistributedBackend, GradientCheckpointingMethod
 from .hf_models import is_custom_model
 from .hf_models.modeling_utils import is_glu
 from .model_wrapper import ModelWrapperForFinetuning
-from .utils import ExperimentsTracker, ProcessGroupManager, RunningMean, log_rank_0
+from .utils import ExperimentsTracker, ProcessGroupManager, log_rank_0
 
 
 def train_step(

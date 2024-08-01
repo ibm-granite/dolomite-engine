@@ -573,14 +573,12 @@ class GPTDolomiteModel(GPTDolomitePreTrainedModel):
                     attention_mask, batch_size, query_length, key_length, device
                 )
 
+                attention_mask = attention_mask * ~torch.all(attention_mask == 0, dim=-1, keepdim=True)
+
                 attention_mask = torch.where(
                     attention_mask,
                     ~attention_mask if alibi_bias is None else alibi_bias,
                     self._get_mask_value(attention_mask.device, dtype),
-                )
-
-                attention_mask = attention_mask * ~torch.all(
-                    attention_mask == self._get_mask_value(attention_mask.device, dtype), dim=-1, keepdim=True
                 )
         elif self._use_eager_attention:
             attention_mask = self._prepare_causal_attention_mask(

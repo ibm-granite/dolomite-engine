@@ -199,7 +199,7 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
     ):
         weight = self.weight.to_local()
 
-        results = scattered_experts(
+        inputs = scattered_experts(
             inputs,
             weight.permute(0, 2, 1),
             k,
@@ -212,10 +212,10 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
             grouped_out,
         )
 
-        results = tensor_to_dtensor(results, current_placement=Partial())
-        results = dtensor_to_tensor(results, desired_placement=Replicate())
+        inputs = tensor_to_dtensor(inputs, current_placement=Partial())
+        inputs = dtensor_to_tensor(inputs, desired_placement=self.output_placement)
 
-        return results
+        return inputs
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
         state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)

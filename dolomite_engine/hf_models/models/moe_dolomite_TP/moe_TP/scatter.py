@@ -114,8 +114,10 @@ class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):
         grouped_in=False,
         grouped_out=False,
     ):
+        # F.linear manually triggers an all gather for sequence parallel but custom kernels are not aware of the placements
+        # so we manually call an all gather here
         inputs = tensor_to_dtensor(inputs, current_placement=self.input_placement)
-        inputs = dtensor_to_tensor(inputs, desired_placement=self.input_placement, grad_placement=Partial())
+        inputs = dtensor_to_tensor(inputs, desired_placement=Replicate(), grad_placement=Partial())
 
         weight = self.weight.to_local()
 

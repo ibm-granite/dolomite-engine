@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Partial, Replicate, Shard
 
-from .....utils import ProcessGroupManager, get_cuda_rng_tracker, is_scattermoe_available
+from .....utils import ProcessGroupManager, is_scattermoe_available
 from ....enums import InitMethod
 from ....modeling_utils import ParameterizedLinear, get_activation_function, is_glu
 from ....modeling_utils_TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
@@ -140,11 +140,6 @@ class ReplicatedGate(ParameterizedLinear):
         input = super().forward(input)
         input = dtensor_to_tensor(input, desired_placement=self.placement)
         return input
-
-    @torch.no_grad()
-    def reset_parameters(self) -> None:
-        with get_cuda_rng_tracker().fork():
-            return super().reset_parameters()
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
         state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)

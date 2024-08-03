@@ -9,11 +9,9 @@ from torch.distributed.tensor.parallel import loss_parallel
 from transformers import DynamicCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from dolomite_engine.hf_models.modeling_utils_TP import LMHead_TP, dtensor_to_tensor, tensor_to_dtensor
-from dolomite_engine.hf_models.models.moe_dolomite import MoEDolomiteConfig
-from dolomite_engine.utils import ProcessGroupManager, SafeTensorsWeightsManager
-
-from ..moe_dolomite.main import MoEDolomiteForCausalLM
+from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
+from ...modeling_utils_TP import LMHead_TP, dtensor_to_tensor, tensor_to_dtensor
+from ..moe_dolomite import MoEDolomiteConfig, MoEDolomiteForCausalLM
 from .base import MoEDolomiteModel_TP, MoEDolomitePreTrainedModel_TP
 
 

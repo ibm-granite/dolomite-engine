@@ -1,14 +1,12 @@
 import torch.nn as nn
 from moe_TP.scatter import ScatterMoE_TP
 
-from dolomite_engine.hf_models.enums import AttentionHeadType
-from dolomite_engine.hf_models.modeling_utils_TP import get_attention_module_TP, get_normalization_function_TP
-from dolomite_engine.hf_models.models.moe_dolomite import MoEDolomiteConfig
-from dolomite_engine.hf_models.models.moe_dolomite.layer import SparseMoEBlock
-from dolomite_engine.utils import SafeTensorsWeightsManager
-
-# from .moe_TP import get_moe
+from ....utils import SafeTensorsWeightsManager
+from ...enums import AttentionHeadType
+from ...modeling_utils_TP import get_attention_module_TP, get_normalization_function_TP
+from ..moe_dolomite import MoEDolomiteConfig
 from ..moe_dolomite.moe import get_moe
+from .layer import SparseMoEBlock
 
 
 class SparseMoEBlock_TP(SparseMoEBlock):

@@ -13,7 +13,7 @@ from ....enums import InitMethod
 from ....modeling_utils import ParameterizedLinear, get_activation_function, is_glu
 from ....modeling_utils_TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
 from ....utils import divide_if_divisible
-from ...moe_dolomite.config import MoEDolomiteConfig
+from ...moe_dolomite import MoEDolomiteConfig
 from ...moe_dolomite.moe import ScatterMoE
 from ...moe_dolomite.moe.scatter import ParameterizedScatteredExperts
 

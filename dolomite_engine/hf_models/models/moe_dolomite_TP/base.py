@@ -2,21 +2,11 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from dolomite_engine.hf_models.enums import AttentionHeadType, PositionEmbeddingType
-from dolomite_engine.hf_models.modeling_utils import RoPE, YaRNScaledRoPE
-from dolomite_engine.hf_models.modeling_utils_TP import (
-    Alibi_TP,
-    Dropout_TP,
-    Embedding_TP,
-    get_normalization_function_TP,
-)
-from dolomite_engine.hf_models.models.moe_dolomite import (
-    MoEDolomiteConfig,
-    MoEDolomiteModel,
-    MoEDolomitePreTrainedModel,
-)
-from dolomite_engine.utils import ProcessGroupManager, SafeTensorsWeightsManager
-
+from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
+from ...enums import AttentionHeadType, PositionEmbeddingType
+from ...modeling_utils import RoPE, YaRNScaledRoPE
+from ...modeling_utils_TP import Alibi_TP, Dropout_TP, Embedding_TP, get_normalization_function_TP
+from ..moe_dolomite import MoEDolomiteConfig, MoEDolomiteModel, MoEDolomitePreTrainedModel
 from .layer import SparseMoEBlock_TP
 
 

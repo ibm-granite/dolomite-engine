@@ -111,6 +111,8 @@ class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         std: float | None = None,
+        use_padding_free_transformer: bool = False,
+        sequence_parallel: bool = False,
     ) -> None:
         tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
 
@@ -138,7 +140,13 @@ class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):
             )
         )
 
-        self.input_placement = Replicate()
+        if sequence_parallel:
+            if use_padding_free_transformer:
+                self.input_placement = Shard(0)
+            else:
+                self.input_placement = Shard(1)
+        else:
+            self.input_placement = Replicate()
 
     def forward(
         self,
@@ -152,7 +160,12 @@ class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):
         grouped_in=False,
         grouped_out=False,
     ):
-        weight = dtensor_to_tensor(self.weight, desired_placement=Shard(1))
+        # F.linear manually triggers an all gather for sequence parallel but custom kernels are not aware of the placements
+        # so we manually call an all gather here
+        inputs = tensor_to_dtensor(inputs, current_placement=self.input_placement)
+        inputs = dtensor_to_tensor(inputs, desired_placement=Replicate(), grad_placement=Partial())
+
+        weight = self.weight.to_local()
 
         results = scattered_experts(
             inputs,
@@ -183,6 +196,8 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         std: float | None = None,
+        use_padding_free_transformer: bool = False,
+        sequence_parallel: bool = False,
     ) -> None:
         tp_world_size = ProcessGroupManager.get_tensor_parallel_world_size()
 
@@ -205,12 +220,18 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
             DTensor.from_local(
                 self.weight,
                 device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(),
-                placements=[Shard(2)],
+                placements=[Shard(-1)],
                 run_check=False,
             )
         )
 
-        self.input_placement = Shard(-1)
+        if sequence_parallel:
+            if use_padding_free_transformer:
+                self.output_placement = Shard(0)
+            else:
+                self.output_placement = Shard(1)
+        else:
+            self.output_placement = Replicate()
 
     def forward(
         self,
@@ -224,9 +245,9 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
         grouped_in=False,
         grouped_out=False,
     ):
-        weight = dtensor_to_tensor(self.weight, desired_placement=Shard(2))
+        weight = self.weight.to_local()
 
-        results = scattered_experts(
+        inputs = scattered_experts(
             inputs,
             weight.permute(0, 2, 1),
             k,
@@ -239,10 +260,10 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
             grouped_out,
         )
 
-        results = tensor_to_dtensor(results, current_placement=Partial())
-        results = dtensor_to_tensor(results, desired_placement=Replicate())
+        inputs = tensor_to_dtensor(inputs, current_placement=Partial())
+        inputs = dtensor_to_tensor(inputs, desired_placement=self.output_placement)
 
-        return results
+        return inputs
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
         state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)

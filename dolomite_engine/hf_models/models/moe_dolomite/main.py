@@ -50,14 +50,7 @@ class MoEDolomiteForCausalLM(MoEDolomitePreTrainedModel, GPTDolomiteForCausalLM)
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        (
-            input_ids,
-            position_ids,
-            token_type_ids,
-            labels,
-            cu_seqlens,
-            max_seqlen,
-        ) = self.prepare_inputs_for_model(
+        input_ids, position_ids, token_type_ids, labels, cu_seqlens, max_seqlen = self.prepare_inputs_for_model(
             input_ids=input_ids,
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,

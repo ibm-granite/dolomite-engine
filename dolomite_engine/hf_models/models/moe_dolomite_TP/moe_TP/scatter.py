@@ -8,7 +8,7 @@ from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Replicate, Shard
 from torch.distributed._tensor.placement_types import _Partial as Partial
 
-from .....utils import ProcessGroupManager, is_scattermoe_available
+from .....utils import ProcessGroupManager, get_cuda_rng_tracker, is_scattermoe_available
 from ....enums import InitMethod
 from ....modeling_utils import ParameterizedLinear, get_activation_function, is_glu
 from ....modeling_utils_TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
@@ -100,6 +100,56 @@ class ScatterMoE_TP(ScatterMoE):
         )
         hidden_states = self.dropout(hidden_states)
         return hidden_states
+
+
+class ReplicatedLinear(ParameterizedLinear):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+        std: float | None = None,
+        use_padding_free_transformer: bool = False,
+        sequence_parallel: bool = False,
+    ) -> None:
+        super().__init__(in_features, out_features, bias, device, dtype, std)
+
+        self.weight = nn.Parameter(
+            DTensor.from_local(
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+            )
+        )
+        if bias:
+            self.bias = nn.Parameter(
+                DTensor.from_local(
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+                )
+            )
+
+        if sequence_parallel:
+            if use_padding_free_transformer:
+                self.placement = Shard(0)
+            else:
+                self.placement = Shard(1)
+        else:
+            self.placement = Replicate()
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        input = tensor_to_dtensor(input, current_placement=self.placement)
+        input = super().forward(input)
+        input = dtensor_to_tensor(input, desired_placement=self.placement)
+        return input
+
+    @torch.no_grad()
+    def reset_parameters(self) -> None:
+        with get_cuda_rng_tracker().fork():
+            return super().reset_parameters()
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)
 
 
 class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):

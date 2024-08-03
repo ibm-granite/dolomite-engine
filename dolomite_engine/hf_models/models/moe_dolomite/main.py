@@ -1,4 +1,5 @@
 import torch
+from transformers import DynamicCache
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
 from ...modeling_utils import ParameterizedLinear
@@ -30,7 +31,7 @@ class MoEDolomiteForCausalLM(MoEDolomitePreTrainedModel, GPTDolomiteForCausalLM)
     def forward(
         self,
         input_ids: torch.Tensor | list[list[int]] | None = None,
-        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        past_key_values: DynamicCache | None = None,
         attention_mask: torch.Tensor | None = None,
         token_type_ids: torch.Tensor | list[list[int]] | None = None,
         position_ids: torch.Tensor | list[list[int]] | None = None,

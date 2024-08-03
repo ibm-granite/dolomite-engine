@@ -74,7 +74,7 @@ class GPTDolomitePreTrainedModel(PreTrainedModel):
         labels: torch.Tensor | list[list[int]] | None,
         cu_seqlens: torch.Tensor | None,
         max_seqlen: torch.Tensor | None,
-        past_key_values: tuple[tuple[torch.Tensor]],
+        past_key_values: DynamicCache | None,
         attention_mask: torch.Tensor | None,
         use_cache: bool,
         output_attentions: bool,

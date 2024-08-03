@@ -5,8 +5,7 @@ import torch
 import torch.distributed
 import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
-from torch.distributed._tensor.placement_types import Replicate, Shard
-from torch.distributed._tensor.placement_types import _Partial as Partial
+from torch.distributed._tensor.placement_types import Partial, Replicate, Shard
 
 from .....utils import ProcessGroupManager, get_cuda_rng_tracker, is_scattermoe_available
 from ....enums import InitMethod
@@ -37,7 +36,7 @@ class ScatterMoE_TP(ScatterMoE):
         self.use_padding_free_transformer = use_padding_free_transformer
         self.layer_idx = layer_idx
 
-        self.gate = ParameterizedLinear(self.hidden_size, self.num_experts, bias=False)
+        self.gate = ReplicatedGate(self.hidden_size, self.num_experts, bias=False)
 
         intermediate_size = config.n_inner
         activation_function = config.activation_function
@@ -102,7 +101,7 @@ class ScatterMoE_TP(ScatterMoE):
         return hidden_states
 
 
-class ReplicatedLinear(ParameterizedLinear):
+class ReplicatedGate(ParameterizedLinear):
     def __init__(
         self,
         in_features: int,

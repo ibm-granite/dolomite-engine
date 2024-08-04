@@ -14,7 +14,7 @@ from ...modeling_utils import Attention, ParameterizedLinear
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
 from ..linear import ColumnParallelLinear, RowParallelLinear
-from ..TP import dtensor_to_tensor, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
+from ..TP import dtensor_to_tensor, get_module_placements, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
 
 
 class _BaseAttention_TP(nn.Module):
@@ -296,13 +296,7 @@ class _MQA_ReplicatedLinear(ParameterizedLinear):
                 )
             )
 
-        if sequence_parallel:
-            if use_padding_free_transformer:
-                self.input_placement = Shard(0)
-            else:
-                self.input_placement = Shard(1)
-        else:
-            self.input_placement = Replicate()
+        self.input_placement = get_module_placements(use_padding_free_transformer, sequence_parallel)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         input = tensor_to_dtensor(input, current_placement=self.input_placement)

@@ -47,7 +47,8 @@ class ScatterMoE_TP(ScatterMoE):
         activation_function = config.activation_function
         residual_dropout = config.resid_pdrop
 
-        assert not config.add_bias, "ScatterMoE does not support add_bias"
+        add_bias = config.add_bias
+        assert not add_bias, "ScatterMoE does not support add_bias"
 
         initializer_range = config.initializer_range
         m_width = config.m_width
@@ -61,6 +62,7 @@ class ScatterMoE_TP(ScatterMoE):
             self.num_experts,
             self.hidden_size,
             2 * intermediate_size if is_glu(activation_function) else intermediate_size,
+            bias=add_bias,
             std=std,
         )
 
@@ -69,7 +71,9 @@ class ScatterMoE_TP(ScatterMoE):
         std = initializer_range / math.sqrt(2 * n_layer)
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.c_proj = RowParallelScatteredExperts(self.num_experts, intermediate_size, self.hidden_size, std=std)
+        self.c_proj = RowParallelScatteredExperts(
+            self.num_experts, intermediate_size, self.hidden_size, bias=add_bias, std=std
+        )
 
         self.dropout = nn.Identity() if residual_dropout == 0 else nn.Dropout(residual_dropout)
 
@@ -112,13 +116,11 @@ class ReplicatedLinear(ParameterizedLinear):
         in_features: int,
         out_features: int,
         bias: bool = True,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None,
         std: float | None = None,
         use_padding_free_transformer: bool = False,
         sequence_parallel: bool = False,
     ) -> None:
-        super().__init__(in_features, out_features, bias, device, dtype, std)
+        super().__init__(in_features=in_features, out_features=out_features, bias=bias, std=std)
 
         self.weight = nn.Parameter(
             DTensor.from_local(
@@ -151,8 +153,7 @@ class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):
         num_experts: int,
         in_features: int,
         out_features: int,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None,
+        bias: bool = True,
         std: float | None = None,
         use_padding_free_transformer: bool = False,
         sequence_parallel: bool = False,
@@ -169,8 +170,7 @@ class ColumnParallelScatteredExperts(ParameterizedScatteredExperts):
             num_experts=num_experts,
             in_features=in_features,
             out_features=self.out_features_per_device,
-            device=device,
-            dtype=dtype,
+            bias=bias,
             std=std,
         )
 
@@ -235,8 +235,7 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
         num_experts: int,
         in_features: int,
         out_features: int,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None,
+        bias: bool = True,
         std: float | None = None,
         use_padding_free_transformer: bool = False,
         sequence_parallel: bool = False,
@@ -253,8 +252,7 @@ class RowParallelScatteredExperts(ParameterizedScatteredExperts):
             num_experts=num_experts,
             in_features=self.in_features_per_device,
             out_features=out_features,
-            device=device,
-            dtype=dtype,
+            bias=bias,
             std=std,
         )
 

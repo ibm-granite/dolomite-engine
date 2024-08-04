@@ -7,19 +7,19 @@ import torch.nn as nn
 from torch.distributed._tensor.api import DTensor
 from torch.distributed._tensor.placement_types import Partial, Replicate, Shard
 
-from .....utils import ProcessGroupManager, is_scattermoe_available
-from ....enums import InitMethod
-from ....modeling_utils import ParameterizedLinear, get_activation_function, is_glu
-from ....modeling_utils_TP import (
+from ....utils import ProcessGroupManager, is_scattermoe_available
+from ...enums import InitMethod
+from ...modeling_utils import ParameterizedLinear, get_activation_function, is_glu
+from ...modeling_utils_TP import (
     dtensor_to_tensor,
     get_module_placements,
     modify_state_dict_to_dtensor_dict,
     tensor_to_dtensor,
 )
-from ....utils import divide_if_divisible
-from ...moe_dolomite import MoEDolomiteConfig
-from ...moe_dolomite.moe import ScatterMoE
-from ...moe_dolomite.moe.scatter import ParameterizedScatteredExperts
+from ...utils import divide_if_divisible
+from ..moe_dolomite import MoEDolomiteConfig
+from ..moe_dolomite.moe import ScatterMoE
+from ..moe_dolomite.moe.scatter import ParameterizedScatteredExperts
 
 
 if is_scattermoe_available():

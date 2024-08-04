@@ -36,7 +36,7 @@ class ScatterMoE_TP(ScatterMoE):
         self.use_padding_free_transformer = use_padding_free_transformer
         self.layer_idx = layer_idx
 
-        self.gate = ReplicatedGate(self.hidden_size, self.num_experts, bias=False)
+        self.gate = ReplicatedLinear(self.hidden_size, self.num_experts, bias=False)
 
         intermediate_size = config.n_inner
         activation_function = config.activation_function
@@ -101,7 +101,7 @@ class ScatterMoE_TP(ScatterMoE):
         return hidden_states
 
 
-class ReplicatedGate(ParameterizedLinear):
+class ReplicatedLinear(ParameterizedLinear):
     def __init__(
         self,
         in_features: int,

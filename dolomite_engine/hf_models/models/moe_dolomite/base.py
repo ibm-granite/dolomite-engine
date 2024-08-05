@@ -5,18 +5,19 @@ from transformers.modeling_outputs import MoeModelOutputWithPast
 from transformers.models.mixtral.modeling_mixtral import load_balancing_loss_func
 
 from ...enums import AttentionHeadType, PositionEmbeddingType
+from ...mixins import BaseModelMixin, PreTrainedModelMixin
 from ...modeling_utils import ParameterizedEmbedding, get_normalization_function
-from ..gpt_dolomite import GPTDolomiteModel, GPTDolomitePreTrainedModel
 from .config import MoEDolomiteConfig
 from .layer import SparseMoEBlock
 
 
-class MoEDolomitePreTrainedModel(GPTDolomitePreTrainedModel):
+class MoEDolomitePreTrainedModel(PreTrainedModelMixin):
     config_class = MoEDolomiteConfig
+    layer_class = SparseMoEBlock
     _no_split_modules = ["SparseMoEBlock"]
 
     def __init__(self, config: MoEDolomiteConfig, *args, **kwargs) -> None:
-        GPTDolomitePreTrainedModel.__init__(self, config, *args, **kwargs)
+        super().__init__(config, *args, **kwargs)
 
         self.moe_implementation = kwargs.get("moe_implementation", "eager")
         assert self.moe_implementation in ["eager", "scattermoe"]
@@ -43,13 +44,13 @@ class MoEDolomitePreTrainedModel(GPTDolomitePreTrainedModel):
         return loss, load_balancing_loss
 
 
-class MoEDolomiteModel(MoEDolomitePreTrainedModel, GPTDolomiteModel):
+class MoEDolomiteModel(MoEDolomitePreTrainedModel, BaseModelMixin):
     def __init__(self, config: MoEDolomiteConfig, **kwargs) -> None:
-        MoEDolomitePreTrainedModel.__init__(self, config, **kwargs)
+        super().__init__(config, **kwargs)
 
         self.attention_head_type = AttentionHeadType(config.attention_head_type)
-        self.embed_dim = config.hidden_size
-        self.num_heads = config.num_attention_heads
+        self.embed_dim = config.n_embd
+        self.num_heads = config.n_head
         self.m_emb = config.m_emb
         self.initializer_range = config.initializer_range
         self.mask_value = None
@@ -65,7 +66,7 @@ class MoEDolomiteModel(MoEDolomitePreTrainedModel, GPTDolomiteModel):
         self.drop = nn.Identity() if config.embd_pdrop == 0 else nn.Dropout(config.embd_pdrop)
         self.h = nn.ModuleList(
             [
-                SparseMoEBlock(
+                self.layer_class(
                     config,
                     normalization_implementation=self.normalization_implementation,
                     attention_implementation=self.attention_implementation,
@@ -73,7 +74,7 @@ class MoEDolomiteModel(MoEDolomitePreTrainedModel, GPTDolomiteModel):
                     moe_implementation=self.moe_implementation,
                     layer_idx=i,
                 )
-                for i in range(config.num_hidden_layers)
+                for i in range(config.n_layer)
             ]
         )
         self.ln_f = get_normalization_function(

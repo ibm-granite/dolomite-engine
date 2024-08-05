@@ -1,31 +1,20 @@
 import torch
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
-from ...modeling_utils import ParameterizedLinear
-from ..gpt_dolomite import GPTDolomiteForCausalLM
+from ...mixins import CausalLMModelMixin
 from .base import MoEDolomiteModel, MoEDolomitePreTrainedModel
 from .config import MoEDolomiteConfig
 
 
-class MoEDolomiteForCausalLM(MoEDolomitePreTrainedModel, GPTDolomiteForCausalLM):
+class MoEDolomiteForCausalLM(MoEDolomitePreTrainedModel, CausalLMModelMixin):
+    base_model_class = MoEDolomiteModel
+
     def __init__(self, config: MoEDolomiteConfig, **kwargs) -> None:
-        MoEDolomitePreTrainedModel.__init__(self, config, **kwargs)
-
-        self.transformer = MoEDolomiteModel(config, **kwargs)
-
-        if not self._tied_word_embeddings:
-            self.lm_head = ParameterizedLinear(
-                config.n_embd, config.vocab_size, bias=False, std=config.initializer_range
-            )
+        super().__init__(config, **kwargs)
 
         self.router_aux_loss_coef = config.router_aux_loss_coef
         self.num_experts = config.num_experts
         self.num_experts_per_tok = config.num_experts_per_tok
-        self.m_width = config.m_width
-        self.upcast_logits_for_loss = config.upcast_logits_for_loss
-
-        # Initialize weights and apply final processing
-        self.post_init()
 
     def forward(
         self,
@@ -49,14 +38,7 @@ class MoEDolomiteForCausalLM(MoEDolomitePreTrainedModel, GPTDolomiteForCausalLM)
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        (
-            input_ids,
-            position_ids,
-            token_type_ids,
-            labels,
-            cu_seqlens,
-            max_seqlen,
-        ) = self.prepare_inputs_for_model(
+        input_ids, position_ids, token_type_ids, labels, cu_seqlens, max_seqlen = self.prepare_inputs_for_model(
             input_ids=input_ids,
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,

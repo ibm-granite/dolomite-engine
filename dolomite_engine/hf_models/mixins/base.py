@@ -7,7 +7,7 @@ from transformers.modeling_outputs import BaseModelOutputWithPast
 
 from ..config import CommonConfig
 from ..defaults import DEFAULT_NORMALIZATION_IMPLEMENTATION
-from ..enums import AttentionHeadType, PositionEmbeddingType
+from ..enums import PositionEmbeddingType
 from ..modeling_utils import Alibi, ParameterizedEmbedding, RMSNorm, RoPE, YaRNScaledRoPE
 from ..utils import convert_padding_free_lists_to_tensors
 

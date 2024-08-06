@@ -7,14 +7,7 @@ from transformers.integrations import HfDeepSpeedConfig
 
 from ..enums import AttentionImplementation, DistributedBackend, Mode
 from ..hf_models import get_tensor_parallel_class, is_custom_model, is_tensor_parallel_compatible_model
-from ..utils import (
-    CUDA_RNGStatesTracker,
-    ProcessGroupManager,
-    SafeTensorsWeightsManager,
-    log_rank_0,
-    set_cuda_rng_tracker,
-    string_to_torch_dtype,
-)
+from ..utils import ProcessGroupManager, SafeTensorsWeightsManager, log_rank_0, string_to_torch_dtype
 
 
 class ModelWrapper(nn.Module):
@@ -72,7 +65,7 @@ class ModelWrapper(nn.Module):
         self.use_padding_free_transformer = use_padding_free_transformer
         self.tensor_parallel_word_embeddings = tensor_parallel_word_embeddings
         self.sequence_parallel = sequence_parallel
-        self.tokenizer_name = tokenizer_name if self.model_name is None else self.model_name
+        self.tokenizer_name = self.model_name if tokenizer_name is None else tokenizer_name
         self.trust_remote_code = trust_remote_code
 
         self.tp_rank = ProcessGroupManager.get_tensor_parallel_rank()
@@ -88,10 +81,6 @@ class ModelWrapper(nn.Module):
             assert is_tensor_parallel_compatible_model(
                 self.model_class, self.config.model_type
             ), "tensor parallel is not supported with this model"
-
-            rng_tracker = CUDA_RNGStatesTracker()
-            rng_tracker.add(seed=random_seed)
-            set_cuda_rng_tracker(rng_tracker)
 
         if self.use_padding_free_transformer:
             assert is_custom_model(
@@ -195,6 +184,16 @@ class ModelWrapper(nn.Module):
             model_kwargs["sequence_parallel"] = True
         if self.trust_remote_code:
             model_kwargs["trust_remote_code"] = True
+
+        if self.model_name is None:
+            if self.tokenizer.bos_token_id is not None:
+                assert self.tokenizer.bos_token_id == self.config.bos_token_id
+
+            if self.tokenizer.eos_token_id is not None:
+                assert self.tokenizer.eos_token_id == self.config.eos_token_id
+
+            if self.tokenizer.pad_token_id is not None:
+                assert self.tokenizer.pad_token_id == self.config.pad_token_id
 
         def _get_model(**extras):
             if self.model_name is None:

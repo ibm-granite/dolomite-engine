@@ -190,10 +190,6 @@ def load_checkpoint_for_training(
     log_rank_0(logging.INFO, f"loading checkpoint saved at {load_path}")
 
     if distributed_backend == DistributedBackend.deepspeed:
-        from deepspeed import DeepSpeedEngine
-
-        assert isinstance(model, DeepSpeedEngine)
-
         model.load_checkpoint(
             args.load_args.load_path,
             tag=_get_checkpoint_tag(iteration),

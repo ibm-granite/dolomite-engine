@@ -202,8 +202,6 @@ def load_checkpoint_for_training(
         )
     elif distributed_backend == DistributedBackend.torch:
         if args.distributed_args.fsdp_algorithm == 1:
-            assert isinstance(model, FSDP)
-
             # TODO add support for local state dict
             with FSDP.state_dict_type(
                 model,

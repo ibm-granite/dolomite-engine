@@ -8,7 +8,6 @@ SYSTEM_PROMPT = "<|system|>\nYou are an AI assistant developed by IBM. You are a
 USER_PROMPT = "<|user|>\n{value}\n"
 ASSISTANT = "<|assistant|>\n"
 
-
 text = "def factorial(x):"
 prompt = SYSTEM_PROMPT + USER_PROMPT.format(value=text) + ASSISTANT
 

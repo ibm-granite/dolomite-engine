@@ -72,44 +72,6 @@ export_to_huggingface(
 )
 ```
 
-### Running basic inference
-
-```python
-import torch
-import dolomite_engine.hf_models
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
-
-
-SYSTEM_PROMPT='<|system|>\nYou are an AI assistant developed by IBM. You are a cautious assistant. You carefully follow instructions. You are helpful and harmless and you follow ethical guidelines and promote positive behavior.'
-USER_PROMPT='<|user|>\n{value}\n'
-ASSISTANT='<|assistant|>\n'
-
-
-text='def factorial(x):'
-prompt = SYSTEM_PROMPT+USER_PROMPT.format(value=text)+ASSISTANT
-
-model_path='<path to where hf converted dolomite model is>'
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
-model.eval()
-
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-
-x = tokenizer([text], return_tensors="pt")
-for i in x:
-    x[i] = x[i].to(device)
-
-y = model.generate(**x, max_new_tokens=100)
-print(tokenizer.batch_decode(y)[0])
-
-```
-
-For an example running tensor parallel inference, refer [here](tools/tensor_parallel_inference.py)
-
-
 If you are interested in using this optimization outside this repo for some reason, you can do as follows:
 ```python
 import torch
@@ -159,6 +121,11 @@ sh scripts/generate.sh configs/sst2/inference.yml
 ```shell
 sh scripts/unshard.sh configs/sst2/unshard.yml
 ```
+
+## Running basic inference
+
+For a simple HuggingFace inference example, refer to [tools/inference.py](tools/inference.py).
+For an example running tensor parallel inference, refer to [tools/tensor_parallel_inference.py](tools/tensor_parallel_inference.py).
 
 ## Using custom datasets
 The data directory should obey the following structure:

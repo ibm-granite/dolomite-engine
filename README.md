@@ -75,9 +75,11 @@ export_to_huggingface(
 ### Running basic inference
 
 ```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
-from dolomite_engine import hf_models
+import dolomite_engine.hf_models
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
 
 SYSTEM_PROMPT='<|system|>\nYou are an AI assistant developed by IBM. You are a cautious assistant. You carefully follow instructions. You are helpful and harmless and you follow ethical guidelines and promote positive behavior.'
 USER_PROMPT='<|user|>\n{value}\n'

@@ -11,14 +11,14 @@ from ..config import MoEDolomiteConfig
 
 class ParameterizedExperts(nn.Module):
     def __init__(
-        self, num_experts: int, in_features: int, out_features: int, add_bias: bool = True, std: float | None = None
+        self, num_experts: int, in_features: int, out_features: int, bias: bool = True, std: float | None = None
     ) -> None:
         super().__init__()
 
         self.weight = nn.Parameter(torch.empty(num_experts, out_features, in_features))
 
         self.bias = None
-        if add_bias:
+        if bias:
             self.bias = nn.Parameter(torch.empty(num_experts, out_features))
 
         self.std = std
@@ -86,7 +86,7 @@ class SparseMoE(nn.Module):
             num_experts=config.num_experts,
             in_features=self.hidden_size,
             out_features=2 * self.intermediate_size if is_glu(activation_function) else self.intermediate_size,
-            add_bias=config.add_bias,
+            bias=config.add_bias,
             std=std,
         )
 
@@ -99,7 +99,7 @@ class SparseMoE(nn.Module):
             num_experts=config.num_experts,
             in_features=self.intermediate_size,
             out_features=self.hidden_size,
-            add_bias=config.add_bias,
+            bias=config.add_bias,
             std=std,
         )
 

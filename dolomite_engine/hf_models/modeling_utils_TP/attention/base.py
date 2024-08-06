@@ -1,16 +1,20 @@
 import math
+from typing import Any, Mapping
 
 import torch
 import torch.distributed
 import torch.nn as nn
+from torch.distributed._tensor.api import DTensor
+from torch.distributed._tensor.placement_types import Partial, Replicate, Shard
 
 from ....utils import ProcessGroupManager, SafeTensorsWeightsManager
 from ...config import CommonConfig
 from ...enums import AttentionHeadType, InitMethod, PositionEmbeddingType
-from ...modeling_utils import Attention
+from ...modeling_utils import Attention, ParameterizedLinear
 from ...utils import divide_if_divisible
 from ..dropout import Dropout_TP
-from ..linear import ColumnParallelLinear, ReplicatedLinear, RowParallelLinear
+from ..linear import ColumnParallelLinear, RowParallelLinear
+from ..TP import dtensor_to_tensor, get_module_placements, modify_state_dict_to_dtensor_dict, tensor_to_dtensor
 
 
 class _BaseAttention_TP(nn.Module):
@@ -225,7 +229,7 @@ class _MQA_QueryKeyValueProjection(nn.Module):
         std = initializer_range / math.sqrt(2 * n_layer)
         if init_method == InitMethod.mup:
             std /= math.sqrt(m_width)
-        self.kv_attn = ReplicatedLinear(
+        self.kv_attn = _MQA_ReplicatedLinear(
             self.global_hidden_size,
             2 * self.head_dim,
             bias=self.add_bias,
@@ -264,6 +268,45 @@ class _MQA_QueryKeyValueProjection(nn.Module):
 
         self.q_attn.load_state_dict(q_attn_state_dict)
         self.kv_attn.load_state_dict(kv_attn_state_dict)
+
+
+class _MQA_ReplicatedLinear(ParameterizedLinear):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+        std: float | None = None,
+        use_padding_free_transformer: bool = False,
+        sequence_parallel: bool = False,
+    ) -> None:
+        super().__init__(in_features, out_features, bias, device, dtype, std)
+
+        self.weight = nn.Parameter(
+            DTensor.from_local(
+                self.weight, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+            )
+        )
+        if bias:
+            self.bias = nn.Parameter(
+                DTensor.from_local(
+                    self.bias, device_mesh=ProcessGroupManager.get_tensor_parallel_mesh(), placements=[Replicate()]
+                )
+            )
+
+        self.input_placement = get_module_placements(use_padding_free_transformer, sequence_parallel)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        input = tensor_to_dtensor(input, current_placement=self.input_placement)
+        input = super().forward(input)
+        input = dtensor_to_tensor(input, desired_placement=Replicate(), grad_placement=Partial())
+        return input
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False) -> None:
+        state_dict = modify_state_dict_to_dtensor_dict(self, state_dict)
+        return super().load_state_dict(state_dict, strict, assign)
 
 
 class Attention_TP(_BaseAttention_TP, Attention):

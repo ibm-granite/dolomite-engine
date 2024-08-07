@@ -230,6 +230,10 @@ def load_checkpoint_for_training(
 
         if load_lr_scheduler:
             lr_scheduler.load_state_dict(torch.load(_get_lr_scheduler_path(load_path)))
+        else:
+            if load_starting_iteration:
+                for _ in range(iteration):
+                    lr_scheduler.step()
     else:
         raise ValueError(f"unexpected distributed_backend ({distributed_backend})")
 

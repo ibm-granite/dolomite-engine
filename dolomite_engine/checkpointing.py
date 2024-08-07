@@ -273,7 +273,7 @@ def load_checkpoint_for_training(
     if not load_starting_iteration:
         iteration = 0
 
-    return iteration, metadata, experiments_tracker_json, lr_scheduler
+    return iteration, metadata, experiments_tracker_json
 
 
 def load_checkpoint_for_inference(

@@ -190,6 +190,8 @@ class LoadArgs(BaseArgs):
     load_experiments_tracker_state: bool = True
     # whether to load starting iteration
     load_starting_iteration: bool = True
+    # whether to override lr scheduler bounds
+    override_boundaries: bool = False
 
     def model_post_init(self, __context: Any) -> None:
         _check_not_None([(self.load_path, "load_path")])
@@ -198,6 +200,9 @@ class LoadArgs(BaseArgs):
             assert (
                 not self.load_lr_scheduler
             ), "lr_scheduler loading doesn't make sense if you aren't loading optimizer"
+
+        if self.override_boundaries:
+            assert self.load_lr_scheduler, "bounds can only be reset when you are loading the lr scheduler"
 
 
 class DatasetArgs(BaseArgs):

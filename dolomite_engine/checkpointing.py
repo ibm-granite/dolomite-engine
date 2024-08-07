@@ -31,6 +31,7 @@ from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, Mode, TuningMethod
 from .hf_models.models.gpt_dolomite_TP import fix_unsharded_state_dict
 from .model_wrapper import ModelWrapper, get_model
+from .optimization import get_lr_constant_boundary, get_lr_decay_boundary, get_lr_warmup_boundary
 from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
@@ -229,11 +230,25 @@ def load_checkpoint_for_training(
                 del optimizer_state_dict
 
         if load_lr_scheduler:
-            lr_scheduler.load_state_dict(torch.load(_get_lr_scheduler_path(load_path)))
-        else:
-            if load_starting_iteration:
-                for _ in range(iteration):
-                    lr_scheduler.step()
+            lr_scheduler_state = torch.load(_get_lr_scheduler_path(load_path))
+
+            if args.load_args.override_boundaries:
+                lr_scheduler_state["lr_warmup_boundary"] = get_lr_warmup_boundary(
+                    num_warmup_steps=args.lr_scheduler_args.num_warmup_steps
+                )
+                lr_scheduler_state["lr_constant_boundary"] = get_lr_constant_boundary(
+                    num_warmup_steps=args.lr_scheduler_args.num_warmup_steps,
+                    num_constant_steps=args.lr_scheduler_args.num_constant_steps,
+                )
+                lr_scheduler_state["lr_decay_boundary"] = get_lr_decay_boundary(
+                    num_warmup_steps=args.lr_scheduler_args.num_warmup_steps,
+                    num_constant_steps=args.lr_scheduler_args.num_constant_steps,
+                    num_decay_steps=args.lr_scheduler_args.num_decay_steps,
+                    num_training_steps=args.training_parameters.num_training_steps,
+                )
+
+            lr_scheduler.load_state_dict(lr_scheduler_state)
+            del lr_scheduler_state
     else:
         raise ValueError(f"unexpected distributed_backend ({distributed_backend})")
 
@@ -258,7 +273,7 @@ def load_checkpoint_for_training(
     if not load_starting_iteration:
         iteration = 0
 
-    return iteration, metadata, experiments_tracker_json
+    return iteration, metadata, experiments_tracker_json, lr_scheduler
 
 
 def load_checkpoint_for_inference(

@@ -205,14 +205,14 @@ def load_checkpoint_for_training(
                 state_dict_config=FullStateDictConfig(offload_to_cpu=True, rank0_only=False),
                 optim_state_dict_config=FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False),
             ):
-                model.load_state_dict(torch.load(f"{_get_model_path(load_path)}.pt"))
+                model.load_state_dict(torch.load(_get_model_path(load_path), map_location="cpu"))
 
                 if load_optimizer:
                     optimizer.load_state_dict(
                         FSDP.optim_state_dict_to_load(
                             model=model,
                             optim=optimizer,
-                            optim_state_dict=torch.load(f"{_get_optimizer_path(load_path)}.pt"),
+                            optim_state_dict=torch.load(_get_optimizer_path(load_path), map_location="cpu"),
                         )
                     )
         else:

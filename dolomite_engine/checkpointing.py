@@ -31,7 +31,7 @@ from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, Mode, TuningMethod
 from .hf_models.models.gpt_dolomite_TP import fix_unsharded_state_dict
 from .model_wrapper import ModelWrapper, get_model
-from .optimization import get_lr_constant_boundary, get_lr_decay_boundary, get_lr_warmup_boundary
+from .optimization import get_lr_constant_boundary, get_lr_decay_boundary, get_lr_warmup_boundary, get_scheduler
 from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,
@@ -230,25 +230,25 @@ def load_checkpoint_for_training(
                 del optimizer_state_dict
 
         if load_lr_scheduler:
-            lr_scheduler_state = torch.load(_get_lr_scheduler_path(load_path))
+            assert load_optimizer, "load_lr_scheduler requires loading of optimizer"
 
-            if args.load_args.override_boundaries:
-                lr_scheduler_state["lr_warmup_boundary"] = get_lr_warmup_boundary(
-                    num_warmup_steps=args.lr_scheduler_args.num_warmup_steps
-                )
-                lr_scheduler_state["lr_constant_boundary"] = get_lr_constant_boundary(
-                    num_warmup_steps=args.lr_scheduler_args.num_warmup_steps,
-                    num_constant_steps=args.lr_scheduler_args.num_constant_steps,
-                )
-                lr_scheduler_state["lr_decay_boundary"] = get_lr_decay_boundary(
+            lr_scheduler.load_state_dict(torch.load(_get_lr_scheduler_path(load_path)))
+        else:
+            if load_optimizer:
+                # we create lr scheduler again here since optimizer is loaded from disk and lr scheduler is now out of sync
+                # this helps to resume phase 2
+                lr_scheduler_tmp = get_scheduler(
+                    optimizer=optimizer,
                     num_warmup_steps=args.lr_scheduler_args.num_warmup_steps,
                     num_constant_steps=args.lr_scheduler_args.num_constant_steps,
                     num_decay_steps=args.lr_scheduler_args.num_decay_steps,
                     num_training_steps=args.training_parameters.num_training_steps,
+                    lr_decay_style=args.lr_scheduler_args.lr_decay_style,
+                    lr_decay_factor=args.lr_scheduler_args.lr_decay_factor,
+                    extra_lr_scheduler_args=args.lr_scheduler_args.extra_lr_scheduler_args,
                 )
-
-            lr_scheduler.load_state_dict(lr_scheduler_state)
-            del lr_scheduler_state
+                lr_scheduler.load_state_dict(lr_scheduler_tmp.state_dict())
+                del lr_scheduler_tmp
     else:
         raise ValueError(f"unexpected distributed_backend ({distributed_backend})")
 

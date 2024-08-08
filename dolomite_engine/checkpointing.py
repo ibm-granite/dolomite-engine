@@ -234,7 +234,10 @@ def load_checkpoint_for_training(
 
             lr_scheduler.load_state_dict(torch.load(_get_lr_scheduler_path(load_path)))
         else:
-            if load_optimizer:
+            if args.load_args.resume_learning_rate:
+                for grp in optimizer.param_groups:
+                    grp["initial_lr"] = grp["lr"]
+
                 # we create lr scheduler again here since optimizer is loaded from disk and lr scheduler is now out of sync
                 # this helps to resume phase 2
                 lr_scheduler_tmp = get_scheduler(

@@ -31,7 +31,7 @@ from .distributed import wrap_model_for_distributed_training
 from .enums import DistributedBackend, Mode, TuningMethod
 from .hf_models.models.gpt_dolomite_TP import fix_unsharded_state_dict
 from .model_wrapper import ModelWrapper, get_model
-from .optimization import get_lr_constant_boundary, get_lr_decay_boundary, get_lr_warmup_boundary, get_scheduler
+from .optimization import get_scheduler
 from .utils import (
     ExperimentsTracker,
     ProcessGroupManager,

@@ -22,19 +22,6 @@ def _power(a: float, b: float, x: float) -> float:
     return a * (x**b)
 
 
-def get_lr_decay_boundary(
-    num_warmup_steps: int, num_constant_steps: int, num_decay_steps: int | None, num_training_steps: int
-) -> int:
-    lr_decay_boundary = num_training_steps
-    if num_decay_steps is not None:
-        lr_decay_boundary = (
-            get_lr_constant_boundary(num_warmup_steps=num_warmup_steps, num_constant_steps=num_constant_steps)
-            + num_decay_steps
-        )
-
-    return lr_decay_boundary
-
-
 class _LRScheduler(LambdaLR):
     def __init__(
         self,

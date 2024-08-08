@@ -22,14 +22,6 @@ def _power(a: float, b: float, x: float) -> float:
     return a * (x**b)
 
 
-def get_lr_warmup_boundary(num_warmup_steps: int) -> int:
-    return num_warmup_steps
-
-
-def get_lr_constant_boundary(num_warmup_steps: int, num_constant_steps: int) -> int:
-    return get_lr_warmup_boundary(num_warmup_steps) + num_constant_steps
-
-
 def get_lr_decay_boundary(
     num_warmup_steps: int, num_constant_steps: int, num_decay_steps: int | None, num_training_steps: int
 ) -> int:
@@ -53,16 +45,12 @@ class _LRScheduler(LambdaLR):
         num_training_steps: int,
         lr_decay_factor: float,
     ) -> None:
-        self.lr_warmup_boundary = get_lr_warmup_boundary(num_warmup_steps)
-        self.lr_constant_boundary = get_lr_constant_boundary(
-            num_warmup_steps=num_warmup_steps, num_constant_steps=num_constant_steps
-        )
-        self.lr_decay_boundary = get_lr_decay_boundary(
-            num_warmup_steps=num_warmup_steps,
-            num_constant_steps=num_constant_steps,
-            num_decay_steps=num_decay_steps,
-            num_training_steps=num_training_steps,
-        )
+        self.lr_warmup_boundary = num_warmup_steps
+        self.lr_constant_boundary = self.lr_warmup_boundary + num_constant_steps
+
+        self.lr_decay_boundary = num_training_steps
+        if num_decay_steps is not None:
+            self.lr_decay_boundary = self.lr_constant_boundary + num_decay_steps
 
         self.lr_decay_factor = lr_decay_factor
 
